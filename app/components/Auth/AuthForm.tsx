@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { auth } from '@/app/utils/firebase';
 import { motion } from 'framer-motion';
+import { saveUserData, UserData } from '@/app/utils/userService';
 import {
   createUserWithEmailAndPassword,
   signInWithEmailAndPassword,
@@ -13,6 +14,64 @@ import {
 interface AuthFormProps {
   onSuccess?: () => void;
 }
+
+const initialUserData: UserData = {
+  personalInfo: {
+    name: '',
+    age: 0,
+    gender: '',
+    bodyType: '',
+    bodyFat: 0
+  },
+  fitnessGoals: [],
+  weightGoals: {
+    currentWeight: 0,
+    targetWeight: 0
+  },
+  experienceLevel: '',
+  weightliftingExperience: '',
+  workoutPreferences: {
+    daysPerWeek: 0,
+    timePerWorkout: 0,
+    preferredTime: '',
+    location: '',
+    frequency: '',
+    duration: ''
+  },
+  weeklySchedule: [],
+  dailyRoutine: {
+    wakeUpTime: '',
+    sleepTime: '',
+    mealtimes: []
+  },
+  exercisePreferences: {
+    preferredExercises: [],
+    avoidExercises: []
+  },
+  healthConditions: {
+    conditions: [],
+    medications: [],
+    injuries: []
+  },
+  measurements: {
+    height: 0,
+    weight: 0,
+    chest: 0,
+    waist: 0,
+    hips: 0,
+    arms: 0,
+    legs: 0
+  },
+  stressLevel: {
+    level: '',
+    stressors: []
+  },
+  trainingHistory: {
+    previousExperience: [],
+    trainingDuration: '',
+    consistency: ''
+  }
+};
 
 export default function AuthForm({ onSuccess }: AuthFormProps) {
   const [isLogin, setIsLogin] = useState(true);
@@ -30,7 +89,9 @@ export default function AuthForm({ onSuccess }: AuthFormProps) {
       if (isLogin) {
         await signInWithEmailAndPassword(auth, email, password);
       } else {
-        await createUserWithEmailAndPassword(auth, email, password);
+        const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+        // Create initial user data in Firestore
+        await saveUserData(initialUserData);
       }
       onSuccess?.();
     } catch (error: any) {
@@ -74,59 +135,78 @@ export default function AuthForm({ onSuccess }: AuthFormProps) {
           </p>
         </div>
 
-        <form className="mt-8 space-y-6" onSubmit={handleSubmit}>
-          <div className="rounded-md shadow-sm space-y-4">
-            <div>
-              <label htmlFor="email" className="sr-only">
-                Email address
-              </label>
-              <input
-                id="email"
-                name="email"
-                type="email"
-                required
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                className="appearance-none rounded-lg relative block w-full px-3 py-2 border border-gray-700 bg-gray-700 text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-                placeholder="Email address"
-              />
-            </div>
-            <div>
-              <label htmlFor="password" className="sr-only">
-                Password
-              </label>
-              <input
-                id="password"
-                name="password"
-                type="password"
-                required
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                className="appearance-none rounded-lg relative block w-full px-3 py-2 border border-gray-700 bg-gray-700 text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-                placeholder="Password"
-              />
-            </div>
-          </div>
+        <motion.form 
+          onSubmit={handleSubmit} 
+          className="space-y-6"
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.3 }}
+        >
+          <motion.div
+            initial={{ opacity: 0, x: -20 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ delay: 0.1 }}
+          >
+            <label htmlFor="email" className="block text-sm font-medium text-gray-300">
+              Email
+            </label>
+            <input
+              type="email"
+              id="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              className="mt-1 block w-full rounded-md bg-gray-800 border-gray-700 text-white shadow-sm focus:border-purple-500 focus:ring-purple-500"
+              required
+            />
+          </motion.div>
+
+          <motion.div
+            initial={{ opacity: 0, x: -20 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ delay: 0.2 }}
+          >
+            <label htmlFor="password" className="block text-sm font-medium text-gray-300">
+              Password
+            </label>
+            <input
+              type="password"
+              id="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              className="mt-1 block w-full rounded-md bg-gray-800 border-gray-700 text-white shadow-sm focus:border-purple-500 focus:ring-purple-500"
+              required
+            />
+          </motion.div>
 
           {error && (
-            <div className="text-red-500 text-sm text-center">{error}</div>
+            <motion.p 
+              className="text-red-500 text-sm"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+            >
+              {error}
+            </motion.p>
           )}
 
-          <div>
-            <motion.button
-              whileHover={{ scale: 1.02 }}
-              whileTap={{ scale: 0.98 }}
-              type="submit"
-              disabled={loading}
-              className="group relative w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-purple-600 hover:bg-purple-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-purple-500 disabled:opacity-50"
-            >
-              {loading ? (
-                <div className="w-5 h-5 border-t-2 border-white rounded-full animate-spin"></div>
-              ) : (
-                <>{isLogin ? 'Sign in' : 'Sign up'}</>
-              )}
-            </motion.button>
-          </div>
+          <motion.button
+            type="submit"
+            disabled={loading}
+            className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-purple-600 hover:bg-purple-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-purple-500 disabled:opacity-50"
+            whileHover={{ scale: 1.02 }}
+            whileTap={{ scale: 0.98 }}
+          >
+            {loading ? 'Please wait...' : (isLogin ? 'Sign In' : 'Sign Up')}
+          </motion.button>
+
+          <motion.button
+            type="button"
+            onClick={() => setIsLogin(!isLogin)}
+            className="w-full text-sm text-gray-400 hover:text-white"
+            whileHover={{ scale: 1.02 }}
+            whileTap={{ scale: 0.98 }}
+          >
+            {isLogin ? "Don't have an account? Sign Up" : "Already have an account? Sign In"}
+          </motion.button>
 
           <div className="mt-6">
             <div className="relative">
@@ -174,7 +254,7 @@ export default function AuthForm({ onSuccess }: AuthFormProps) {
               </motion.button>
             </div>
           </div>
-        </form>
+        </motion.form>
       </motion.div>
     </div>
   );

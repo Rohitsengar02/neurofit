@@ -102,21 +102,17 @@ export default function Home() {
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       if (user) {
-        const checkUserData = async () => {
-          try {
-            const data = await getUserData();
-            if (data) {
-              setUserData(data);
-              setOnboardingComplete(true);
-            }
-            setLoading(false);
-          } catch (error) {
-            console.error('Error checking user data:', error);
-            setLoading(false);
+        try {
+          const data = await getUserData();
+          if (data) {
+            setUserData(data);
+            setOnboardingComplete(true);
           }
-        };
-
-        checkUserData();
+          setLoading(false);
+        } catch (error) {
+          console.error('Error loading user data:', error);
+          setLoading(false);
+        }
       } else {
         setLoading(false);
       }
@@ -681,6 +677,28 @@ export default function Home() {
     }
   };
 
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, async (user) => {
+      if (user) {
+        try {
+          const data = await getUserData();
+          if (data) {
+            setUserData(data);
+            setOnboardingComplete(true);
+          }
+          setLoading(false);
+        } catch (error) {
+          console.error('Error loading user data:', error);
+          setLoading(false);
+        }
+      } else {
+        setLoading(false);
+      }
+    });
+
+    return () => unsubscribe();
+  }, []);
+
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-900 text-white flex items-center justify-center">
@@ -689,16 +707,29 @@ export default function Home() {
     );
   }
 
-  if (!userData) {
-    return <AuthForm />;
+  // If not authenticated, show auth form
+  if (!auth.currentUser) {
+    return (
+      <div className="min-h-screen bg-gray-900 flex flex-col items-center justify-center p-6">
+        <div className="max-w-md w-full">
+          <h1 className="text-3xl font-bold text-white text-center mb-8">
+            Welcome to NeuroFit
+          </h1>
+          <p className="text-gray-400 text-center mb-8">
+            Let&apos;s start by creating your account or signing in
+          </p>
+          <AuthForm onSuccess={() => setCurrentStep(1)} />
+        </div>
+      </div>
+    );
   }
 
-  // Show dashboard if onboarding is complete
+  // Show dashboard if user has completed onboarding
   if (onboardingComplete && userData) {
     return <Dashboard userData={userData} />;
   }
 
-  // Show onboarding steps if not complete
+  // Show onboarding steps if authenticated but not complete
   return (
     <div className="min-h-screen bg-gray-900 text-white">
       {renderOnboardingStep()}
