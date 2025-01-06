@@ -57,6 +57,17 @@ export interface UserData {
     trainingDuration: string;
     consistency: string;
   };
+  workouts?: Array<{
+    date: string;
+    type: string;
+    duration: number;
+    exercises: Array<{
+      name: string;
+      sets: number;
+      reps: number;
+      weight?: number;
+    }>;
+  }>;
 }
 
 export async function saveUserData(userData: UserData) {

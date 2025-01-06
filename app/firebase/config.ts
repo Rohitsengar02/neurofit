@@ -1,6 +1,6 @@
-import { initializeApp } from 'firebase/app';
+import { initializeApp, getApp, getApps } from 'firebase/app';
 import { getAuth, GoogleAuthProvider, FacebookAuthProvider } from 'firebase/auth';
-import { getFirestore } from 'firebase/firestore';
+import { getFirestore, collection, doc, setDoc } from 'firebase/firestore';
 
 const firebaseConfig = {
   apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
@@ -11,8 +11,32 @@ const firebaseConfig = {
   appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID
 };
 
-const app = initializeApp(firebaseConfig);
-export const auth = getAuth(app);
-export const db = getFirestore(app);
+// Initialize Firebase
+const app = getApps().length ? getApp() : initializeApp(firebaseConfig);
+const auth = getAuth(app);
+const db = getFirestore(app);
+
+// Initialize collections
+const initializeCollections = async (userId: string) => {
+  try {
+    // Create user document if it doesn't exist
+    const userRef = doc(db, 'users', userId);
+    await setDoc(userRef, {
+      currentStreak: 0,
+      highestStreak: 0,
+      lastWorkoutDate: null,
+      createdAt: new Date()
+    }, { merge: true });
+
+    // Ensure workouts collection exists
+    const workoutsRef = collection(db, 'workouts');
+    
+    console.log('Collections initialized successfully');
+  } catch (error) {
+    console.error('Error initializing collections:', error);
+  }
+};
+
 export const googleProvider = new GoogleAuthProvider();
 export const facebookProvider = new FacebookAuthProvider();
+export { app, auth, db, initializeCollections };
