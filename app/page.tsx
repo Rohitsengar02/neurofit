@@ -206,7 +206,7 @@ export default function Home() {
                 Welcome to NeuroFit
               </h1>
               <p className="text-gray-400 text-center mb-8">
-                Let's start by creating your account or signing in
+                Let&apos;s start by creating your account or signing in
               </p>
               <AuthForm onSuccess={() => {
                 setCurrentStep(2);

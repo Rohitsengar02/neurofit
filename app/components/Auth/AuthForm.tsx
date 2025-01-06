@@ -1,8 +1,8 @@
 'use client';
 
 import { useState } from 'react';
-import { motion } from 'framer-motion';
 import { auth } from '@/app/utils/firebase';
+import { motion } from 'framer-motion';
 import {
   createUserWithEmailAndPassword,
   signInWithEmailAndPassword,
@@ -65,10 +65,11 @@ export default function AuthForm({ onSuccess }: AuthFormProps) {
               ? "Don't have an account? "
               : 'Already have an account? '}
             <button
+              type="button"
               onClick={() => setIsLogin(!isLogin)}
-              className="font-medium text-purple-500 hover:text-purple-400"
+              className="w-full text-sm text-gray-400 hover:text-white"
             >
-              {isLogin ? 'Sign up' : 'Sign in'}
+              {isLogin ? "Don't have an account? Sign Up" : "Already have an account? Sign In"}
             </button>
           </p>
         </div>
