@@ -9,6 +9,7 @@ import StepLayout from './StepLayout';
 
 interface GoalSelectionProps {
   onNext: (goals: string[]) => Promise<void>;
+  onPrevious?: () => void;
   currentStep: number;
   totalSteps: number;
 }
@@ -50,6 +51,7 @@ const fitnessGoals = [
 
 export default function GoalSelection({
   onNext,
+  onPrevious,
   currentStep,
   totalSteps,
 }: GoalSelectionProps) {
@@ -81,6 +83,7 @@ export default function GoalSelection({
       currentStep={currentStep}
       totalSteps={totalSteps}
       onNext={selectedGoals.length > 0 ? handleNext : undefined}
+      onPrevious={onPrevious}
     >
       <div className="max-w-4xl mx-auto px-4 py-8">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">

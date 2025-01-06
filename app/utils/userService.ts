@@ -6,6 +6,8 @@ export interface UserData {
     name: string;
     age: number;
     gender: string;
+    bodyType: string;
+    bodyFat: number;
   };
   fitnessGoals: string[];
   weightGoals: {
@@ -13,10 +15,42 @@ export interface UserData {
     targetWeight: number;
   };
   experienceLevel: string;
+  weightliftingExperience: string;
   workoutPreferences: {
     daysPerWeek: number;
     timePerWorkout: number;
     preferredTime: string;
+    location: string;
+    frequency: string;
+    duration: string;
+  };
+  weeklySchedule: string[];
+  dailyRoutine: {
+    wakeUpTime: string;
+    sleepTime: string;
+    mealtimes: string[];
+  };
+  exercisePreferences: {
+    preferredExercises: string[];
+    avoidExercises: string[];
+  };
+  healthConditions: {
+    conditions: string[];
+    medications: string[];
+    injuries: string[];
+  };
+  measurements: {
+    height: number;
+    weight: number;
+    chest: number;
+    waist: number;
+    hips: number;
+    arms: number;
+    legs: number;
+  };
+  stressLevel: {
+    level: string;
+    stressors: string[];
   };
   trainingHistory: {
     previousExperience: string[];
@@ -25,16 +59,29 @@ export interface UserData {
   };
 }
 
-export const saveUserData = async (userData: UserData) => {
+export async function saveUserData(userData: UserData) {
   try {
     const user = auth.currentUser;
-    if (!user) throw new Error('No user logged in');
+    if (!user) {
+      throw new Error('No authenticated user found');
+    }
 
-    await setDoc(doc(db, 'users', user.uid), {
-      userData,
-      updatedAt: new Date().toISOString(),
-      userId: user.uid,
-      email: user.email
+    // Create a reference to the user's document in the users collection
+    const userRef = doc(db, 'users', user.uid);
+    
+    // Create a new document in the userData subcollection
+    const userDataRef = doc(db, `users/${user.uid}/userData`, 'profile');
+    
+    // Save basic user info in users collection
+    await setDoc(userRef, {
+      email: user.email,
+      lastUpdated: new Date().toISOString(),
+    }, { merge: true });
+
+    // Save detailed user data in userData subcollection
+    await setDoc(userDataRef, {
+      ...userData,
+      lastUpdated: new Date().toISOString(),
     });
 
     return true;
@@ -42,23 +89,25 @@ export const saveUserData = async (userData: UserData) => {
     console.error('Error saving user data:', error);
     throw error;
   }
-};
+}
 
-export const getUserData = async () => {
+export async function getUserData(): Promise<UserData | null> {
   try {
     const user = auth.currentUser;
-    if (!user) throw new Error('No user logged in');
+    if (!user) {
+      throw new Error('No authenticated user found');
+    }
 
-    const docRef = doc(db, 'users', user.uid);
-    const docSnap = await getDoc(docRef);
+    const userDataRef = doc(db, `users/${user.uid}/userData`, 'profile');
+    const docSnap = await getDoc(userDataRef);
 
     if (docSnap.exists()) {
-      return docSnap.data().userData as UserData;
+      return docSnap.data() as UserData;
     }
-    
+
     return null;
   } catch (error) {
     console.error('Error getting user data:', error);
     throw error;
   }
-};
+}
