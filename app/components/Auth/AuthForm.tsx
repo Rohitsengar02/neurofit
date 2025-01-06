@@ -3,12 +3,13 @@
 import { useState } from 'react';
 import { auth } from '@/app/utils/firebase';
 import { motion } from 'framer-motion';
-import { saveUserData, UserData } from '@/app/utils/userService';
+import { saveUserData, getUserData, UserData } from '@/app/utils/userService';
 import {
   createUserWithEmailAndPassword,
   signInWithEmailAndPassword,
   signInWithPopup,
-  GoogleAuthProvider
+  GoogleAuthProvider,
+  AuthError
 } from 'firebase/auth';
 
 interface AuthFormProps {
@@ -86,16 +87,68 @@ export default function AuthForm({ onSuccess }: AuthFormProps) {
     setLoading(true);
 
     try {
+      console.log('Attempting auth with:', { email, isLogin });
+      
       if (isLogin) {
-        await signInWithEmailAndPassword(auth, email, password);
+        // Handle login
+        const userCredential = await signInWithEmailAndPassword(auth, email, password);
+        console.log('Login successful:', userCredential.user.uid);
+        
+        // Check if user data exists
+        const userData = await getUserData();
+        console.log('User data after login:', userData);
+        
+        if (userData) {
+          console.log('Existing user, proceeding to dashboard');
+          onSuccess?.();
+        } else {
+          console.log('No user data found, starting onboarding');
+          // Save initial data and start onboarding
+          await saveUserData(initialUserData);
+          onSuccess?.();
+        }
       } else {
+        // Handle signup
         const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+        console.log('Signup successful:', userCredential.user.uid);
+        
         // Create initial user data in Firestore
         await saveUserData(initialUserData);
+        console.log('Initial user data saved');
+        onSuccess?.();
       }
-      onSuccess?.();
     } catch (error: any) {
-      setError(error.message);
+      console.error('Auth error:', error);
+      const authError = error as AuthError;
+      let errorMessage = 'An error occurred during authentication';
+      
+      switch (authError.code) {
+        case 'auth/invalid-email':
+          errorMessage = 'Invalid email address';
+          break;
+        case 'auth/user-disabled':
+          errorMessage = 'This account has been disabled';
+          break;
+        case 'auth/user-not-found':
+          errorMessage = 'No account found with this email';
+          break;
+        case 'auth/wrong-password':
+          errorMessage = 'Incorrect password';
+          break;
+        case 'auth/invalid-credential':
+          errorMessage = 'Invalid email or password';
+          break;
+        case 'auth/email-already-in-use':
+          errorMessage = 'Email already in use';
+          break;
+        case 'auth/weak-password':
+          errorMessage = 'Password should be at least 6 characters';
+          break;
+        default:
+          errorMessage = authError.message;
+      }
+      
+      setError(errorMessage);
     } finally {
       setLoading(false);
     }
@@ -106,7 +159,8 @@ export default function AuthForm({ onSuccess }: AuthFormProps) {
       const provider = new GoogleAuthProvider();
       await signInWithPopup(auth, provider);
     } catch (error: any) {
-      setError(error.message);
+      console.error('Google sign in error:', error);
+      setError('An error occurred during Google sign in');
     }
   };
 
@@ -175,6 +229,7 @@ export default function AuthForm({ onSuccess }: AuthFormProps) {
               onChange={(e) => setPassword(e.target.value)}
               className="mt-1 block w-full rounded-md bg-gray-800 border-gray-700 text-white shadow-sm focus:border-purple-500 focus:ring-purple-500"
               required
+              minLength={6}
             />
           </motion.div>
 

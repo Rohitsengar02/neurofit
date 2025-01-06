@@ -1,11 +1,13 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
-import { useRouter } from 'next/navigation';
-import { onAuthStateChanged } from 'firebase/auth';
+import { useState, useEffect } from 'react';
+import { motion } from 'framer-motion';
+import AuthForm from './components/Auth/AuthForm';
+import Dashboard from './components/Dashboard/Dashboard';
 import { auth } from './utils/firebase';
 import { getUserData, saveUserData, UserData } from './utils/userService';
-import AuthForm from './components/Auth/AuthForm';
+import { onAuthStateChanged } from 'firebase/auth';
+import { useRouter } from 'next/navigation';
 import AgeSelection from './components/OnboardingSteps/AgeSelection';
 import BodyFatSelection from './components/OnboardingSteps/BodyFatSelection';
 import BodyTypeSelection from './components/OnboardingSteps/BodyTypeSelection';
@@ -14,7 +16,6 @@ import ExercisePreferences from './components/OnboardingSteps/ExercisePreference
 import ExperienceLevel from './components/OnboardingSteps/ExperienceLevel';
 import FitnessGoals from './components/OnboardingSteps/FitnessGoals';
 import GenderSelection from './components/OnboardingSteps/GenderSelection';
-import GoalSelection from './components/OnboardingSteps/GoalSelection';
 import HealthConditions from './components/OnboardingSteps/HealthConditions';
 import Measurements from './components/OnboardingSteps/Measurements';
 import StressLevel from './components/OnboardingSteps/StressLevel';
@@ -26,7 +27,6 @@ import WorkoutDuration from './components/OnboardingSteps/WorkoutDuration';
 import WorkoutFrequency from './components/OnboardingSteps/WorkoutFrequency';
 import WorkoutLocation from './components/OnboardingSteps/WorkoutLocation';
 import WorkoutTimePreference from './components/OnboardingSteps/WorkoutTimePreference';
-import Dashboard from './components/Dashboard/Dashboard';
 
 interface StepProps {
   onNext: (...args: any[]) => Promise<void>;
@@ -35,66 +35,68 @@ interface StepProps {
   onPrevious: () => void;
 }
 
+const initialUserData: UserData = {
+  personalInfo: {
+    name: '',
+    age: 0,
+    gender: '',
+    bodyType: '',
+    bodyFat: 0
+  },
+  fitnessGoals: [],
+  weightGoals: {
+    currentWeight: 0,
+    targetWeight: 0
+  },
+  experienceLevel: '',
+  weightliftingExperience: '',
+  workoutPreferences: {
+    daysPerWeek: 0,
+    timePerWorkout: 0,
+    preferredTime: '',
+    location: '',
+    frequency: '',
+    duration: ''
+  },
+  weeklySchedule: [],
+  dailyRoutine: {
+    wakeUpTime: '',
+    sleepTime: '',
+    mealtimes: []
+  },
+  exercisePreferences: {
+    preferredExercises: [],
+    avoidExercises: []
+  },
+  healthConditions: {
+    conditions: [],
+    medications: [],
+    injuries: []
+  },
+  measurements: {
+    height: 0,
+    weight: 0,
+    chest: 0,
+    waist: 0,
+    hips: 0,
+    arms: 0,
+    legs: 0
+  },
+  stressLevel: {
+    level: '',
+    stressors: []
+  },
+  trainingHistory: {
+    previousExperience: [],
+    trainingDuration: '',
+    consistency: ''
+  }
+};
+
 export default function Home() {
-  const [currentStep, setCurrentStep] = useState(1);
-  const [userData, setUserData] = useState<UserData>({
-    personalInfo: {
-      name: '',
-      age: 0,
-      gender: '',
-      bodyType: '',
-      bodyFat: 0
-    },
-    fitnessGoals: [],
-    weightGoals: {
-      currentWeight: 0,
-      targetWeight: 0
-    },
-    experienceLevel: '',
-    weightliftingExperience: '',
-    workoutPreferences: {
-      daysPerWeek: 0,
-      timePerWorkout: 0,
-      preferredTime: '',
-      location: '',
-      frequency: '',
-      duration: ''
-    },
-    weeklySchedule: [],
-    dailyRoutine: {
-      wakeUpTime: '',
-      sleepTime: '',
-      mealtimes: []
-    },
-    exercisePreferences: {
-      preferredExercises: [],
-      avoidExercises: []
-    },
-    healthConditions: {
-      conditions: [],
-      medications: [],
-      injuries: []
-    },
-    measurements: {
-      height: 0,
-      weight: 0,
-      chest: 0,
-      waist: 0,
-      hips: 0,
-      arms: 0,
-      legs: 0
-    },
-    stressLevel: {
-      level: '',
-      stressors: []
-    },
-    trainingHistory: {
-      previousExperience: [],
-      trainingDuration: '',
-      consistency: ''
-    }
-  });
+  const [currentStep, setCurrentStep] = useState(0);
   const [loading, setLoading] = useState(true);
+  const [userData, setUserData] = useState<UserData>(initialUserData);
   const [onboardingComplete, setOnboardingComplete] = useState(false);
   const router = useRouter();
   const totalSteps = 20;
@@ -103,601 +105,345 @@ export default function Home() {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       if (user) {
         try {
+          console.log('User is authenticated:', user.uid);
           const data = await getUserData();
+          console.log('Fetched user data:', data);
           if (data) {
             setUserData(data);
             setOnboardingComplete(true);
+            console.log('User has completed onboarding');
+          } else {
+            setCurrentStep(1);
+            setUserData(initialUserData);
+            console.log('User needs to complete onboarding');
           }
-          setLoading(false);
         } catch (error) {
           console.error('Error loading user data:', error);
-          setLoading(false);
         }
       } else {
-        setLoading(false);
+        console.log('No authenticated user');
+        setCurrentStep(0);
+        setUserData(initialUserData);
+        setOnboardingComplete(false);
       }
+      setLoading(false);
     });
 
     return () => unsubscribe();
   }, []);
 
-  const handleGoalSelection = async (goals: string[]) => {
+  const updateUserData = async (newData: Partial<UserData>) => {
     try {
       const updatedData = {
         ...userData,
-        fitnessGoals: goals
+        ...newData
       };
-      await saveUserData(updatedData);
       setUserData(updatedData);
-      setCurrentStep(6);
+      await saveUserData(updatedData);
+      return true;
     } catch (error) {
-      console.error('Error saving goals:', error);
+      console.error('Error updating user data:', error);
+      return false;
     }
   };
 
-  const handleExperienceLevel = async (level: string) => {
+  const handleNext = async (stepData: any) => {
     try {
-      const updatedData = {
-        ...userData,
-        experienceLevel: level
-      };
-      await saveUserData(updatedData);
-      setUserData(updatedData);
-      setCurrentStep(9);
+      await updateUserData(stepData);
+      if (currentStep < totalSteps) {
+        setCurrentStep(currentStep + 1);
+      } else {
+        setOnboardingComplete(true);
+      }
     } catch (error) {
-      console.error('Error saving experience level:', error);
+      console.error('Error in handleNext:', error);
     }
   };
 
-  const handleWorkoutPreferences = async (data: {
-    daysPerWeek: number;
-    timePerWorkout: number;
-    preferredTime: string;
-  }) => {
-    try {
-      const updatedData = {
-        ...userData,
-        workoutPreferences: {
-          ...userData.workoutPreferences,
-          ...data
-        }
-      };
-      await saveUserData(updatedData);
-      setUserData(updatedData);
-      setCurrentStep(14);
-    } catch (error) {
-      console.error('Error saving workout preferences:', error);
+  const handlePrevious = () => {
+    if (currentStep > 1) {
+      setCurrentStep(currentStep - 1);
     }
   };
-
-  const handleTrainingHistory = async (data: {
-    previousExperience: string[];
-    trainingDuration: string;
-    consistency: string;
-  }) => {
-    try {
-      const updatedData = {
-        ...userData,
-        trainingHistory: data
-      };
-      await saveUserData(updatedData);
-      setUserData(updatedData);
-      setOnboardingComplete(true);
-    } catch (error) {
-      console.error('Error saving training history:', error);
-    }
-  };
-
-  const handlePrevious = useCallback((step: number) => {
-    setCurrentStep(step);
-  }, []);
 
   const renderOnboardingStep = () => {
+    const commonProps = {
+      currentStep,
+      totalSteps,
+      onPrevious: handlePrevious,
+      userData
+    };
+
     switch (currentStep) {
-      case 1:
+      case 0:
         return (
           <div className="min-h-screen bg-gray-900 flex flex-col items-center justify-center p-6">
             <div className="max-w-md w-full">
               <h1 className="text-3xl font-bold text-white text-center mb-8">
                 Welcome to NeuroFit
               </h1>
-              <p className="text-gray-400 text-center mb-8">
-                Let&apos;s start by creating your account or signing in
-              </p>
-              <AuthForm onSuccess={() => {
-                setCurrentStep(2);
-              }} />
+              <AuthForm onSuccess={() => setCurrentStep(1)} />
             </div>
           </div>
+        );
+      case 1:
+        return (
+          <AgeSelection
+            {...commonProps}
+            onNext={async (data: { age: number }) => {
+              await handleNext({
+                personalInfo: { ...userData.personalInfo, age: data.age }
+              });
+            }}
+          />
         );
       case 2:
         return (
           <GenderSelection
-            onNext={async ({ gender }: { gender: string }) => {
-              try {
-                const updatedData = {
-                  ...userData,
-                  personalInfo: { ...userData.personalInfo, gender }
-                };
-                await saveUserData(updatedData);
-                setUserData(updatedData);
-                setCurrentStep(3);
-              } catch (error) {
-                console.error('Error saving gender:', error);
-              }
+            {...commonProps}
+            onNext={async (data: { gender: string }) => {
+              await handleNext({
+                personalInfo: { ...userData.personalInfo, gender: data.gender }
+              });
             }}
-            currentStep={currentStep}
-            totalSteps={totalSteps}
-            onPrevious={() => handlePrevious(1)}
           />
         );
       case 3:
         return (
-          <AgeSelection
-            onNext={async ({ age }: { age: number }) => {
-              try {
-                const updatedData = {
-                  ...userData,
-                  personalInfo: { ...userData.personalInfo, age }
-                };
-                await saveUserData(updatedData);
-                setUserData(updatedData);
-                setCurrentStep(4);
-              } catch (error) {
-                console.error('Error saving age:', error);
-              }
+          <BodyTypeSelection
+            {...commonProps}
+            onNext={async (data: { bodyType: string }) => {
+              await handleNext({
+                personalInfo: { ...userData.personalInfo, bodyType: data.bodyType }
+              });
             }}
-            currentStep={currentStep}
-            totalSteps={totalSteps}
-            onPrevious={() => handlePrevious(2)}
           />
         );
       case 4:
         return (
-          <BodyTypeSelection
-            onNext={async ({ bodyType }: { bodyType: string}) => {
-              try {
-                const updatedData = {
-                  ...userData,
-                  personalInfo: { ...userData.personalInfo, bodyType }
-                };
-                await saveUserData(updatedData);
-                setUserData(updatedData);
-                setCurrentStep(5);
-              } catch (error) {
-                console.error('Error saving body type:', error);
-              }
+          <BodyFatSelection
+            {...commonProps}
+            onNext={async (data: { bodyFat: number }) => {
+              await handleNext({
+                personalInfo: { ...userData.personalInfo, bodyFat: data.bodyFat }
+              });
             }}
-            currentStep={currentStep}
-            totalSteps={totalSteps}
-            onPrevious={() => handlePrevious(3)}
           />
         );
       case 5:
         return (
-          <BodyFatSelection
-            onNext={async ({ bodyFat }: { bodyFat: number }) => {
-              try {
-                const updatedData = {
-                  ...userData,
-                  personalInfo: { ...userData.personalInfo, bodyFat }
-                };
-                await saveUserData(updatedData);
-                setUserData(updatedData);
-                setCurrentStep(6);
-              } catch (error) {
-                console.error('Error saving body fat:', error);
-              }
+          <FitnessGoals
+            {...commonProps}
+            onNext={async (goals: string[]) => {
+              await handleNext({
+                fitnessGoals: goals
+              });
             }}
-            currentStep={currentStep}
-            totalSteps={totalSteps}
-            onPrevious={() => handlePrevious(4)}
           />
         );
-      
       case 6:
         return (
-          <FitnessGoals
-            onNext={async (goals: string[]) => {
-              try {
-                const updatedData = {
-                  ...userData,
-                  fitnessGoals: goals
-                };
-                await saveUserData(updatedData);
-                setUserData(updatedData);
-                setCurrentStep(7);
-              } catch (error) {
-                console.error('Error saving fitness goals:', error);
-              }
+          <WeightGoals
+            {...commonProps}
+            onNext={async ({ currentWeight, targetWeight }: { currentWeight: number; targetWeight: number }) => {
+              await handleNext({
+                weightGoals: { currentWeight, targetWeight }
+              });
             }}
-            currentStep={currentStep}
-            totalSteps={totalSteps}
-            onPrevious={() => handlePrevious(5)}
           />
         );
       case 7:
         return (
-          <WeightGoals
-            onNext={async ({ currentWeight, targetWeight }: { currentWeight: number; targetWeight: number }) => {
-              try {
-                const updatedData = {
-                  ...userData,
-                  weightGoals: { currentWeight, targetWeight }
-                };
-                await saveUserData(updatedData);
-                setUserData(updatedData);
-                setCurrentStep(8);
-              } catch (error) {
-                console.error('Error saving weight goals:', error);
-              }
+          <ExperienceLevel
+            {...commonProps}
+            onNext={async (level: string) => {
+              await handleNext({
+                experienceLevel: level
+              });
             }}
-            currentStep={currentStep}
-            totalSteps={totalSteps}
-            onPrevious={() => handlePrevious(6)}
           />
         );
       case 8:
         return (
-          <ExperienceLevel
-            onNext={async (level: string) => {
-              try {
-                const updatedData = {
-                  ...userData,
-                  experienceLevel: level
-                };
-                await saveUserData(updatedData);
-                setUserData(updatedData);
-                setCurrentStep(9);
-              } catch (error) {
-                console.error('Error saving experience level:', error);
-              }
+          <WeightliftingExperience
+            {...commonProps}
+            onNext={async (experience: string) => {
+              await handleNext({
+                weightliftingExperience: experience
+              });
             }}
-            currentStep={currentStep}
-            totalSteps={totalSteps}
-            onPrevious={() => handlePrevious(7)}
           />
         );
       case 9:
         return (
-          <WeightliftingExperience
-            onNext={async (experience: string) => {
-              try {
-                const updatedData = {
-                  ...userData,
-                  weightliftingExperience: experience
-                };
-                await saveUserData(updatedData);
-                setUserData(updatedData);
-                setCurrentStep(10);
-              } catch (error) {
-                console.error('Error saving weightlifting experience:', error);
-              }
+          <WorkoutLocation
+            {...commonProps}
+            onNext={async (location: string) => {
+              await handleNext({
+                workoutPreferences: { ...userData.workoutPreferences, location }
+              });
             }}
-            currentStep={currentStep}
-            totalSteps={totalSteps}
-            onPrevious={() => handlePrevious(8)}
           />
         );
       case 10:
         return (
-          <WorkoutLocation
-            onNext={async (location: string) => {
-              try {
-                const updatedData = {
-                  ...userData,
-                  workoutPreferences: {
-                    ...userData.workoutPreferences,
-                    location
-                  }
-                };
-                await saveUserData(updatedData);
-                setUserData(updatedData);
-                setCurrentStep(11);
-              } catch (error) {
-                console.error('Error saving workout location:', error);
-              }
+          <WorkoutFrequency
+            {...commonProps}
+            onNext={async (frequency: string) => {
+              await handleNext({
+                workoutPreferences: { ...userData.workoutPreferences, frequency }
+              });
             }}
-            currentStep={currentStep}
-            totalSteps={totalSteps}
-            onPrevious={() => handlePrevious(9)}
           />
         );
       case 11:
         return (
-          <WorkoutFrequency
-            onNext={async (frequency: string) => {
-              try {
-                const updatedData = {
-                  ...userData,
-                  workoutPreferences: {
-                    ...userData.workoutPreferences,
-                    frequency
-                  }
-                };
-                await saveUserData(updatedData);
-                setUserData(updatedData);
-                setCurrentStep(12);
-              } catch (error) {
-                console.error('Error saving workout frequency:', error);
-              }
+          <WorkoutDuration
+            {...commonProps}
+            onNext={async (duration: number) => {
+              await handleNext({
+                workoutPreferences: { ...userData.workoutPreferences, duration: duration.toString() }
+              });
             }}
-            currentStep={currentStep}
-            totalSteps={totalSteps}
-            onPrevious={() => handlePrevious(10)}
           />
         );
       case 12:
         return (
-          <WorkoutDuration
-            onNext={async (duration: number) => {
-              try {
-                const updatedData = {
-                  ...userData,
-                  workoutPreferences: {
-                    ...userData.workoutPreferences,
-                    duration: duration.toString()
-                  }
-                };
-                await saveUserData(updatedData);
-                setUserData(updatedData);
-                setCurrentStep(13);
-              } catch (error) {
-                console.error('Error saving workout duration:', error);
-              }
+          <WorkoutTimePreference
+            {...commonProps}
+            onNext={async ({ preferredTime, daysPerWeek, timePerWorkout }: { preferredTime: string; daysPerWeek: number; timePerWorkout: number }) => {
+              await handleNext({
+                workoutPreferences: { ...userData.workoutPreferences, preferredTime, daysPerWeek, timePerWorkout }
+              });
             }}
-            currentStep={currentStep}
-            totalSteps={totalSteps}
-            onPrevious={() => handlePrevious(11)}
           />
         );
       case 13:
         return (
-          <WorkoutTimePreference
-            onNext={async ({ preferredTime, daysPerWeek, timePerWorkout }: { preferredTime: string; daysPerWeek: number; timePerWorkout: number }) => {
-              try {
-                const updatedData = {
-                  ...userData,
-                  workoutPreferences: {
-                    ...userData.workoutPreferences,
-                    preferredTime,
-                    daysPerWeek,
-                    timePerWorkout
-                  }
-                };
-                await saveUserData(updatedData);
-                setUserData(updatedData);
-                setCurrentStep(14);
-              } catch (error) {
-                console.error('Error saving workout preferences:', error);
-              }
+          <WeeklySchedule
+            {...commonProps}
+            onNext={async ({ days, sessionsPerWeek }: { days: string[]; sessionsPerWeek: number }) => {
+              await handleNext({
+                weeklySchedule: days,
+                workoutPreferences: { ...userData.workoutPreferences, daysPerWeek: sessionsPerWeek }
+              });
             }}
-            currentStep={currentStep}
-            totalSteps={totalSteps}
-            onPrevious={() => handlePrevious(12)}
           />
         );
       case 14:
         return (
-          <WeeklySchedule
-            onNext={async ({ days, sessionsPerWeek }: { days: string[]; sessionsPerWeek: number }) => {
-              try {
-                const updatedData = {
-                  ...userData,
-                  weeklySchedule: days,
-                  workoutPreferences: {
-                    ...userData.workoutPreferences,
-                    daysPerWeek: sessionsPerWeek
-                  }
-                };
-                await saveUserData(updatedData);
-                setUserData(updatedData);
-                setCurrentStep(15);
-              } catch (error) {
-                console.error('Error saving weekly schedule:', error);
-              }
-            }}
-            currentStep={currentStep}
-            totalSteps={totalSteps}
-            onPrevious={() => handlePrevious(13)}
-          />
-        );
-      case 15:
-        return (
           <DailyRoutine
+            {...commonProps}
             onNext={async ({ wakeTime, sleepTime, mealsPerDay, workHours }: { 
               wakeTime: string; 
               sleepTime: string; 
               mealsPerDay: number;
               workHours: number;
             }) => {
-              try {
-                const updatedData = {
-                  ...userData,
-                  dailyRoutine: { 
-                    wakeUpTime: wakeTime, 
-                    sleepTime, 
-                    mealtimes: Array(mealsPerDay).fill(''), // Initialize empty mealtime slots
-                    workHours
-                  }
-                };
-                await saveUserData(updatedData);
-                setUserData(updatedData);
-                setCurrentStep(16);
-              } catch (error) {
-                console.error('Error saving daily routine:', error);
-              }
+              await handleNext({
+                dailyRoutine: { 
+                  wakeUpTime: wakeTime, 
+                  sleepTime, 
+                  mealtimes: Array(mealsPerDay).fill(''), // Initialize empty mealtime slots
+                  workHours
+                }
+              });
             }}
-            currentStep={currentStep}
-            totalSteps={totalSteps}
-            onPrevious={() => handlePrevious(14)}
+          />
+        );
+      case 15:
+        return (
+          <ExercisePreferences
+            {...commonProps}
+            onNext={async (preferences: string[]) => {
+              // Split the preferences into preferred and avoid exercises
+              // Assume preferences with '-' prefix are exercises to avoid
+              const preferredExercises = preferences.filter(p => !p.startsWith('-'));
+              const avoidExercises = preferences
+                .filter(p => p.startsWith('-'))
+                .map(p => p.substring(1));
+
+              await handleNext({
+                exercisePreferences: { preferredExercises, avoidExercises }
+              });
+            }}
           />
         );
       case 16:
         return (
-          <ExercisePreferences
-            onNext={async (preferences: string[]) => {
-              try {
-                // Split the preferences into preferred and avoid exercises
-                // Assume preferences with '-' prefix are exercises to avoid
-                const preferredExercises = preferences.filter(p => !p.startsWith('-'));
-                const avoidExercises = preferences
-                  .filter(p => p.startsWith('-'))
-                  .map(p => p.substring(1));
-
-                const updatedData = {
-                  ...userData,
-                  exercisePreferences: { preferredExercises, avoidExercises }
-                };
-                await saveUserData(updatedData);
-                setUserData(updatedData);
-                setCurrentStep(17);
-              } catch (error) {
-                console.error('Error saving exercise preferences:', error);
-              }
-            }}
-            currentStep={currentStep}
-            totalSteps={totalSteps}
-            onPrevious={() => handlePrevious(15)}
-          />
-        );
-      case 17:
-        return (
           <HealthConditions
+            {...commonProps}
             onNext={async ({ conditions, medications, injuries }: { 
               conditions: string[]; 
               medications: boolean;
               injuries: string[];
             }) => {
-              try {
-                const updatedData = {
-                  ...userData,
-                  healthConditions: { 
-                    conditions, 
-                    medications: medications ? ['Taking medications'] : [], 
-                    injuries 
-                  }
-                };
-                await saveUserData(updatedData);
-                setUserData(updatedData);
-                setCurrentStep(18);
-              } catch (error) {
-                console.error('Error saving health conditions:', error);
-              }
+              await handleNext({
+                healthConditions: { 
+                  conditions, 
+                  medications: medications ? ['Taking medications'] : [], 
+                  injuries 
+                }
+              });
             }}
-            currentStep={currentStep}
-            totalSteps={totalSteps}
-            onPrevious={() => handlePrevious(16)}
+          />
+        );
+      case 17:
+        return (
+          <Measurements
+            {...commonProps}
+            onNext={async ({ height, weight }: { height: number; weight: number }) => {
+              await handleNext({
+                measurements: {
+                  height,
+                  weight,
+                  chest: userData.measurements?.chest || 0,
+                  waist: userData.measurements?.waist || 0,
+                  hips: userData.measurements?.hips || 0,
+                  arms: userData.measurements?.arms || 0,
+                  legs: userData.measurements?.legs || 0
+                }
+              });
+            }}
           />
         );
       case 18:
         return (
-          <Measurements
-            onNext={async ({ height, weight }: { height: number; weight: number }) => {
-              try {
-                const updatedData = {
-                  ...userData,
-                  measurements: {
-                    height,
-                    weight,
-                    chest: userData.measurements?.chest || 0,
-                    waist: userData.measurements?.waist || 0,
-                    hips: userData.measurements?.hips || 0,
-                    arms: userData.measurements?.arms || 0,
-                    legs: userData.measurements?.legs || 0
-                  }
-                };
-                await saveUserData(updatedData);
-                setUserData(updatedData);
-                setCurrentStep(19);
-              } catch (error) {
-                console.error('Error saving measurements:', error);
-              }
+          <StressLevel
+            {...commonProps}
+            onNext={async ({ stressLevel, stressors }: { stressLevel: number; stressors: string[] }) => {
+              await handleNext({
+                stressLevel: { 
+                  level: stressLevel.toString(), // Convert number to string for storage
+                  stressors 
+                }
+              });
             }}
-            currentStep={currentStep}
-            totalSteps={totalSteps}
-            onPrevious={() => handlePrevious(17)}
           />
         );
       case 19:
         return (
-          <StressLevel
-            onNext={async ({ stressLevel, stressors }: { stressLevel: number; stressors: string[] }) => {
-              try {
-                const updatedData = {
-                  ...userData,
-                  stressLevel: { 
-                    level: stressLevel.toString(), // Convert number to string for storage
-                    stressors 
-                  }
-                };
-                await saveUserData(updatedData);
-                setUserData(updatedData);
-                setCurrentStep(20);
-              } catch (error) {
-                console.error('Error saving stress level:', error);
-              }
-            }}
-            currentStep={currentStep}
-            totalSteps={totalSteps}
-            onPrevious={() => handlePrevious(18)}
-          />
-        );
-      case 20:
-        return (
           <TrainingHistory
+            {...commonProps}
             onNext={async ({ previousExperience, trainingDuration, consistency }: {
               previousExperience: string[];
               trainingDuration: string;
               consistency: string;
             }) => {
-              try {
-                const updatedData = {
-                  ...userData,
-                  trainingHistory: {
-                    previousExperience,
-                    trainingDuration,
-                    consistency
-                  }
-                };
-                await saveUserData(updatedData);
-                setUserData(updatedData);
-                setOnboardingComplete(true);
-              } catch (error) {
-                console.error('Error saving training history:', error);
-              }
+              await handleNext({
+                trainingHistory: {
+                  previousExperience,
+                  trainingDuration,
+                  consistency
+                }
+              });
             }}
-            currentStep={currentStep}
-            totalSteps={totalSteps}
-            onPrevious={() => handlePrevious(19)}
           />
         );
       default:
         return null;
     }
   };
-
-  useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (user) => {
-      if (user) {
-        try {
-          const data = await getUserData();
-          if (data) {
-            setUserData(data);
-            setOnboardingComplete(true);
-          }
-          setLoading(false);
-        } catch (error) {
-          console.error('Error loading user data:', error);
-          setLoading(false);
-        }
-      } else {
-        setLoading(false);
-      }
-    });
-
-    return () => unsubscribe();
-  }, []);
 
   if (loading) {
     return (
@@ -707,29 +453,10 @@ export default function Home() {
     );
   }
 
-  // If not authenticated, show auth form
-  if (!auth.currentUser) {
-    return (
-      <div className="min-h-screen bg-gray-900 flex flex-col items-center justify-center p-6">
-        <div className="max-w-md w-full">
-          <h1 className="text-3xl font-bold text-white text-center mb-8">
-            Welcome to NeuroFit
-          </h1>
-          <p className="text-gray-400 text-center mb-8">
-            Let&apos;s start by creating your account or signing in
-          </p>
-          <AuthForm onSuccess={() => setCurrentStep(1)} />
-        </div>
-      </div>
-    );
-  }
-
-  // Show dashboard if user has completed onboarding
   if (onboardingComplete && userData) {
     return <Dashboard userData={userData} />;
   }
 
-  // Show onboarding steps if authenticated but not complete
   return (
     <div className="min-h-screen bg-gray-900 text-white">
       {renderOnboardingStep()}

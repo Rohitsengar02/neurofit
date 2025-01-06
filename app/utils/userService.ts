@@ -66,24 +66,23 @@ export async function saveUserData(userData: UserData) {
       throw new Error('No authenticated user found');
     }
 
-    // Create a reference to the user's document in the users collection
-    const userRef = doc(db, 'users', user.uid);
-    
-    // Create a new document in the userData subcollection
-    const userDataRef = doc(db, `users/${user.uid}/userData`, 'profile');
-    
     // Save basic user info in users collection
+    const userRef = doc(db, 'users', user.uid);
     await setDoc(userRef, {
       email: user.email,
+      uid: user.uid,
+      createdAt: new Date().toISOString(),
       lastUpdated: new Date().toISOString(),
     }, { merge: true });
 
     // Save detailed user data in userData subcollection
+    const userDataRef = doc(db, `users/${user.uid}/userData`, 'profile');
     await setDoc(userDataRef, {
       ...userData,
       lastUpdated: new Date().toISOString(),
-    });
+    }, { merge: true });
 
+    console.log('User data saved successfully');
     return true;
   } catch (error) {
     console.error('Error saving user data:', error);
