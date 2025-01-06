@@ -150,10 +150,15 @@ export default function Home() {
   const handleNext = async (stepData: any) => {
     try {
       await updateUserData(stepData);
-      if (currentStep < totalSteps) {
+      if (currentStep < totalSteps - 1) {
         setCurrentStep(currentStep + 1);
       } else {
+        console.log('Onboarding complete, showing dashboard');
         setOnboardingComplete(true);
+        const updatedData = await getUserData();
+        if (updatedData) {
+          setUserData(updatedData);
+        }
       }
     } catch (error) {
       console.error('Error in handleNext:', error);
@@ -454,7 +459,16 @@ export default function Home() {
   }
 
   if (onboardingComplete && userData) {
-    return <Dashboard userData={userData} />;
+    console.log('Rendering dashboard with user data:', userData);
+    return (
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ duration: 0.5 }}
+      >
+        <Dashboard userData={userData} />
+      </motion.div>
+    );
   }
 
   return (
