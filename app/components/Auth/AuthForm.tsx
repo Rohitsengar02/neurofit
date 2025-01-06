@@ -10,7 +10,11 @@ import {
   GoogleAuthProvider
 } from 'firebase/auth';
 
-export default function AuthForm() {
+interface AuthFormProps {
+  onSuccess?: () => void;
+}
+
+export default function AuthForm({ onSuccess }: AuthFormProps) {
   const [isLogin, setIsLogin] = useState(true);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -28,6 +32,7 @@ export default function AuthForm() {
       } else {
         await createUserWithEmailAndPassword(auth, email, password);
       }
+      onSuccess?.();
     } catch (error: any) {
       setError(error.message);
     } finally {

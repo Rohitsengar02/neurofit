@@ -200,6 +200,22 @@ export default function Home() {
     switch (currentStep) {
       case 1:
         return (
+          <div className="min-h-screen bg-gray-900 flex flex-col items-center justify-center p-6">
+            <div className="max-w-md w-full">
+              <h1 className="text-3xl font-bold text-white text-center mb-8">
+                Welcome to NeuroFit
+              </h1>
+              <p className="text-gray-400 text-center mb-8">
+                Let's start by creating your account or signing in
+              </p>
+              <AuthForm onSuccess={() => {
+                setCurrentStep(2);
+              }} />
+            </div>
+          </div>
+        );
+      case 2:
+        return (
           <GenderSelection
             onNext={async ({ gender }: { gender: string }) => {
               try {
@@ -209,7 +225,7 @@ export default function Home() {
                 };
                 await saveUserData(updatedData);
                 setUserData(updatedData);
-                setCurrentStep(2);
+                setCurrentStep(3);
               } catch (error) {
                 console.error('Error saving gender:', error);
               }
@@ -219,7 +235,7 @@ export default function Home() {
             onPrevious={() => handlePrevious(1)}
           />
         );
-      case 2:
+      case 3:
         return (
           <AgeSelection
             onNext={async ({ age }: { age: number }) => {
@@ -230,17 +246,17 @@ export default function Home() {
                 };
                 await saveUserData(updatedData);
                 setUserData(updatedData);
-                setCurrentStep(3);
+                setCurrentStep(4);
               } catch (error) {
                 console.error('Error saving age:', error);
               }
             }}
             currentStep={currentStep}
             totalSteps={totalSteps}
-            onPrevious={() => handlePrevious(1)}
+            onPrevious={() => handlePrevious(2)}
           />
         );
-      case 3:
+      case 4:
         return (
           <BodyTypeSelection
             onNext={async ({ bodyType }: { bodyType: string}) => {
@@ -251,17 +267,17 @@ export default function Home() {
                 };
                 await saveUserData(updatedData);
                 setUserData(updatedData);
-                setCurrentStep(4);
+                setCurrentStep(5);
               } catch (error) {
                 console.error('Error saving body type:', error);
               }
             }}
             currentStep={currentStep}
             totalSteps={totalSteps}
-            onPrevious={() => handlePrevious(2)}
+            onPrevious={() => handlePrevious(3)}
           />
         );
-      case 4:
+      case 5:
         return (
           <BodyFatSelection
             onNext={async ({ bodyFat }: { bodyFat: number }) => {
@@ -272,14 +288,14 @@ export default function Home() {
                 };
                 await saveUserData(updatedData);
                 setUserData(updatedData);
-                setCurrentStep(5);
+                setCurrentStep(6);
               } catch (error) {
                 console.error('Error saving body fat:', error);
               }
             }}
             currentStep={currentStep}
             totalSteps={totalSteps}
-            onPrevious={() => handlePrevious(3)}
+            onPrevious={() => handlePrevious(4)}
           />
         );
       
