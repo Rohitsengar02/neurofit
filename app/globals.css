@@ -151,3 +151,338 @@ body {
     padding-bottom: calc(1rem + env(safe-area-inset-bottom));
   }
 }
+
+/* Calendar Styles */
+.calendar-container .fc {
+  --fc-border-color: theme('colors.gray.200');
+  --fc-today-bg-color: theme('colors.purple.50');
+  --fc-button-bg-color: theme('colors.purple.600');
+  --fc-button-border-color: theme('colors.purple.600');
+  --fc-button-hover-bg-color: theme('colors.purple.700');
+  --fc-button-hover-border-color: theme('colors.purple.700');
+  --fc-button-active-bg-color: theme('colors.purple.800');
+  --fc-button-active-border-color: theme('colors.purple.800');
+}
+
+.dark .calendar-container .fc {
+  --fc-border-color: theme('colors.zinc.800');
+  --fc-today-bg-color: theme('colors.zinc.800');
+  background-color: theme('colors.zinc.900');
+  color: theme('colors.gray.300');
+}
+
+.calendar-container .fc .fc-button {
+  @apply text-sm font-medium px-3 py-1.5 rounded-lg shadow-sm;
+}
+
+.calendar-container .fc .fc-button-primary:not(:disabled):active,
+.calendar-container .fc .fc-button-primary:not(:disabled).fc-button-active {
+  @apply shadow-inner;
+}
+
+.calendar-container .fc .fc-daygrid-day-number {
+  @apply text-sm;
+}
+
+.dark .calendar-container .fc-theme-standard td,
+.dark .calendar-container .fc-theme-standard th {
+  border-color: theme('colors.zinc.800');
+}
+
+.dark .calendar-container .fc .fc-daygrid-day-number {
+  color: theme('colors.gray.300');
+}
+
+.calendar-container .fc .fc-event {
+  @apply rounded-lg shadow-sm border-none cursor-pointer transition-transform duration-200;
+}
+
+.calendar-container .fc .fc-event:hover {
+  transform: translateY(-1px);
+}
+
+/* Output Cards Hover Effect */
+.output-card {
+  --x: 50%;
+  --y: 50%;
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+}
+
+.output-card::before {
+  content: '';
+  position: absolute;
+  inset: -1px;
+  background: radial-gradient(circle at var(--x) var(--y), rgba(255,255,255,0.15), transparent 50%);
+  opacity: 0;
+  transition: opacity 0.3s;
+  z-index: 1;
+}
+
+.output-card:hover::before {
+  opacity: 1;
+}
+
+/* Macro Circle Animation */
+.macro-circle {
+  transform-origin: center;
+  will-change: transform;
+}
+
+/* Goals Progress Animation */
+.goal-progress {
+  transform-origin: left;
+  will-change: transform;
+}
+
+/* Blob Animation */
+@keyframes blob {
+  0% {
+    transform: translate(0, 0) scale(1);
+  }
+  33% {
+    transform: translate(30px, -50px) scale(1.1);
+  }
+  66% {
+    transform: translate(-20px, 20px) scale(0.9);
+  }
+  100% {
+    transform: translate(0, 0) scale(1);
+  }
+}
+
+.animate-blob {
+  animation: blob 7s infinite;
+}
+
+.animation-delay-2000 {
+  animation-delay: 2s;
+}
+
+.animation-delay-4000 {
+  animation-delay: 4s;
+}
+
+/* Macro Card */
+.macro-card {
+  --x: 50%;
+  --y: 50%;
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+}
+
+.macro-card::before {
+  content: '';
+  position: absolute;
+  inset: -1px;
+  background: radial-gradient(circle at var(--x) var(--y), rgba(255,255,255,0.15), transparent 50%);
+  opacity: 0;
+  transition: opacity 0.3s;
+  z-index: 1;
+}
+
+.macro-card:hover::before {
+  opacity: 1;
+}
+
+/* Progress Circle Animation */
+@keyframes progress {
+  0% {
+    stroke-dasharray: 0 100;
+  }
+  100% {
+    stroke-dasharray: var(--value) calc(100 - var(--value));
+  }
+}
+
+.progress-circle {
+  animation: progress 1.5s ease-out forwards;
+}
+
+/* Macro Item Hover Effects */
+.macro-item {
+  position: relative;
+  transition: transform 0.2s ease;
+}
+
+.macro-item:hover {
+  opacity: 0.9;
+  transform: translateX(2px);
+  transition: all 0.2s ease;
+}
+
+.macro-item::after {
+  content: '';
+  position: absolute;
+  left: -1rem;
+  top: 50%;
+  transform: translateY(-50%) scale(0);
+  width: 0.5rem;
+  height: 0.5rem;
+  background: white;
+  border-radius: 50%;
+  opacity: 0;
+  transition: all 0.2s ease;
+}
+
+.macro-item:hover::after {
+  transform: translateY(-50%) scale(1);
+  opacity: 0.5;
+}
+
+/* Progress Bar Shine Effect */
+@keyframes shine {
+  from {
+    transform: translateX(-100%) rotate(45deg);
+  }
+  to {
+    transform: translateX(100%) rotate(45deg);
+  }
+}
+
+.macro-item .motion-div::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  background: linear-gradient(
+    45deg,
+    transparent 0%,
+    rgba(255, 255, 255, 0.1) 50%,
+    transparent 100%
+  );
+  animation: shine 2s infinite;
+}
+
+/* Calorie Counter Animation */
+@keyframes pulse {
+  0% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.05);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+.calories-remaining {
+  animation: pulse 2s infinite;
+}
+
+/* Progress Ring Animation */
+.progress-ring {
+  transition: stroke-dashoffset 1s ease-in-out;
+}
+
+@keyframes progress-ring-animation {
+  0% {
+    stroke-dashoffset: 364;  /* 2 * PI * 58 */
+  }
+}
+
+.progress-ring {
+  animation: progress-ring-animation 1.5s ease-out forwards;
+}
+
+/* Percentage Change Animation */
+@keyframes slide-in {
+  from {
+    transform: translateX(-10px);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+.text-green-500,
+.text-red-500 {
+  animation: slide-in 0.3s ease-out forwards;
+}
+
+/* Multi-ring Progress Animation */
+@keyframes progress-ring-carbs {
+  0% {
+    stroke-dashoffset: 314;  /* 2 * PI * 50 */
+  }
+}
+
+@keyframes progress-ring-protein {
+  0% {
+    stroke-dashoffset: 264;  /* 2 * PI * 42 */
+  }
+}
+
+@keyframes progress-ring-fats {
+  0% {
+    stroke-dashoffset: 214;  /* 2 * PI * 34 */
+  }
+}
+
+.text-green-500 circle {
+  animation: progress-ring-carbs 1.5s ease-out forwards;
+}
+
+.text-blue-500 circle {
+  animation: progress-ring-protein 1.5s ease-out forwards;
+}
+
+.text-purple-500 circle {
+  animation: progress-ring-fats 1.5s ease-out forwards;
+}
+
+/* Macro Ring Hover Effects */
+.macro-ring-hover {
+  cursor: pointer;
+}
+
+.macro-ring-hover circle {
+  transition: all 0.2s ease-out;
+}
+
+.macro-ring-hover:hover circle {
+  stroke-width: 10;
+  filter: brightness(1.1);
+}
+
+/* Tooltip Transition */
+#macro-tooltip {
+  transition: all 0.3s ease-out;
+}
+
+#macro-tooltip div {
+  transition: all 0.2s ease-out;
+}
+
+/* Card Hover Animation */
+.macro-overview-card {
+  transform: translateY(0);
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.macro-overview-card:hover {
+  transform: translateY(-4px);
+}
+
+/* Smooth Shadow Transition */
+.macro-overview-card::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background: inherit;
+  border-radius: inherit;
+  transition: opacity 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  opacity: 0;
+}
+
+.macro-overview-card:hover::after {
+  opacity: 1;
+}
