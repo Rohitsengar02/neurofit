@@ -3,6 +3,7 @@ import './styles/animations.css';
 import type { Metadata } from 'next';
 import { Inter, Outfit } from 'next/font/google';
 import { ThemeProvider } from 'next-themes';
+import PullDownCalendar from './components/PullToRefresh/PullDownCalendar';
 
 const inter = Inter({ subsets: ['latin'] });
 const outfit = Outfit({ 
@@ -21,15 +22,18 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en" suppressHydrationWarning>
-      <body className={`${inter.className} ${outfit.variable}`}>
+    <html lang="en" suppressHydrationWarning className="m-0 p-0">
+      <body className={`${inter.className} ${outfit.variable} m-0 p-0`}>
         <ThemeProvider
           attribute="class"
           defaultTheme="system"
           enableSystem
           disableTransitionOnChange
         >
-          {children}
+          <main className="m-0 p-0 min-h-screen">
+            <PullDownCalendar />
+            {children}
+          </main>
         </ThemeProvider>
       </body>
     </html>

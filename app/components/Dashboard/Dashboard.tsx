@@ -4,6 +4,7 @@ import { useState, useEffect, useRef, RefObject } from 'react';
 import { motion, AnimatePresence, HTMLMotionProps } from 'framer-motion';
 import { useTheme } from 'next-themes';
 import gsap from 'gsap';
+
 import { 
   FaSun, 
   FaMoon, 
@@ -36,9 +37,14 @@ import FullCalendar from '@fullcalendar/react';
 import dayGridPlugin from '@fullcalendar/daygrid';
 import interactionPlugin from '@fullcalendar/interaction';
 
+
 interface DashboardProps {
   userData: UserData;
 }
+
+
+
+
 
 const dummyData = {
   macros: {
@@ -185,6 +191,7 @@ export default function Dashboard({ userData }: DashboardProps) {
   if (!mounted) return null;
 
   return (
+    
     <div className="flex min-h-screen bg-gray-50 dark:bg-black">
       <style jsx global>{`
         @keyframes lift {
@@ -450,7 +457,7 @@ export default function Dashboard({ userData }: DashboardProps) {
                 whileHover={{ scale: 1.05 }}
                 whileTap={{ scale: 0.95 }}
               >
-                <img 
+                <img
                   src="https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?q=80&w=100" 
                   alt="User" 
                   className="w-9 h-9 rounded-lg object-cover"
