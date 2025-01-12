@@ -328,50 +328,7 @@ export default function Dashboard({ userData }: DashboardProps) {
         </div>
       </motion.div>
 
-      {/* Mobile Bottom Navigation */}
-      <div className="fixed bottom-0 left-0 right-0 bg-white dark:bg-zinc-900 border-t border-gray-100 dark:border-zinc-800 shadow-[0_-4px_20px_rgba(0,0,0,0.1)] md:hidden z-[9999]">
-        <div className="flex justify-around items-center h-20 px-2">
-          {navItems.map((item, index) => (
-            <motion.button
-              key={index}
-              whileTap={{ scale: 0.9 }}
-              className="flex flex-col items-center justify-center w-20 h-full relative group"
-            >
-              <motion.div
-                initial={false}
-                animate={{
-                  scale: index === 0 ? 1.1 : 1,
-                  y: index === 0 ? -2 : 0
-                }}
-                transition={{ type: "spring", stiffness: 300, damping: 15 }}
-                className="flex flex-col items-center"
-              >
-                {index === 0 ? (
-                  <item.activeIcon 
-                    className="w-6 h-6 mb-1.5 text-[#a20bdb]"
-                  />
-                ) : (
-                  <item.icon 
-                    className="w-6 h-6 mb-1.5 text-gray-400 group-hover:text-[#a20bdb] transition-colors duration-200"
-                  />
-                )}
-                <span 
-                  className={`font-outfit text-xs font-medium tracking-wide transition-colors duration-200 ${
-                    index === 0 
-                      ? 'text-[#a20bdb] scale-105 transform' 
-                      : 'text-gray-500 group-hover:text-[#a20bdb]'
-                  }`}
-                  style={{
-                    fontFamily: 'var(--font-outfit)'
-                  }}
-                >
-                  {item.label}
-                </span>
-              </motion.div>
-            </motion.button>
-          ))}
-        </div>
-      </div>
+      
 
       {/* Main Content with Navbar */}
       <div className={`flex-1 transition-all duration-300 ${isExpanded ? 'md:ml-60' : 'md:ml-[72px]'}`}>

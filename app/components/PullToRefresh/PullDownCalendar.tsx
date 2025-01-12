@@ -22,9 +22,12 @@ import {
   FiCalendar,
   FiBell,
   FiThermometer,
-  FiDroplet
+  FiDroplet,
+  FiChevronUp,
+  FiChevronDown
 } from 'react-icons/fi';
 import { IconType } from 'react-icons';
+import { useLayout } from '@/app/context/LayoutContext';
 
 interface StatItem {
   title: string;
@@ -153,153 +156,42 @@ const mainSections: Section[] = [
 ];
 
 const PullDownFitnessStats: React.FC = () => {
-  // All state hooks
+  const { isPullDownOpen } = useLayout();
   const [activeSection, setActiveSection] = useState(0);
-  const [isOpen, setIsOpen] = useState(false);
-  const [startY, setStartY] = useState(0);
-  const [startX, setStartX] = useState(0);
-  const [isSwiping, setIsSwiping] = useState(false);
-  const [windowHeight, setWindowHeight] = useState(0);
-  const [isInitialized, setIsInitialized] = useState(false);
-
-  // All ref hooks
-  const containerRef = useRef<HTMLDivElement>(null);
-  const contentRef = useRef<HTMLDivElement>(null);
-
-  // Motion hooks
   const controls = useAnimation();
-  const contentControls = useAnimation();
-  const y = useMotionValue(-2000);
-  const scale = useTransform(y, [-windowHeight * 0.8, 0], [0.97, 1]);
-  const opacity = useTransform(y, [-windowHeight * 0.8, -windowHeight * 0.4], [0.3, 1]);
 
-  // Get calendar days
-  const days = getDays();
-
-  // Effects
   useEffect(() => {
-    if (typeof window !== 'undefined') {
-      const height = window.innerHeight;
-      setWindowHeight(height);
-      y.set(-height * 0.8);
-      setTimeout(() => {
-        setIsInitialized(true);
-      }, 100);
+    if (isPullDownOpen) {
+      controls.start({
+        y: 0,
+        transition: { 
+          type: "spring", 
+          stiffness: 100, 
+          damping: 20,
+          duration: 0.6
+        }
+      });
+    } else {
+      controls.start({
+        y: '-100%',
+        transition: { 
+          type: "spring", 
+          stiffness: 100, 
+          damping: 20,
+          duration: 0.6
+        }
+      });
     }
-  }, []);
-
-  useEffect(() => {
-    const updatePosition = () => {
-      controls.start({ y: -windowHeight * 0.8 });
-    };
-    updatePosition();
-  }, [controls, windowHeight]);
-
-  if (!isInitialized) return null;
+  }, [isPullDownOpen, controls]);
 
   const handleSectionSwipe = (direction: number) => {
-    const newIndex = activeSection + direction;
-    if (newIndex >= 0 && newIndex < mainSections.length) {
-      contentControls.start({
-        x: [-direction * 50, 0],
-        opacity: [0, 1],
-        transition: { duration: 0.3 }
-      });
-      setActiveSection(newIndex);
+    const newSection = activeSection + direction;
+    if (newSection >= 0 && newSection < mainSections.length) {
+      setActiveSection(newSection);
     }
   };
 
-  const handleContentTouchStart = (e: React.TouchEvent) => {
-    setStartX(e.touches[0].clientX);
-    setIsSwiping(true);
-  };
-
-  const handleContentTouchMove = (e: React.TouchEvent) => {
-    if (!isSwiping) return;
-    
-    const currentX = e.touches[0].clientX;
-    const deltaX = currentX - startX;
-    
-    if (Math.abs(deltaX) > 50) {
-      if (deltaX > 0 && activeSection > 0) {
-        handleSectionSwipe(-1);
-        setIsSwiping(false);
-      } else if (deltaX < 0 && activeSection < mainSections.length - 1) {
-        handleSectionSwipe(1);
-        setIsSwiping(false);
-      }
-    }
-  };
-
-  const handleContentTouchEnd = () => {
-    setIsSwiping(false);
-  };
-
-  const handleTouchStart = (e: React.TouchEvent) => {
-    setStartY(e.touches[0].clientY);
-  };
-
-  const handleTouchMove = (e: React.TouchEvent) => {
-    const currentY = e.touches[0].clientY;
-    const deltaY = currentY - startY;
-    
-    if (isOpen) {
-      const newY = Math.min(0, Math.max(-windowHeight * 0.8, deltaY));
-      y.set(newY);
-    } else {
-      const newY = Math.min(0, Math.max(-windowHeight * 0.8, -windowHeight * 0.8 + deltaY));
-      y.set(newY);
-    }
-  };
-
-  const handleTouchEnd = async () => {
-    const currentY = y.get();
-    
-    if (isOpen) {
-      if (currentY < -windowHeight * 0.2) {
-        await controls.start({
-          y: -windowHeight * 0.8,
-          transition: { 
-            type: "spring",
-            stiffness: 400,
-            damping: 40
-          }
-        });
-        setIsOpen(false);
-      } else {
-        await controls.start({
-          y: 0,
-          transition: { 
-            type: "spring",
-            stiffness: 400,
-            damping: 40
-          }
-        });
-      }
-    } else {
-      if (currentY >= -windowHeight * 0.4) {
-        await controls.start({
-          y: 0,
-          transition: { 
-            type: "spring",
-            stiffness: 300,
-            damping: 30
-          }
-        });
-        setIsOpen(true);
-      } else {
-        await controls.start({
-          y: -windowHeight * 0.8,
-          transition: { 
-            type: "spring",
-            stiffness: 400,
-            damping: 40
-          }
-        });
-        setIsOpen(false);
-      }
-    }
-  };
+  const days = getDays();
 
   const renderCalendar = () => (
     <div className="px-3 mb-6">
@@ -582,118 +474,126 @@ const PullDownFitnessStats: React.FC = () => {
   };
 
   return (
-    <div 
-      ref={containerRef}
-      className="fixed inset-x-0 -top-2 z-50 bg-transparent touch-none -mt-[20px]"
-      style={{ height: '80vh' }}
-      onTouchStart={handleTouchStart}
-      onTouchMove={handleTouchMove}
-      onTouchEnd={handleTouchEnd}
-    >
+    <>
       <motion.div 
-        style={{ y }}
+        className="fixed inset-x-0 top-0 z-[9999] bg-white/95 dark:bg-gray-900/95 backdrop-blur-xl rounded-b-[2rem] shadow-2xl border border-gray-100/50 dark:border-gray-800/50"
+        style={{ 
+          height: '80vh',
+          boxShadow: '0 8px 32px -8px rgba(0, 0, 0, 0.2)',
+          WebkitBackdropFilter: 'blur(16px)',
+          backdropFilter: 'blur(16px)'
+        }}
+        initial={{ y: '-100%' }}
         animate={controls}
-        className="absolute inset-x-0 top-0 bg-white/95 dark:bg-gray-900/95 backdrop-blur-lg rounded-b-3xl shadow-md border border-gray-100/50 dark:border-gray-800/50"
-        initial={{ y: -windowHeight * 0.8 }}
       >
-        <motion.div 
-          style={{ scale, opacity }}
-          className="p-4 h-[80vh] overflow-y-auto"
-        >
+        <div className="p-4 h-full overflow-y-auto">
           {/* Pull indicator */}
-          <div className="w-12 h-1 bg-gray-300/50 dark:bg-gray-700/50 rounded-full mx-auto mb-6 backdrop-blur-sm" />
+          <motion.div 
+            className="w-12 h-1.5 bg-gray-300/50 dark:bg-gray-700/50 rounded-full mx-auto mb-6 backdrop-blur-sm"
+            animate={{ scale: [1, 1.1, 1] }}
+            transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
+          />
           
           {/* Calendar */}
           {renderCalendar()}
 
-          {/* Content area with swipe handling */}
-          <motion.div
-            ref={contentRef}
-            onTouchStart={handleContentTouchStart}
-            onTouchMove={handleContentTouchMove}
-            onTouchEnd={handleContentTouchEnd}
-            animate={contentControls}
-            className="relative px-2"
-          >
-            <AnimatePresence mode="wait">
-              <motion.div
-                key={activeSection}
-                initial={{ opacity: 0, x: 50 }}
-                animate={{ opacity: 1, x: 0 }}
-                exit={{ opacity: 0, x: -50 }}
-                transition={{ duration: 0.3 }}
-                className="space-y-6 pb-6"
-              >
-                <div className="flex items-center justify-between mb-4">
-                  <h2 className="text-xl font-bold bg-gradient-to-r from-gray-800 to-gray-600 dark:from-white dark:to-gray-300 bg-clip-text text-transparent">
-                    {mainSections[activeSection].title}
-                  </h2>
-                  <div className="flex space-x-2">
-                    <button
-                      onClick={() => handleSectionSwipe(-1)}
-                      disabled={activeSection === 0}
-                      className={`p-2 rounded-full backdrop-blur-sm ${
-                        activeSection === 0 
-                          ? 'text-gray-400 cursor-not-allowed' 
-                          : 'text-gray-600 hover:bg-gray-100/50 dark:text-gray-300 dark:hover:bg-gray-800/50'
-                      }`}
+          {/* Content area */}
+          <AnimatePresence mode="wait">
+            <motion.div
+              key={activeSection}
+              initial={{ opacity: 0, x: 50 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: -50 }}
+              transition={{ duration: 0.3 }}
+              className="space-y-6 pb-6"
+            >
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-xl font-bold bg-gradient-to-r from-gray-800 to-gray-600 dark:from-white dark:to-gray-300 bg-clip-text text-transparent">
+                  {mainSections[activeSection].title}
+                </h2>
+                <div className="flex space-x-2">
+                  <button
+                    onClick={() => handleSectionSwipe(-1)}
+                    disabled={activeSection === 0}
+                    className={`p-2 rounded-full backdrop-blur-sm ${
+                      activeSection === 0 
+                        ? 'text-gray-400 cursor-not-allowed' 
+                        : 'text-gray-600 hover:bg-gray-100/50 dark:text-gray-300 dark:hover:bg-gray-800/50'
+                    }`}
+                  >
+                    ←
+                  </button>
+                  <button
+                    onClick={() => handleSectionSwipe(1)}
+                    disabled={activeSection === mainSections.length - 1}
+                    className={`p-2 rounded-full backdrop-blur-sm ${
+                      activeSection === mainSections.length - 1
+                        ? 'text-gray-400 cursor-not-allowed'
+                        : 'text-gray-600 hover:bg-gray-100/50 dark:text-gray-300 dark:hover:bg-gray-800/50'
+                    }`}
+                  >
+                    →
+                  </button>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                {mainSections[activeSection]?.items?.map((item, i) => {
+                  const Icon = item.icon;
+                  return (
+                    <motion.div
+                      key={`${item.title}-${i}`}
+                      initial={{ opacity: 0, scale: 0.9 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      transition={{ delay: i * 0.1 }}
+                      className={`
+                        bg-gradient-to-br ${item.color} p-4 rounded-2xl text-white 
+                        shadow-md hover:shadow-2xl transition-all duration-300 hover:scale-105
+                        backdrop-blur-md border border-white/10
+                      `}
                     >
-                      ←
-                    </button>
-                    <button
-                      onClick={() => handleSectionSwipe(1)}
-                      disabled={activeSection === mainSections.length - 1}
-                      className={`p-2 rounded-full backdrop-blur-sm ${
-                        activeSection === mainSections.length - 1
-                          ? 'text-gray-400 cursor-not-allowed'
-                          : 'text-gray-600 hover:bg-gray-100/50 dark:text-gray-300 dark:hover:bg-gray-800/50'
-                      }`}
-                    >
-                      →
-                    </button>
+                      <div className="flex items-center mb-2">
+                        <Icon className="text-2xl mr-2" />
+                        <span className="font-semibold">{item.title}</span>
+                      </div>
+                      <div className="text-3xl font-bold">{item.value}</div>
+                      <div className="text-sm opacity-80">{item.unit}</div>
+                    </motion.div>
+                  );
+                })}
+              </div>
+
+              {(() => {
+                const activeData = mainSections[activeSection];
+                return activeData?.chartData && activeData.chartData.length > 0 ? (
+                  <div className="mt-6 p-4 bg-white/90 dark:bg-gray-800/90 rounded-2xl shadow-xl backdrop-blur-md border border-gray-100/50 dark:border-gray-700/50">
+                    {renderChart(activeData.chartData, activeData.chartType)}
                   </div>
-                </div>
-
-                <div className="grid grid-cols-2 gap-4">
-                  {mainSections[activeSection]?.items?.map((item, i) => {
-                    const Icon = item.icon;
-                    return (
-                      <motion.div
-                        key={`${item.title}-${i}`}
-                        initial={{ opacity: 0, scale: 0.9 }}
-                        animate={{ opacity: 1, scale: 1 }}
-                        transition={{ delay: i * 0.1 }}
-                        className={`
-                          bg-gradient-to-br ${item.color} p-4 rounded-2xl text-white 
-                          shadow-md hover:shadow-2xl transition-all duration-300 hover:scale-105
-                          backdrop-blur-md border border-white/10
-                        `}
-                      >
-                        <div className="flex items-center mb-2">
-                          <Icon className="text-2xl mr-2" />
-                          <span className="font-semibold">{item.title}</span>
-                        </div>
-                        <div className="text-3xl font-bold">{item.value}</div>
-                        <div className="text-sm opacity-80">{item.unit}</div>
-                      </motion.div>
-                    );
-                  })}
-                </div>
-
-                {(() => {
-                  const activeData = mainSections[activeSection];
-                  return activeData?.chartData && activeData.chartData.length > 0 ? (
-                    <div className="mt-6 p-4 bg-white/90 dark:bg-gray-800/90 rounded-2xl shadow-xl backdrop-blur-md border border-gray-100/50 dark:border-gray-700/50">
-                      {renderChart(activeData.chartData, activeData.chartType)}
-                    </div>
-                  ) : null;
-                })()}
-              </motion.div>
-            </AnimatePresence>
-          </motion.div>
-        </motion.div>
+                ) : null;
+              })()}
+            </motion.div>
+          </AnimatePresence>
+        </div>
       </motion.div>
-    </div>
+
+      {/* Bottom Menu Button */}
+      <motion.button
+        onClick={() => controls.start({
+          y: isPullDownOpen ? '-100%' : 0,
+          transition: { 
+            type: "spring", 
+            stiffness: 100, 
+            damping: 20,
+            duration: 0.6
+          }
+        })}
+        className="fixed bottom-20 right-4 z-50 bg-violet-600 hover:bg-violet-700 text-white p-3 rounded-full shadow-lg"
+        whileHover={{ scale: 1.1 }}
+        whileTap={{ scale: 0.9 }}
+      >
+        {isPullDownOpen ? <FiChevronDown size={24} /> : <FiChevronUp size={24} />}
+      </motion.button>
+    </>
   );
 };
 
