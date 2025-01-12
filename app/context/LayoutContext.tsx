@@ -4,20 +4,36 @@ import React, { createContext, useContext, useState } from 'react';
 
 interface LayoutContextType {
   isPullDownOpen: boolean;
-  togglePullDown: () => void;
+  setIsPullDownOpen: (value: boolean) => void;
+  isBottomSheetOpen: boolean;
+  setIsBottomSheetOpen: (value: boolean) => void;
+  isExpanded: boolean;
+  setIsExpanded: (value: boolean) => void;
+  isMobileOpen: boolean;
+  setIsMobileOpen: (value: boolean) => void;
 }
 
 const LayoutContext = createContext<LayoutContextType | undefined>(undefined);
 
 export const LayoutProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [isPullDownOpen, setIsPullDownOpen] = useState(false);
-
-  const togglePullDown = () => {
-    setIsPullDownOpen(!isPullDownOpen);
-  };
+  const [isBottomSheetOpen, setIsBottomSheetOpen] = useState(false);
+  const [isExpanded, setIsExpanded] = useState(false);
+  const [isMobileOpen, setIsMobileOpen] = useState(false);
 
   return (
-    <LayoutContext.Provider value={{ isPullDownOpen, togglePullDown }}>
+    <LayoutContext.Provider
+      value={{
+        isPullDownOpen,
+        setIsPullDownOpen,
+        isBottomSheetOpen,
+        setIsBottomSheetOpen,
+        isExpanded,
+        setIsExpanded,
+        isMobileOpen,
+        setIsMobileOpen
+      }}
+    >
       {children}
     </LayoutContext.Provider>
   );

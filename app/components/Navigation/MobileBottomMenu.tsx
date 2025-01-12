@@ -3,22 +3,20 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useLayout } from '@/app/context/LayoutContext';
+import { useRouter, usePathname } from 'next/navigation';
 import { 
   FiHome,
-  FiActivity,
   FiPlusCircle,
-  FiCalendar,
   FiUser,
-  FiHeart,
   FiTrendingUp,
-  FiAward
 } from 'react-icons/fi';
-import { IoFitnessOutline } from 'react-icons/io5';
 import { GiMuscleUp } from 'react-icons/gi';
 
 const MobileBottomMenu: React.FC = () => {
   const [activeTab, setActiveTab] = useState('home');
-  const { isPullDownOpen, togglePullDown } = useLayout();
+  const { isPullDownOpen, setIsPullDownOpen } = useLayout();
+  const router = useRouter();
+  const pathname = usePathname();
 
   const menuItems = [
     { 
@@ -26,14 +24,16 @@ const MobileBottomMenu: React.FC = () => {
       icon: FiHome, 
       color: 'from-purple-500 to-indigo-500',
       activeColor: 'text-indigo-700 dark:text-indigo-400',
-      inactiveColor: 'text-gray-400 dark:text-gray-500'
+      inactiveColor: 'text-gray-400 dark:text-gray-500',
+      href: '/'
     },
     { 
       id: 'workout', 
       icon: GiMuscleUp, 
       color: 'from-pink-500 to-rose-500',
       activeColor: 'text-rose-700 dark:text-rose-400',
-      inactiveColor: 'text-gray-400 dark:text-gray-500'
+      inactiveColor: 'text-gray-400 dark:text-gray-500',
+      href: '/pages/workout'
     },
     { 
       id: 'add', 
@@ -45,22 +45,27 @@ const MobileBottomMenu: React.FC = () => {
       icon: FiTrendingUp, 
       color: 'from-green-500 to-emerald-500',
       activeColor: 'text-emerald-700 dark:text-emerald-400',
-      inactiveColor: 'text-gray-400 dark:text-gray-500'
+      inactiveColor: 'text-gray-400 dark:text-gray-500',
+      href: '/pages/progress'
     },
     { 
       id: 'profile', 
       icon: FiUser, 
       color: 'from-blue-500 to-cyan-500',
       activeColor: 'text-cyan-700 dark:text-cyan-400',
-      inactiveColor: 'text-gray-400 dark:text-gray-500'
+      inactiveColor: 'text-gray-400 dark:text-gray-500',
+      href: '/pages/profile'
     }
   ];
 
-  const handleTabClick = (tabId: string) => {
+  const handleTabClick = (tabId: string, href?: string) => {
     if (tabId === 'add') {
-      togglePullDown();
+      setIsPullDownOpen(!isPullDownOpen);
     } else {
       setActiveTab(tabId);
+      if (href) {
+        router.push(href);
+      }
     }
   };
 
@@ -97,7 +102,7 @@ const MobileBottomMenu: React.FC = () => {
           {menuItems.map((item) => (
             <motion.button
               key={item.id}
-              onClick={() => handleTabClick(item.id)}
+              onClick={() => handleTabClick(item.id, item.href)}
               className={`
                 relative flex flex-col items-center justify-center group
                 ${item.special 

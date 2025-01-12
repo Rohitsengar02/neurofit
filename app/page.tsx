@@ -466,7 +466,7 @@ export default function Home() {
         animate={{ opacity: 1 }}
         transition={{ duration: 0.5 }}
       >
-        <Dashboard userData={userData} />
+        <Dashboard  />
       </motion.div>
     );
   }
