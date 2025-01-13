@@ -55,8 +55,8 @@ const LayoutContent = ({ children }: { children: React.ReactNode }) => {
     );
   }
 
-  // Don't show navigation during onboarding or on the auth page
-  const showNavigation = !isOnboarding && pathname !== '/';
+  // Only hide navigation on the auth page
+  const showNavigation = pathname !== '/';
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-zinc-950">

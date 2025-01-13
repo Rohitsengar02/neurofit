@@ -9,6 +9,14 @@ const inter = Inter({ subsets: ['latin'] })
 export const metadata: Metadata = {
   title: 'NeuroFit',
   description: 'Your AI-powered fitness companion',
+  icons: {
+    icon: [
+      {
+        url: '/favicon.ico',
+        sizes: 'any',
+      },
+    ],
+  },
 }
 
 export default function RootLayout({
