@@ -1,7 +1,7 @@
 'use client';
 
-import React, { useState, useRef, useEffect } from 'react';
-import { motion, useAnimation, useMotionValue, useTransform, AnimatePresence } from 'framer-motion';
+import React, { useState, useEffect } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { 
   LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, 
   PieChart, Pie, Cell, BarChart, Bar, CartesianGrid, Legend,
@@ -156,33 +156,8 @@ const mainSections: Section[] = [
 ];
 
 const PullDownFitnessStats: React.FC = () => {
-  const { isPullDownOpen } = useLayout();
+  const { isPullDownOpen, setIsPullDownOpen } = useLayout();
   const [activeSection, setActiveSection] = useState(0);
-  const controls = useAnimation();
-
-  useEffect(() => {
-    if (isPullDownOpen) {
-      controls.start({
-        y: 0,
-        transition: { 
-          type: "spring", 
-          stiffness: 100, 
-          damping: 20,
-          duration: 0.6
-        }
-      });
-    } else {
-      controls.start({
-        y: '-100%',
-        transition: { 
-          type: "spring", 
-          stiffness: 100, 
-          damping: 20,
-          duration: 0.6
-        }
-      });
-    }
-  }, [isPullDownOpen, controls]);
 
   const handleSectionSwipe = (direction: number) => {
     const newSection = activeSection + direction;
@@ -195,74 +170,47 @@ const PullDownFitnessStats: React.FC = () => {
 
   const renderCalendar = () => (
     <div className="px-3 mb-6">
-      <motion.div 
+      <div 
         className="flex space-x-3 overflow-x-auto pb-2 scrollbar-hide"
-        initial={{ y: 20, opacity: 0 }}
-        animate={{ y: 0, opacity: 1 }}
-        transition={{ duration: 0.5 }}
       >
-        {days.map((day, i) => {
-          const isToday = day.isToday;
-          
-          return (
-            <motion.div
-              key={i}
-              initial={{ opacity: 0, scale: 0.9, y: 20 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              transition={{ delay: i * 0.05 }}
-              className={`
-                relative flex-shrink-0 w-16 h-20 flex flex-col items-center justify-center rounded-2xl
-                backdrop-blur-md
-                ${isToday 
-                  ? 'bg-gradient-to-br from-violet-500 via-purple-500 to-indigo-500 text-white shadow-xl shadow-violet-500/30 border border-violet-400/30'
-                  : 'bg-gradient-to-br from-white/90 to-white/50 dark:from-gray-800/90 dark:to-gray-700/50 shadow-lg shadow-gray-200/50 dark:shadow-gray-900/50 border border-gray-100 dark:border-gray-700'
-                }
-                ${isToday ? 'scale-110 z-10' : 'scale-100'}
-                transform transition-all duration-300 hover:scale-105
-                ${i === 0 ? 'ml-2' : ''} ${i === days.length - 1 ? 'mr-2' : ''}
-              `}
+        {days.map((day, index) => (
+          <div
+            key={index}
+            className={`
+              relative flex-shrink-0 w-16 h-20 flex flex-col items-center justify-center rounded-2xl
+              backdrop-blur-md
+              ${day.isToday 
+                ? 'bg-gradient-to-br from-violet-500 via-purple-500 to-indigo-500 text-white shadow-xl shadow-violet-500/30 border border-violet-400/30'
+                : 'bg-gradient-to-br from-white/90 to-white/50 dark:from-gray-800/90 dark:to-gray-700/50 shadow-lg shadow-gray-200/50 dark:shadow-gray-900/50 border border-gray-100 dark:border-gray-700'
+              }
+              ${day.isToday ? 'scale-110 z-10' : 'scale-100'}
+              transform transition-all duration-300 hover:scale-105
+              ${index === 0 ? 'ml-2' : ''} ${index === days.length - 1 ? 'mr-2' : ''}
+            `}
+          >
+            <span 
+              className={`text-xs font-medium ${day.isToday ? 'text-violet-200' : 'text-gray-500 dark:text-gray-400'}`}
             >
-              <motion.span 
-                className={`text-xs font-medium ${isToday ? 'text-violet-200' : 'text-gray-500 dark:text-gray-400'}`}
-                animate={{ opacity: [0, 1] }}
-                transition={{ delay: i * 0.05 + 0.1 }}
-              >
-                {day.month}
-              </motion.span>
-              <motion.span 
-                className={`text-2xl font-bold mt-0.5 ${isToday ? 'text-white' : 'text-gray-700 dark:text-gray-200'}`}
-                animate={{ scale: [0.5, 1] }}
-                transition={{ delay: i * 0.05 + 0.15 }}
-              >
-                {day.date}
-              </motion.span>
-              <motion.span 
-                className={`text-xs font-medium mt-0.5 ${isToday ? 'text-violet-200' : 'text-gray-500 dark:text-gray-400'}`}
-                animate={{ opacity: [0, 1] }}
-                transition={{ delay: i * 0.05 + 0.2 }}
-              >
-                {day.day}
-              </motion.span>
-              {isToday && (
-                <motion.div
-                  className="absolute inset-0 rounded-2xl"
-                  animate={{
-                    boxShadow: [
-                      '0 0 0 0 rgba(139, 92, 246, 0)',
-                      '0 0 0 8px rgba(139, 92, 246, 0)',
-                    ],
-                  }}
-                  transition={{
-                    duration: 1.5,
-                    repeat: Infinity,
-                    ease: 'easeInOut',
-                  }}
-                />
-              )}
-            </motion.div>
-          );
-        })}
-      </motion.div>
+              {day.month}
+            </span>
+            <span 
+              className={`text-2xl font-bold mt-0.5 ${day.isToday ? 'text-white' : 'text-gray-700 dark:text-gray-200'}`}
+            >
+              {day.date}
+            </span>
+            <span 
+              className={`text-xs font-medium mt-0.5 ${day.isToday ? 'text-violet-200' : 'text-gray-500 dark:text-gray-400'}`}
+            >
+              {day.day}
+            </span>
+            {day.isToday && (
+              <div
+                className="absolute inset-0 rounded-2xl"
+              />
+            )}
+          </div>
+        ))}
+      </div>
     </div>
   );
 
@@ -306,8 +254,6 @@ const PullDownFitnessStats: React.FC = () => {
                 stroke="#818CF8" 
                 fillOpacity={1} 
                 fill="url(#colorSteps)"
-                animationDuration={1500}
-                animationBegin={0}
               />
             </AreaChart>
           </ResponsiveContainer>
@@ -330,8 +276,6 @@ const PullDownFitnessStats: React.FC = () => {
                 dataKey="value"
                 cornerRadius={10}
                 stackId="a"
-                animationDuration={1500}
-                animationBegin={0}
               >
                 {data.map((entry, index) => (
                   <Cell
@@ -369,8 +313,6 @@ const PullDownFitnessStats: React.FC = () => {
               <Bar 
                 dataKey="value" 
                 fill="#8B5CF6"
-                animationDuration={1500}
-                animationBegin={0}
               >
                 {data.map((entry, index) => (
                   <Cell key={`cell-${index}`} fill={entry.fill} />
@@ -380,8 +322,6 @@ const PullDownFitnessStats: React.FC = () => {
                 dataKey="goal" 
                 fill="#E5E7EB"
                 opacity={0.3}
-                animationDuration={1500}
-                animationBegin={200}
               />
             </BarChart>
           </ResponsiveContainer>
@@ -397,8 +337,6 @@ const PullDownFitnessStats: React.FC = () => {
                 outerRadius={80}
                 paddingAngle={5}
                 dataKey="value"
-                animationDuration={1500}
-                animationBegin={0}
               >
                 {data.map((entry, index) => (
                   <Cell 
@@ -432,8 +370,6 @@ const PullDownFitnessStats: React.FC = () => {
                 stroke="#8B5CF6" 
                 strokeWidth={2}
                 dot={false}
-                animationDuration={1500}
-                animationBegin={0}
               />
             </LineChart>
           </ResponsiveContainer>
@@ -449,11 +385,8 @@ const PullDownFitnessStats: React.FC = () => {
         {items.map((item, i) => {
           const Icon = item.icon;
           return (
-            <motion.div
+            <div
               key={`${item.title}-${i}`}
-              initial={{ opacity: 0, scale: 0.9 }}
-              animate={{ opacity: 1, scale: 1 }}
-              transition={{ delay: i * 0.1 }}
               className={`
                 bg-gradient-to-br ${item.color} p-4 rounded-2xl text-white 
                 shadow-md hover:shadow-2xl transition-all duration-300 hover:scale-105
@@ -466,7 +399,7 @@ const PullDownFitnessStats: React.FC = () => {
               </div>
               <div className="text-3xl font-bold">{item.value}</div>
               <div className="text-sm opacity-80">{item.unit}</div>
-            </motion.div>
+            </div>
           );
         })}
       </div>
@@ -483,110 +416,149 @@ const PullDownFitnessStats: React.FC = () => {
           WebkitBackdropFilter: 'blur(16px)',
           backdropFilter: 'blur(16px)'
         }}
-        initial={{ y: '-100%' }}
-        animate={controls}
+        initial={{ y: '-100%', opacity: 0 }}
+        animate={{ 
+          y: isPullDownOpen ? 0 : '-100%',
+          opacity: isPullDownOpen ? 1 : 0,
+          scale: isPullDownOpen ? 1 : 0.95
+        }}
+        transition={{ 
+          type: "spring",
+          damping: 25,
+          stiffness: 120,
+          duration: 0.6
+        }}
       >
-        <div className="p-4 h-full overflow-y-auto">
+        <motion.div 
+          className="p-4 h-full overflow-y-auto"
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.2, duration: 0.4 }}
+        >
           {/* Pull indicator */}
           <motion.div 
             className="w-12 h-1.5 bg-gray-300/50 dark:bg-gray-700/50 rounded-full mx-auto mb-6 backdrop-blur-sm"
-            animate={{ scale: [1, 1.1, 1] }}
-            transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
+            initial={{ width: "20%" }}
+            animate={{ width: "50%" }}
+            transition={{ duration: 0.5, delay: 0.3 }}
           />
           
           {/* Calendar */}
-          {renderCalendar()}
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.4, duration: 0.4 }}
+          >
+            {renderCalendar()}
+          </motion.div>
 
           {/* Content area */}
-          <AnimatePresence mode="wait">
-            <motion.div
-              key={activeSection}
-              initial={{ opacity: 0, x: 50 }}
-              animate={{ opacity: 1, x: 0 }}
-              exit={{ opacity: 0, x: -50 }}
-              transition={{ duration: 0.3 }}
-              className="space-y-6 pb-6"
-            >
-              <div className="flex items-center justify-between mb-4">
-                <h2 className="text-xl font-bold bg-gradient-to-r from-gray-800 to-gray-600 dark:from-white dark:to-gray-300 bg-clip-text text-transparent">
-                  {mainSections[activeSection].title}
-                </h2>
-                <div className="flex space-x-2">
-                  <button
-                    onClick={() => handleSectionSwipe(-1)}
-                    disabled={activeSection === 0}
-                    className={`p-2 rounded-full backdrop-blur-sm ${
-                      activeSection === 0 
-                        ? 'text-gray-400 cursor-not-allowed' 
-                        : 'text-gray-600 hover:bg-gray-100/50 dark:text-gray-300 dark:hover:bg-gray-800/50'
-                    }`}
-                  >
-                    ←
-                  </button>
-                  <button
-                    onClick={() => handleSectionSwipe(1)}
-                    disabled={activeSection === mainSections.length - 1}
-                    className={`p-2 rounded-full backdrop-blur-sm ${
-                      activeSection === mainSections.length - 1
-                        ? 'text-gray-400 cursor-not-allowed'
-                        : 'text-gray-600 hover:bg-gray-100/50 dark:text-gray-300 dark:hover:bg-gray-800/50'
-                    }`}
-                  >
-                    →
-                  </button>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                {mainSections[activeSection]?.items?.map((item, i) => {
-                  const Icon = item.icon;
-                  return (
-                    <motion.div
-                      key={`${item.title}-${i}`}
-                      initial={{ opacity: 0, scale: 0.9 }}
-                      animate={{ opacity: 1, scale: 1 }}
-                      transition={{ delay: i * 0.1 }}
-                      className={`
-                        bg-gradient-to-br ${item.color} p-4 rounded-2xl text-white 
-                        shadow-md hover:shadow-2xl transition-all duration-300 hover:scale-105
-                        backdrop-blur-md border border-white/10
-                      `}
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.5, duration: 0.4 }}
+          >
+            <AnimatePresence mode="wait">
+              <motion.div
+                key={activeSection}
+                initial={{ opacity: 0, x: 50 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: -50 }}
+                transition={{ duration: 0.3 }}
+                className="space-y-6 pb-6"
+              >
+                <div className="flex items-center justify-between mb-4">
+                  <h2 className="text-xl font-bold bg-gradient-to-r from-gray-800 to-gray-600 dark:from-white dark:to-gray-300 bg-clip-text text-transparent">
+                    {mainSections[activeSection].title}
+                  </h2>
+                  <div className="flex space-x-2">
+                    <button
+                      onClick={() => handleSectionSwipe(-1)}
+                      disabled={activeSection === 0}
+                      className={`p-2 rounded-full backdrop-blur-sm ${
+                        activeSection === 0 
+                          ? 'text-gray-400 cursor-not-allowed' 
+                          : 'text-gray-600 hover:bg-gray-100/50 dark:text-gray-300 dark:hover:bg-gray-800/50'
+                      }`}
                     >
-                      <div className="flex items-center mb-2">
-                        <Icon className="text-2xl mr-2" />
-                        <span className="font-semibold">{item.title}</span>
-                      </div>
-                      <div className="text-3xl font-bold">{item.value}</div>
-                      <div className="text-sm opacity-80">{item.unit}</div>
-                    </motion.div>
-                  );
-                })}
-              </div>
-
-              {(() => {
-                const activeData = mainSections[activeSection];
-                return activeData?.chartData && activeData.chartData.length > 0 ? (
-                  <div className="mt-6 p-4 bg-white/90 dark:bg-gray-800/90 rounded-2xl shadow-xl backdrop-blur-md border border-gray-100/50 dark:border-gray-700/50">
-                    {renderChart(activeData.chartData, activeData.chartType)}
+                      ←
+                    </button>
+                    <button
+                      onClick={() => handleSectionSwipe(1)}
+                      disabled={activeSection === mainSections.length - 1}
+                      className={`p-2 rounded-full backdrop-blur-sm ${
+                        activeSection === mainSections.length - 1
+                          ? 'text-gray-400 cursor-not-allowed'
+                          : 'text-gray-600 hover:bg-gray-100/50 dark:text-gray-300 dark:hover:bg-gray-800/50'
+                      }`}
+                    >
+                      →
+                    </button>
                   </div>
-                ) : null;
-              })()}
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  {mainSections[activeSection]?.items?.map((item, i) => {
+                    const Icon = item.icon;
+                    return (
+                      <div
+                        key={`${item.title}-${i}`}
+                        className={`
+                          bg-gradient-to-br ${item.color} p-4 rounded-2xl text-white 
+                          shadow-md hover:shadow-2xl transition-all duration-300 hover:scale-105
+                          backdrop-blur-md border border-white/10
+                        `}
+                      >
+                        <div className="flex items-center mb-2">
+                          <Icon className="text-2xl mr-2" />
+                          <span className="font-semibold">{item.title}</span>
+                        </div>
+                        <div className="text-3xl font-bold">{item.value}</div>
+                        <div className="text-sm opacity-80">{item.unit}</div>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {(() => {
+                  const activeData = mainSections[activeSection];
+                  return activeData?.chartData && activeData.chartData.length > 0 ? (
+                    <div className="mt-6 p-4 bg-white/90 dark:bg-gray-800/90 rounded-2xl shadow-xl backdrop-blur-md border border-gray-100/50 dark:border-gray-700/50">
+                      {renderChart(activeData.chartData, activeData.chartType)}
+                    </div>
+                  ) : null;
+                })()}
+              </motion.div>
+            </AnimatePresence>
+
+            {/* Close Button */}
+            <motion.div 
+              className="absolute bottom-6 left-0 right-0 flex justify-center"
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.6, duration: 0.4 }}
+            >
+              <motion.button
+                onClick={() => setIsPullDownOpen(false)}
+                className="bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300 px-8 py-2 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors shadow-lg flex items-center gap-2"
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
+              >
+                Close
+                <FiChevronDown className="w-5 h-5" />
+              </motion.button>
             </motion.div>
-          </AnimatePresence>
-        </div>
+          </motion.div>
+        </motion.div>
       </motion.div>
 
       {/* Bottom Menu Button */}
       <motion.button
-        onClick={() => controls.start({
-          y: isPullDownOpen ? '-100%' : 0,
-          transition: { 
-            type: "spring", 
-            stiffness: 100, 
-            damping: 20,
-            duration: 0.6
-          }
-        })}
+        onClick={() => {
+          const controls = document.querySelector('.fixed');
+          controls?.classList.toggle('translate-y-0');
+          controls?.classList.toggle('-translate-y-full');
+        }}
         className="fixed bottom-20 right-4 z-50 bg-violet-600 hover:bg-violet-700 text-white p-3 rounded-full shadow-lg"
         whileHover={{ scale: 1.1 }}
         whileTap={{ scale: 0.9 }}

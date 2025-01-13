@@ -1,6 +1,7 @@
 import { initializeApp, getApp, getApps } from 'firebase/app';
 import { getAuth, GoogleAuthProvider, FacebookAuthProvider } from 'firebase/auth';
 import { getFirestore, collection, doc, setDoc } from 'firebase/firestore';
+import { getStorage } from 'firebase/storage';
 
 const firebaseConfig = {
   apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
@@ -15,6 +16,7 @@ const firebaseConfig = {
 const app = getApps().length ? getApp() : initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getFirestore(app);
+const storage = getStorage(app);
 
 // Initialize collections
 const initializeCollections = async (userId: string) => {
@@ -28,6 +30,14 @@ const initializeCollections = async (userId: string) => {
       createdAt: new Date()
     }, { merge: true });
 
+    // Create user profile document
+    const userProfileRef = doc(db, 'userdata', userId);
+    await setDoc(userProfileRef, {
+      profile: {
+        createdAt: new Date()
+      }
+    }, { merge: true });
+
     // Ensure workouts collection exists
     const workoutsRef = collection(db, 'workouts');
     
@@ -39,4 +49,4 @@ const initializeCollections = async (userId: string) => {
 
 export const googleProvider = new GoogleAuthProvider();
 export const facebookProvider = new FacebookAuthProvider();
-export { app, auth, db, initializeCollections };
+export { app, auth, db, storage, initializeCollections };

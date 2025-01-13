@@ -38,7 +38,8 @@ const MobileBottomMenu: React.FC = () => {
     { 
       id: 'add', 
       icon: FiPlusCircle, 
-      special: true 
+      special: true,
+      action: () => setIsPullDownOpen(!isPullDownOpen)
     },
     { 
       id: 'progress', 
@@ -102,11 +103,11 @@ const MobileBottomMenu: React.FC = () => {
           {menuItems.map((item) => (
             <motion.button
               key={item.id}
-              onClick={() => handleTabClick(item.id, item.href)}
+              onClick={() => item.action ? item.action() : handleTabClick(item.id, item.href)}
               className={`
                 relative flex flex-col items-center justify-center group
                 ${item.special 
-                  ? 'w-16 h-16 -mt-8 bg-gradient-to-br from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 rounded-full shadow-lg text-white transform -translate-y-1/3' 
+                  ? 'w-16 h-16 -mt-8 bg-purple-500 hover:bg-purple-600 rounded-full shadow-lg text-white transform -translate-y-1/3' 
                   : 'w-10 h-10 rounded-full'
                 }
                 ${!item.special && 'overflow-hidden'}

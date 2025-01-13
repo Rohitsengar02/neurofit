@@ -1,22 +1,78 @@
-"use client";
+'use client';
 
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { FaBars, FaSearch, FaBell, FaSignOutAlt, FaDumbbell } from 'react-icons/fa';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useTheme } from 'next-themes';
 import ThemeToggle from './ThemeToggle';
 import Image from 'next/image';
+import { getAuth, signOut, onAuthStateChanged } from 'firebase/auth';
+import { useRouter } from 'next/navigation';
+import { getFirestore, doc, getDoc, onSnapshot } from 'firebase/firestore';
+import { toast } from 'react-hot-toast';
 
 interface NavbarProps {
   setIsMobileOpen: (value: boolean) => void;
 }
 
 const Navbar: React.FC<NavbarProps> = ({ setIsMobileOpen }) => {
-  const [isOpen, setIsOpen] = React.useState(false);
+  const [isOpen, setIsOpen] = useState(false);
+  const [userData, setUserData] = useState<{
+    name?: string;
+    email?: string;
+    photoURL?: string;
+  }>({});
+  const router = useRouter();
+  const auth = getAuth();
+  const db = getFirestore();
 
-  const handleLogout = () => {
-    // Implement logout functionality
-    console.log('Logging out...');
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, async (user) => {
+      if (user) {
+        // Set up real-time listener for user data
+        const userDocRef = doc(db, 'users', user.uid);
+        
+        // Initial fetch
+        const docSnap = await getDoc(userDocRef);
+        if (docSnap.exists()) {
+          const data = docSnap.data();
+          setUserData({
+            name: data.name || 'User',
+            email: user.email || '',
+            photoURL: data.photoURL,
+          });
+        }
+
+        // Real-time updates
+        const unsubscribeSnapshot = onSnapshot(userDocRef, (doc) => {
+          if (doc.exists()) {
+            const data = doc.data();
+            setUserData(prev => ({
+              ...prev,
+              name: data.name || 'User',
+              photoURL: data.photoURL,
+            }));
+          }
+        }, (error) => {
+          console.error('Error listening to user data:', error);
+          toast.error('Failed to get latest profile updates');
+        });
+
+        return () => unsubscribeSnapshot();
+      }
+    });
+
+    return () => unsubscribe();
+  }, [auth, db]);
+
+  const handleLogout = async () => {
+    try {
+      await signOut(auth);
+      router.push('/'); // Redirect to home/login page
+    } catch (error) {
+      console.error('Error logging out:', error);
+      toast.error('Failed to log out');
+    }
   };
 
   return (
@@ -68,21 +124,22 @@ const Navbar: React.FC<NavbarProps> = ({ setIsMobileOpen }) => {
         {/* User Profile */}
         <div className="relative flex items-center space-x-3">
           <div className="flex flex-col items-end hidden md:flex">
-            <span className="text-sm font-medium text-gray-700 dark:text-gray-200">John Doe</span>
-            <span className="text-xs text-gray-500 dark:text-gray-400">Admin</span>
+            <span className="text-sm font-medium text-gray-700 dark:text-gray-200">{userData.name}</span>
+            <span className="text-xs text-gray-500 dark:text-gray-400">Member</span>
           </div>
           <motion.button
             onClick={() => setIsOpen(!isOpen)}
-            className="w-9 h-9 rounded-lg flex items-center justify-center transition-all duration-300"
+            className="relative w-9 h-9 rounded-lg flex items-center justify-center transition-all duration-300 overflow-hidden bg-gray-100 dark:bg-gray-800"
             whileHover={{ scale: 1.05 }}
             whileTap={{ scale: 0.95 }}
           >
             <Image
-              src="https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?q=80&w=100"
+              src={userData.photoURL || '/default-avatar.png'}
               alt="Profile"
-              width={32}
-              height={32}
-              className="rounded-full"
+              width={36}
+              height={36}
+              className="rounded-lg object-cover w-full h-full"
+              priority
             />
           </motion.button>
 
@@ -97,9 +154,16 @@ const Navbar: React.FC<NavbarProps> = ({ setIsMobileOpen }) => {
                 className="absolute right-0 top-12 w-56 bg-white dark:bg-zinc-900 rounded-lg shadow-lg py-1 z-50 border border-gray-100 dark:border-zinc-800"
               >
                 <div className="px-4 py-2 border-b border-gray-100 dark:border-zinc-800">
-                  <p className="text-sm font-medium text-gray-900 dark:text-white">John Doe</p>
-                  <p className="text-xs text-gray-500 dark:text-gray-400">john@example.com</p>
+                  <p className="text-sm font-medium text-gray-900 dark:text-white">{userData.name}</p>
+                  <p className="text-xs text-gray-500 dark:text-gray-400">{userData.email}</p>
                 </div>
+                <motion.button
+                  onClick={() => router.push('/profile')}
+                  className="w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-zinc-800 transition-all duration-200 flex items-center group"
+                  whileHover={{ x: 2 }}
+                >
+                  Profile Settings
+                </motion.button>
                 <motion.button
                   onClick={handleLogout}
                   className="w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-zinc-800 transition-all duration-200 flex items-center group"

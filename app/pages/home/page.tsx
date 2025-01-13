@@ -1,11 +1,27 @@
 "use client";
 
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 import { FiActivity, FiHeart, FiTrendingUp } from 'react-icons/fi';
 import { GradientCard, PageTransition } from '../../components/shared/UIComponents';
+import { getAuth, onAuthStateChanged } from 'firebase/auth';
+import { extractNameFromEmail } from '../../utils/userUtils';
 
 const HomePage = () => {
+  const [userName, setUserName] = useState('');
+  const auth = getAuth();
+
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      if (user?.email) {
+        const name = extractNameFromEmail(user.email);
+        setUserName(name);
+      }
+    });
+
+    return () => unsubscribe();
+  }, [auth]);
+
   const stats = [
     { icon: FiActivity, value: '2,345', label: 'Steps', color: 'from-blue-500 to-cyan-500' },
     { icon: FiHeart, value: '75', label: 'BPM', color: 'from-rose-500 to-pink-500' },
@@ -22,7 +38,7 @@ const HomePage = () => {
             animate={{ opacity: 1, x: 0 }}
             className="text-3xl font-bold bg-gradient-to-r from-purple-600 to-indigo-600 dark:from-purple-400 dark:to-indigo-400 bg-clip-text text-transparent"
           >
-            Welcome Back!
+            Welcome Back, {userName}!
           </motion.h1>
           <p className="text-base text-gray-600 dark:text-gray-400">Let&apos;s achieve your fitness goals together!</p>
         </div>

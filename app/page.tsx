@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import AuthForm from './components/Auth/AuthForm';
 import Dashboard from './components/Dashboard/Dashboard';
+import MainLayout from './components/Layout/MainLayout';
 import { auth } from './utils/firebase';
 import { getUserData, saveUserData, UserData } from './utils/userService';
 import { onAuthStateChanged } from 'firebase/auth';
@@ -12,6 +13,7 @@ import AgeSelection from './components/OnboardingSteps/AgeSelection';
 import BodyFatSelection from './components/OnboardingSteps/BodyFatSelection';
 import BodyTypeSelection from './components/OnboardingSteps/BodyTypeSelection';
 import DailyRoutine from './components/OnboardingSteps/DailyRoutine';
+import ProfileSetup from './components/OnboardingSteps/ProfileSetup';
 import ExercisePreferences from './components/OnboardingSteps/ExercisePreferences';
 import ExperienceLevel from './components/OnboardingSteps/ExperienceLevel';
 import FitnessGoals from './components/OnboardingSteps/FitnessGoals';
@@ -99,7 +101,7 @@ export default function Home() {
   const [userData, setUserData] = useState<UserData>(initialUserData);
   const [onboardingComplete, setOnboardingComplete] = useState(false);
   const router = useRouter();
-  const totalSteps = 20;
+  const totalSteps = 21;
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
@@ -166,6 +168,12 @@ export default function Home() {
   };
 
   const handlePrevious = () => {
+    if (currentStep > 1) {
+      setCurrentStep(currentStep - 1);
+    }
+  };
+
+  const handleBack = () => {
     if (currentStep > 1) {
       setCurrentStep(currentStep - 1);
     }
@@ -445,6 +453,31 @@ export default function Home() {
             }}
           />
         );
+      case 20:
+        return (
+          <ProfileSetup
+            onNext={() => {
+              setCurrentStep(currentStep + 1);
+              setUserData(prev => ({
+                ...prev,
+                currentStep: currentStep + 1
+              }));
+            }}
+            onBack={() => {
+              setCurrentStep(currentStep - 1);
+              setUserData(prev => ({
+                ...prev,
+                currentStep: currentStep - 1
+              }));
+            }}
+            commonProps={{
+              initial: { opacity: 0, x: 50 },
+              animate: { opacity: 1, x: 0 },
+              exit: { opacity: 0, x: -50 },
+              transition: { duration: 0.3 }
+            }}
+          />
+        );
       default:
         return null;
     }
@@ -466,14 +499,18 @@ export default function Home() {
         animate={{ opacity: 1 }}
         transition={{ duration: 0.5 }}
       >
-        <Dashboard  />
+        <MainLayout>
+          <Dashboard />
+        </MainLayout>
       </motion.div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gray-900 text-white">
-      {renderOnboardingStep()}
-    </div>
+    <MainLayout>
+      <div className="min-h-screen bg-gray-900 text-white">
+        {renderOnboardingStep()}
+      </div>
+    </MainLayout>
   );
 }
