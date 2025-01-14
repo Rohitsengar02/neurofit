@@ -2,204 +2,163 @@
 
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { useLayout } from '@/app/context/LayoutContext';
-import { useRouter, usePathname } from 'next/navigation';
-import { 
-  FiHome,
-  FiPlusCircle,
-  FiUser,
-  FiTrendingUp,
-} from 'react-icons/fi';
+import { usePathname, useRouter } from 'next/navigation';
+import { FaHome, FaComments } from 'react-icons/fa';
+import { IoMdFitness } from 'react-icons/io';
+import { BsGrid3X3GapFill, BsRobot } from 'react-icons/bs';
+import { IoClose } from 'react-icons/io5';
 import { GiMuscleUp } from 'react-icons/gi';
+import { TbHeartRateMonitor } from 'react-icons/tb';
+import { MdKeyboardArrowUp, MdKeyboardArrowDown } from 'react-icons/md';
+import { useLayout } from '@/app/context/LayoutContext';
+import PullDownCalendar from '../PullToRefresh/PullDownCalendar';
 
-const MobileBottomMenu: React.FC = () => {
-  const [activeTab, setActiveTab] = useState('home');
+interface Tab {
+  name: string;
+  href: string;
+  icon: React.ElementType;
+}
+
+const tabs: Tab[] = [
+  { name: 'Home', href: '/', icon: FaHome },
+  { name: 'Workout', href: '/pages/workout', icon: GiMuscleUp },
+  { name: 'Assistant', href: '/assistant', icon: BsRobot },
+  { name: 'Health', href: '#', icon: TbHeartRateMonitor },
+];
+
+const allTabs: Tab[] = [
+  ...tabs.filter(tab => tab.name !== 'Health'),
+  { name: 'Diet', href: '/diet', icon: IoMdFitness },
+  { name: 'Progress', href: '/progress', icon: IoMdFitness },
+  { name: 'Settings', href: '/pages/settings', icon: IoMdFitness },
+  { name: 'Help', href: '/help', icon: IoMdFitness },
+  { name: 'Profile', href: '/pages/profile', icon: IoMdFitness },
+];
+
+export default function MobileBottomMenu() {
   const { isPullDownOpen, setIsPullDownOpen } = useLayout();
-  const router = useRouter();
   const pathname = usePathname();
+  const router = useRouter();
 
-  const menuItems = [
-    { 
-      id: 'home', 
-      icon: FiHome, 
-      color: 'from-purple-500 to-indigo-500',
-      activeColor: 'text-indigo-700 dark:text-indigo-400',
-      inactiveColor: 'text-gray-400 dark:text-gray-500',
-      href: '/'
-    },
-    { 
-      id: 'workout', 
-      icon: GiMuscleUp, 
-      color: 'from-pink-500 to-rose-500',
-      activeColor: 'text-rose-700 dark:text-rose-400',
-      inactiveColor: 'text-gray-400 dark:text-gray-500',
-      href: '/pages/workout'
-    },
-    { 
-      id: 'add', 
-      icon: FiPlusCircle, 
-      special: true,
-      action: () => setIsPullDownOpen(!isPullDownOpen)
-    },
-    { 
-      id: 'progress', 
-      icon: FiTrendingUp, 
-      color: 'from-green-500 to-emerald-500',
-      activeColor: 'text-emerald-700 dark:text-emerald-400',
-      inactiveColor: 'text-gray-400 dark:text-gray-500',
-      href: '/pages/progress'
-    },
-    { 
-      id: 'profile', 
-      icon: FiUser, 
-      color: 'from-blue-500 to-cyan-500',
-      activeColor: 'text-cyan-700 dark:text-cyan-400',
-      inactiveColor: 'text-gray-400 dark:text-gray-500',
-      href: '/pages/profile'
-    }
-  ];
-
-  const handleTabClick = (tabId: string, href?: string) => {
-    if (tabId === 'add') {
+  const handleTabClick = (href: string, name: string) => {
+    if (name === 'Health') {
       setIsPullDownOpen(!isPullDownOpen);
     } else {
-      setActiveTab(tabId);
-      if (href) {
-        router.push(href);
-      }
+      setIsPullDownOpen(false);
+      router.push(href);
     }
   };
 
-  // Calculate active index for slider
-  const activeIndex = menuItems.findIndex(item => item.id === activeTab);
-  const sliderOffset = activeIndex * 40; // 40px per item (w-10)
-
   return (
-    <div className="fixed bottom-8 left-4 right-4 z-[9998] md:hidden">
-      <motion.div 
-        className="relative bg-white dark:bg-gray-900 rounded-full shadow-lg px-6 py-4"
-        initial={{ y: 100, opacity: 0 }}
-        animate={{ y: 0, opacity: 1 }}
-        transition={{ type: 'spring', stiffness: 100, damping: 20 }}
-        style={{
-          boxShadow: '0 8px 32px rgba(0, 0, 0, 0.12)',
-        }}
-      >
-        {/* Background slider */}
-        <motion.div
-          className="absolute w-10 h-10 rounded-full bg-gray-50 dark:bg-gray-800"
-          animate={{
-            x: sliderOffset + 24, // 24px for padding
-            scale: activeTab === 'add' ? 0 : 1
-          }}
-          transition={{
-            type: "spring",
-            stiffness: 400,
-            damping: 30
-          }}
-        />
-
-        <div className="relative flex items-center justify-between">
-          {menuItems.map((item) => (
-            <motion.button
-              key={item.id}
-              onClick={() => item.action ? item.action() : handleTabClick(item.id, item.href)}
-              className={`
-                relative flex flex-col items-center justify-center group
-                ${item.special 
-                  ? 'w-16 h-16 -mt-8 bg-purple-500 hover:bg-purple-600 rounded-full shadow-lg text-white transform -translate-y-1/3' 
-                  : 'w-10 h-10 rounded-full'
-                }
-                ${!item.special && 'overflow-hidden'}
-                ${!item.special && (activeTab === item.id ? item.activeColor : item.inactiveColor)}
-                transition-all duration-300 ease-in-out
-              `}
-              style={item.special ? {
-                boxShadow: '0 8px 24px rgba(59, 130, 246, 0.35)',
-              } : {}}
-              whileHover={!item.special ? { 
-                scale: 1.15,
-                transition: { type: 'spring', stiffness: 400, damping: 17 }
-              } : {}}
-              whileTap={{ scale: 0.9 }}
-              animate={item.special ? {
-                y: isPullDownOpen ? -4 : -12,
-                rotate: isPullDownOpen ? 45 : 0,
-                scale: isPullDownOpen ? 0.95 : 1,
-                transition: { 
-                  duration: 0.3,
-                  ease: 'easeInOut'
-                }
-              } : {}}
-            >
-              {/* Background fill effect */}
-              {!item.special && (
-                <motion.div
-                  className={`absolute inset-0 bg-gradient-to-br ${item.color} opacity-0`}
-                  initial={false}
-                  animate={{
-                    opacity: activeTab === item.id ? 0.15 : 0
-                  }}
-                  transition={{ duration: 0.3 }}
-                />
-              )}
-
-              <motion.div
-                className={`relative z-10 flex items-center justify-center ${!item.special ? 'w-full h-full' : ''}`}
-                animate={activeTab === item.id && !item.special ? {
-                  scale: [1, 1.2, 1],
-                  transition: {
-                    duration: 0.3,
-                    ease: "easeInOut"
-                  }
-                } : {}}
+    <div className={`fixed bottom-0 left-0 right-0 z-50 transition-transform duration-300 ${isPullDownOpen ? 'translate-y-0' : ''}`}>
+      <div className="relative">
+        {isPullDownOpen && (
+          <motion.button
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.9 }}
+            onClick={() => setIsPullDownOpen(true)}
+            className="absolute -top-12 right-4 p-2 rounded-full bg-white dark:bg-gray-800 shadow-lg dark:shadow-gray-900/30"
+          >
+            <div className="bg-gradient-to-br from-blue-500 to-purple-500 rounded-full p-1.5">
+              <svg 
+                xmlns="http://www.w3.org/2000/svg" 
+                viewBox="0 0 24 24" 
+                fill="none" 
+                stroke="currentColor" 
+                className="w-5 h-5 text-white"
+                strokeWidth="2" 
+                strokeLinecap="round" 
+                strokeLinejoin="round"
               >
-                {React.createElement(item.icon, {
-                  className: `${item.special ? 'text-4xl' : 'text-2xl'}
-                    transition-all duration-300`,
-                  style: {
-                    strokeWidth: activeTab === item.id && !item.special ? 2.5 : 2,
-                    filter: activeTab === item.id && !item.special ? 'drop-shadow(0 2px 4px rgba(0, 0, 0, 0.1))' : 'none'
-                  }
-                })}
-              </motion.div>
-
-              {/* Active indicator with gradient */}
-              {!item.special && (
-                <motion.div
-                  className={`
-                    absolute -bottom-4 w-1.5 h-1.5 rounded-full
-                    ${activeTab === item.id ? `bg-gradient-to-r ${item.color} shadow-lg` : 'bg-transparent'}
-                  `}
-                  layoutId="activeIndicator"
-                  transition={{ 
-                    type: 'spring', 
-                    stiffness: 400, 
-                    damping: 25 
-                  }}
-                >
-                  {activeTab === item.id && (
+                <path d="M8 3v3a2 2 0 0 1-2 2H3m18 0h-3a2 2 0 0 1-2-2V3m0 18v-3a2 2 0 0 1 2-2h3M3 16h3a2 2 0 0 1 2 2v3" />
+              </svg>
+            </div>
+          </motion.button>
+        )}
+        
+        <nav className="bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700 px-4 py-2">
+          <div className="flex justify-around items-center">
+            {tabs.map((tab) => (
+              <button
+                key={tab.name}
+                onClick={() => handleTabClick(tab.href, tab.name)}
+                className="flex flex-col items-center p-2 relative"
+              >
+                {tab.name === 'Health' ? (
+                  <motion.div
+                    className="relative"
+                    animate={{ rotate: isPullDownOpen ? 180 : 0 }}
+                    transition={{ duration: 0.3 }}
+                  >
+                    {isPullDownOpen ? (
+                      <IoClose className={`w-6 h-6 text-blue-500`} />
+                    ) : (
+                      <tab.icon className={`w-6 h-6 text-gray-500 dark:text-gray-400`} />
+                    )}
                     <motion.div
-                      className={`absolute inset-0 rounded-full bg-gradient-to-r ${item.color} opacity-50`}
-                      animate={{
-                        scale: [1, 1.5, 1],
-                        opacity: [0.5, 0, 0.5]
-                      }}
-                      transition={{
-                        duration: 2,
-                        repeat: Infinity,
-                        ease: "easeInOut"
-                      }}
-                    />
-                  )}
-                </motion.div>
-              )}
-            </motion.button>
-          ))}
-        </div>
-      </motion.div>
+                      className="absolute -bottom-4 left-1/2 transform -translate-x-1/2"
+                      animate={{ rotate: isPullDownOpen ? 180 : 0, opacity: isPullDownOpen ? 0 : 1 }}
+                      transition={{ duration: 0.3 }}
+                    >
+                      <MdKeyboardArrowDown className="w-4 h-4 text-gray-500 dark:text-gray-400" />
+                    </motion.div>
+                  </motion.div>
+                ) : (
+                  <tab.icon
+                    className={`w-6 h-6 ${
+                      pathname === tab.href
+                        ? 'text-blue-500'
+                        : 'text-gray-500 dark:text-gray-400'
+                    }`}
+                  />
+                )}
+                <span
+                  className={`text-xs mt-1 ${
+                    (pathname === tab.href) || (tab.name === 'Health' && isPullDownOpen)
+                      ? 'text-blue-500'
+                      : 'text-gray-500 dark:text-gray-400'
+                  }`}
+                >
+                  {tab.name}
+                </span>
+              </button>
+            ))}
+            <button
+              onClick={() => setIsPullDownOpen(false)}
+              className="flex flex-col items-center p-2"
+            >
+              <BsGrid3X3GapFill className="w-6 h-6 text-gray-500 dark:text-gray-400" />
+              <span className="text-xs mt-1 text-gray-500 dark:text-gray-400">More</span>
+            </button>
+          </div>
+        </nav>
+        <AnimatePresence>
+          {isPullDownOpen && (
+            <motion.div
+              initial={{ opacity: 0, y: '-100%' }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: '-100%' }}
+              transition={{ 
+                type: 'spring', 
+                damping: 30, 
+                stiffness: 300,
+                mass: 0.8
+              }}
+              className="fixed top-0 left-0 right-0 bottom-16 bg-white dark:bg-gray-900 z-40"
+            >
+              <div className="relative h-full w-full">
+                <div className="sticky top-0 left-0 right-0 p-4 bg-white dark:bg-gray-900 z-50 flex justify-between items-center border-b border-gray-200 dark:border-gray-700">
+                  <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Health Overview</h2>
+                </div>
+                <div className="h-[calc(100%-4rem)] overflow-y-auto">
+                  <PullDownCalendar />
+                </div>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </div>
     </div>
   );
-};
-
-export default MobileBottomMenu;
+}

@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, 
@@ -55,8 +55,7 @@ const getDays = () => {
     date.setDate(today.getDate() + i);
     days.push({
       date: date.getDate(),
-      day: date.toLocaleDateString('en-US', { weekday: 'short' }),
-      month: date.toLocaleDateString('en-US', { month: 'short' }),
+      dayName: date.toLocaleDateString('en-US', { weekday: 'long' }),
       isToday: i === 0
     });
   }
@@ -158,414 +157,348 @@ const mainSections: Section[] = [
 const PullDownFitnessStats: React.FC = () => {
   const { isPullDownOpen, setIsPullDownOpen } = useLayout();
   const [activeSection, setActiveSection] = useState(0);
+  const containerRef = useRef<HTMLDivElement>(null);
 
-  const handleSectionSwipe = (direction: number) => {
+  const handleSectionChange = (direction: number) => {
     const newSection = activeSection + direction;
     if (newSection >= 0 && newSection < mainSections.length) {
       setActiveSection(newSection);
     }
   };
 
+  const handleTouchStart = useRef<number>(0);
+  const handleTouchMove = useRef<number>(0);
+
+  const handleTouchStartEvent = (e: React.TouchEvent) => {
+    handleTouchStart.current = e.touches[0].clientX;
+  };
+
+  const handleTouchMoveEvent = (e: React.TouchEvent) => {
+    handleTouchMove.current = e.touches[0].clientX;
+  };
+
+  const handleTouchEndEvent = () => {
+    const difference = handleTouchStart.current - handleTouchMove.current;
+    if (Math.abs(difference) > 50) { // minimum swipe distance
+      if (difference > 0) {
+        // Swipe left
+        handleSectionChange(1);
+      } else {
+        // Swipe right
+        handleSectionChange(-1);
+      }
+    }
+  };
+
+  useEffect(() => {
+    if (containerRef.current) {
+      containerRef.current.scrollLeft = 0;
+    }
+  }, [activeSection]);
+
   const days = getDays();
 
   const renderCalendar = () => (
-    <div className="px-3 mb-6">
-      <div 
-        className="flex space-x-3 overflow-x-auto pb-2 scrollbar-hide"
-      >
-        {days.map((day, index) => (
-          <div
-            key={index}
-            className={`
-              relative flex-shrink-0 w-16 h-20 flex flex-col items-center justify-center rounded-2xl
-              backdrop-blur-md
-              ${day.isToday 
-                ? 'bg-gradient-to-br from-violet-500 via-purple-500 to-indigo-500 text-white shadow-xl shadow-violet-500/30 border border-violet-400/30'
-                : 'bg-gradient-to-br from-white/90 to-white/50 dark:from-gray-800/90 dark:to-gray-700/50 shadow-lg shadow-gray-200/50 dark:shadow-gray-900/50 border border-gray-100 dark:border-gray-700'
-              }
-              ${day.isToday ? 'scale-110 z-10' : 'scale-100'}
-              transform transition-all duration-300 hover:scale-105
-              ${index === 0 ? 'ml-2' : ''} ${index === days.length - 1 ? 'mr-2' : ''}
-            `}
-          >
-            <span 
-              className={`text-xs font-medium ${day.isToday ? 'text-violet-200' : 'text-gray-500 dark:text-gray-400'}`}
-            >
-              {day.month}
-            </span>
-            <span 
-              className={`text-2xl font-bold mt-0.5 ${day.isToday ? 'text-white' : 'text-gray-700 dark:text-gray-200'}`}
-            >
-              {day.date}
-            </span>
-            <span 
-              className={`text-xs font-medium mt-0.5 ${day.isToday ? 'text-violet-200' : 'text-gray-500 dark:text-gray-400'}`}
-            >
-              {day.day}
-            </span>
-            {day.isToday && (
-              <div
-                className="absolute inset-0 rounded-2xl"
-              />
-            )}
+    <div className="px-4 py-3 bg-white dark:bg-gray-800 shadow-lg mb-4">
+      <div className="relative">
+        <div className="absolute left-0 top-0 bottom-0 w-8 bg-gradient-to-r from-white to-transparent dark:from-gray-800 z-10" />
+        <div className="absolute right-0 top-0 bottom-0 w-8 bg-gradient-to-l from-white to-transparent dark:from-gray-800 z-10" />
+        
+        <div className="overflow-x-auto scrollbar-hide">
+          <div className="flex space-x-3 min-w-min py-1 px-6">
+            {days.map((day, index) => (
+              <motion.div
+                key={day.date}
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
+                className={`flex-shrink-0 w-12 p-2 rounded-xl cursor-pointer transition-colors
+                  ${day.isToday 
+                    ? 'bg-gradient-to-br from-blue-500 to-purple-500 text-white' 
+                    : 'hover:bg-gray-100 dark:hover:bg-gray-700'
+                  }`}
+              >
+                <div className="flex flex-col items-center">
+                  <span className="text-xs font-medium opacity-60">
+                    {day.dayName.slice(0, 3)}
+                  </span>
+                  <span className="text-lg font-bold mt-0.5">
+                    {day.date}
+                  </span>
+                </div>
+              </motion.div>
+            ))}
           </div>
-        ))}
+        </div>
       </div>
     </div>
   );
 
-  const renderChart = (data: any[] | undefined, type: string = 'line') => {
-    if (!data || data.length === 0) return null;
-
-    const CustomTooltip = ({ active, payload, label }: any) => {
-      if (active && payload && payload.length) {
-        return (
-          <div className="bg-white/90 dark:bg-gray-800/90 p-3 rounded-lg shadow-lg backdrop-blur-sm border border-gray-100/50 dark:border-gray-700/50">
-            <p className="font-medium text-gray-800 dark:text-white">{label}</p>
-            {payload.map((item: any, index: number) => (
-              <p key={index} className="text-sm" style={{ color: item.color }}>
-                {item.name}: {item.value}
-              </p>
-            ))}
-          </div>
-        );
-      }
-      return null;
-    };
-
-    switch (type) {
-      case 'area':
-        return (
-          <ResponsiveContainer width="100%" height={200}>
-            <AreaChart data={data} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
-              <defs>
-                <linearGradient id="colorSteps" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="#818CF8" stopOpacity={0.8}/>
-                  <stop offset="95%" stopColor="#818CF8" stopOpacity={0}/>
-                </linearGradient>
-              </defs>
-              <CartesianGrid strokeDasharray="3 3" stroke="#E5E7EB" />
-              <XAxis dataKey="time" stroke="#94A3B8" />
-              <YAxis stroke="#94A3B8" />
-              <Tooltip content={<CustomTooltip />} />
-              <Area 
-                type="monotone" 
-                dataKey="steps" 
-                stroke="#818CF8" 
-                fillOpacity={1} 
-                fill="url(#colorSteps)"
-              />
-            </AreaChart>
-          </ResponsiveContainer>
-        );
-
-      case 'radial':
-        return (
-          <ResponsiveContainer width="100%" height={200}>
-            <RadialBarChart 
-              cx="50%"
-              cy="50%"
-              innerRadius="20%"
-              outerRadius="90%"
-              barSize={10}
-              data={data}
-            >
-              <RadialBar
-                label={{ fill: '#666', position: 'insideStart' }}
-                background
-                dataKey="value"
-                cornerRadius={10}
-                stackId="a"
-              >
-                {data.map((entry, index) => (
-                  <Cell
-                    key={`cell-${index}`}
-                    fill={entry.fill}
-                  />
-                ))}
-              </RadialBar>
-              <Legend
-                iconSize={10}
-                layout="vertical"
-                verticalAlign="middle"
-                wrapperStyle={{
-                  top: '50%',
-                  right: 0,
-                  transform: 'translate(0, -50%)'
-                }}
-              />
-              <Tooltip
-                content={<CustomTooltip />}
-                cursor={{ strokeWidth: 2 }}
-              />
-            </RadialBarChart>
-          </ResponsiveContainer>
-        );
-
-      case 'bar':
-        return (
-          <ResponsiveContainer width="100%" height={200}>
-            <BarChart data={data} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#E5E7EB" />
-              <XAxis dataKey="name" stroke="#94A3B8" />
-              <YAxis stroke="#94A3B8" />
-              <Tooltip content={<CustomTooltip />} />
-              <Bar 
-                dataKey="value" 
-                fill="#8B5CF6"
-              >
-                {data.map((entry, index) => (
-                  <Cell key={`cell-${index}`} fill={entry.fill} />
-                ))}
-              </Bar>
-              <Bar 
-                dataKey="goal" 
-                fill="#E5E7EB"
-                opacity={0.3}
-              />
-            </BarChart>
-          </ResponsiveContainer>
-        );
-
-      case 'pie':
-        return (
-          <ResponsiveContainer width="100%" height={200}>
-            <PieChart>
-              <Pie
-                data={data}
-                innerRadius={60}
-                outerRadius={80}
-                paddingAngle={5}
-                dataKey="value"
-              >
-                {data.map((entry, index) => (
-                  <Cell 
-                    key={`cell-${index}`} 
-                    fill={entry.fill}
-                  />
-                ))}
-              </Pie>
-              <Tooltip content={<CustomTooltip />} />
-              <Legend 
-                iconSize={10}
-                layout="vertical"
-                verticalAlign="middle"
-                align="right"
-              />
-            </PieChart>
-          </ResponsiveContainer>
-        );
-
-      default:
-        return (
-          <ResponsiveContainer width="100%" height={200}>
-            <LineChart data={data}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#E5E7EB" />
-              <XAxis dataKey="time" stroke="#94A3B8" />
-              <YAxis stroke="#94A3B8" />
-              <Tooltip content={<CustomTooltip />} />
-              <Line 
-                type="monotone" 
-                dataKey="value" 
-                stroke="#8B5CF6" 
-                strokeWidth={2}
-                dot={false}
-              />
-            </LineChart>
-          </ResponsiveContainer>
-        );
-    }
-  };
-
-  const renderItems = (items: StatItem[] | undefined) => {
-    if (!items || items.length === 0) return null;
-    
-    return (
-      <div className="grid grid-cols-2 gap-4">
-        {items.map((item, i) => {
-          const Icon = item.icon;
-          return (
-            <div
-              key={`${item.title}-${i}`}
-              className={`
-                bg-gradient-to-br ${item.color} p-4 rounded-2xl text-white 
-                shadow-md hover:shadow-2xl transition-all duration-300 hover:scale-105
-                backdrop-blur-md border border-white/10
-              `}
-            >
-              <div className="flex items-center mb-2">
-                <Icon className="text-2xl mr-2" />
-                <span className="font-semibold">{item.title}</span>
-              </div>
-              <div className="text-3xl font-bold">{item.value}</div>
-              <div className="text-sm opacity-80">{item.unit}</div>
+  const renderStatCard = (item: StatItem) => (
+    <motion.div
+      whileHover={{ scale: 1.02 }}
+      whileTap={{ scale: 0.98 }}
+      className="flex-shrink-0 w-[280px]"
+    >
+      <div className="relative overflow-hidden bg-white dark:bg-gray-800 rounded-2xl shadow-lg dark:shadow-gray-900/30 p-4 mx-2 h-full">
+        <div className="absolute top-0 right-0 w-24 h-24 bg-gradient-to-br from-blue-500/10 to-purple-500/10 rounded-full -mr-8 -mt-8 blur-2xl" />
+        <div className="absolute bottom-0 left-0 w-24 h-24 bg-gradient-to-tr from-green-500/10 to-blue-500/10 rounded-full -ml-8 -mb-8 blur-2xl" />
+        
+        <div className="relative flex flex-col h-full">
+          <div className="flex items-center justify-between mb-3">
+            <div className={`bg-gradient-to-br ${item.color} p-2.5 rounded-xl`}>
+              <item.icon className="w-5 h-5 text-white" />
             </div>
-          );
-        })}
+            <span className="text-sm font-medium text-gray-500 dark:text-gray-400">{item.title}</span>
+          </div>
+          
+          <div className="flex-grow" />
+          
+          <div className="flex items-baseline mt-2">
+            <span className="text-3xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent dark:from-blue-400 dark:to-purple-400">
+              {item.value}
+            </span>
+            <span className="ml-1 text-sm text-gray-500 dark:text-gray-400">{item.unit}</span>
+          </div>
+        </div>
       </div>
+    </motion.div>
+  );
+
+  const renderChart = (section: Section) => {
+    if (!section.chartData || !section.chartType) return null;
+
+    return (
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.5 }}
+        className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg p-4 relative overflow-hidden"
+      >
+        <div className="absolute top-0 right-0 w-48 h-48 bg-gradient-to-br from-blue-500/10 to-purple-500/10 rounded-full -mr-16 -mt-16 blur-3xl" />
+        <div className="absolute bottom-0 left-0 w-48 h-48 bg-gradient-to-tr from-green-500/10 to-blue-500/10 rounded-full -ml-16 -mb-16 blur-3xl" />
+        
+        <div className="relative">
+          {(() => {
+            switch (section.chartType) {
+              case 'area':
+                return (
+                  <div className="h-[200px] w-full">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <AreaChart data={section.chartData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                        <defs>
+                          <linearGradient id="colorSteps" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="5%" stopColor="#3B82F6" stopOpacity={0.3}/>
+                            <stop offset="95%" stopColor="#3B82F6" stopOpacity={0}/>
+                          </linearGradient>
+                        </defs>
+                        <CartesianGrid strokeDasharray="3 3" stroke="#E5E7EB" />
+                        <XAxis dataKey="time" stroke="#9CA3AF" fontSize={12} />
+                        <YAxis stroke="#9CA3AF" fontSize={12} />
+                        <Tooltip 
+                          contentStyle={{ 
+                            backgroundColor: 'rgba(255, 255, 255, 0.9)',
+                            border: 'none',
+                            borderRadius: '8px',
+                            boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)'
+                          }}
+                        />
+                        <Area type="monotone" dataKey="steps" stroke="#3B82F6" fill="url(#colorSteps)" />
+                      </AreaChart>
+                    </ResponsiveContainer>
+                  </div>
+                );
+              case 'radial':
+                return (
+                  <div className="h-[200px] w-full">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <RadialBarChart cx="50%" cy="50%" innerRadius="20%" outerRadius="90%" barSize={10} data={section.chartData}>
+                        <RadialBar background dataKey="value" cornerRadius={12} />
+                        <Tooltip />
+                      </RadialBarChart>
+                    </ResponsiveContainer>
+                  </div>
+                );
+              case 'bar':
+                return (
+                  <div className="h-[200px] w-full">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart data={section.chartData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="#E5E7EB" />
+                        <XAxis dataKey="name" stroke="#9CA3AF" fontSize={12} />
+                        <YAxis stroke="#9CA3AF" fontSize={12} />
+                        <Tooltip
+                          contentStyle={{
+                            backgroundColor: 'rgba(255, 255, 255, 0.9)',
+                            border: 'none',
+                            borderRadius: '8px',
+                            boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)'
+                          }}
+                        />
+                        <Bar dataKey="value" fill="#3B82F6" radius={[4, 4, 0, 0]} />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </div>
+                );
+              case 'pie':
+                return (
+                  <div className="h-[200px] w-full">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <PieChart>
+                        <Pie
+                          data={section.chartData}
+                          cx="50%"
+                          cy="50%"
+                          innerRadius={60}
+                          outerRadius={80}
+                          paddingAngle={5}
+                          dataKey="value"
+                        >
+                          {section.chartData.map((entry, index) => (
+                            <Cell key={`cell-${index}`} fill={entry.fill} />
+                          ))}
+                        </Pie>
+                        <Tooltip
+                          contentStyle={{
+                            backgroundColor: 'rgba(255, 255, 255, 0.9)',
+                            border: 'none',
+                            borderRadius: '8px',
+                            boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)'
+                          }}
+                        />
+                      </PieChart>
+                    </ResponsiveContainer>
+                  </div>
+                );
+              default:
+                return null;
+            }
+          })()}
+        </div>
+      </motion.div>
     );
   };
 
   return (
-    <>
-      <motion.div 
-        className="fixed inset-x-0 top-0 z-[9999] bg-white/95 dark:bg-gray-900/95 backdrop-blur-xl rounded-b-[2rem] shadow-2xl border border-gray-100/50 dark:border-gray-800/50"
-        style={{ 
-          height: '80vh',
-          boxShadow: '0 8px 32px -8px rgba(0, 0, 0, 0.2)',
-          WebkitBackdropFilter: 'blur(16px)',
-          backdropFilter: 'blur(16px)'
-        }}
-        initial={{ y: '-100%', opacity: 0 }}
-        animate={{ 
-          y: isPullDownOpen ? 0 : '-100%',
-          opacity: isPullDownOpen ? 1 : 0,
-          scale: isPullDownOpen ? 1 : 0.95
-        }}
-        transition={{ 
-          type: "spring",
-          damping: 25,
-          stiffness: 120,
-          duration: 0.6
-        }}
-      >
-        <motion.div 
-          className="p-4 h-full overflow-y-auto"
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.2, duration: 0.4 }}
-        >
-          {/* Pull indicator */}
-          <motion.div 
-            className="w-12 h-1.5 bg-gray-300/50 dark:bg-gray-700/50 rounded-full mx-auto mb-6 backdrop-blur-sm"
-            initial={{ width: "20%" }}
-            animate={{ width: "50%" }}
-            transition={{ duration: 0.5, delay: 0.3 }}
-          />
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
+      {renderCalendar()}
+      
+      <div className="relative">
+        {/* Section Navigation */}
+        <div className="px-4 mb-4 flex justify-between items-center">
+          <motion.button
+            whileHover={{ scale: 1.1 }}
+            whileTap={{ scale: 0.9 }}
+            onClick={() => handleSectionChange(-1)}
+            className={`p-2 rounded-full ${
+              activeSection === 0
+                ? 'text-gray-400 cursor-not-allowed'
+                : 'text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800'
+            }`}
+            disabled={activeSection === 0}
+          >
+            <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+            </svg>
+          </motion.button>
           
-          {/* Calendar */}
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
+          <motion.h2 
+            className="text-xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent"
+            initial={{ opacity: 0, y: -20 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.4, duration: 0.4 }}
+            key={activeSection}
           >
-            {renderCalendar()}
-          </motion.div>
+            {mainSections[activeSection].title}
+          </motion.h2>
+          
+          <motion.button
+            whileHover={{ scale: 1.1 }}
+            whileTap={{ scale: 0.9 }}
+            onClick={() => handleSectionChange(1)}
+            className={`p-2 rounded-full ${
+              activeSection === mainSections.length - 1
+                ? 'text-gray-400 cursor-not-allowed'
+                : 'text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800'
+            }`}
+            disabled={activeSection === mainSections.length - 1}
+          >
+            <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+            </svg>
+          </motion.button>
+        </div>
 
-          {/* Content area */}
+        {/* Section Indicators */}
+        <div className="flex justify-center gap-2 mb-6">
+          {mainSections.map((_, index) => (
+            <motion.div
+              key={index}
+              className={`h-2 rounded-full transition-all duration-300 ${
+                index === activeSection
+                  ? 'w-6 bg-gradient-to-r from-blue-500 to-purple-500'
+                  : 'w-2 bg-gray-300 dark:bg-gray-700'
+              }`}
+              whileHover={{ scale: 1.2 }}
+              onClick={() => setActiveSection(index)}
+            />
+          ))}
+        </div>
+
+        {/* Sliding Sections Container */}
+        <div 
+          ref={containerRef}
+          className="overflow-hidden"
+          onTouchStart={handleTouchStartEvent}
+          onTouchMove={handleTouchMoveEvent}
+          onTouchEnd={handleTouchEndEvent}
+        >
           <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.5, duration: 0.4 }}
+            className="flex"
+            animate={{ x: `-${activeSection * 100}%` }}
+            transition={{ type: "spring", stiffness: 300, damping: 30 }}
           >
-            <AnimatePresence mode="wait">
-              <motion.div
-                key={activeSection}
-                initial={{ opacity: 0, x: 50 }}
-                animate={{ opacity: 1, x: 0 }}
-                exit={{ opacity: 0, x: -50 }}
-                transition={{ duration: 0.3 }}
-                className="space-y-6 pb-6"
+            {mainSections.map((section, sectionIndex) => (
+              <div
+                key={section.id}
+                className="min-w-full pb-20"
               >
-                <div className="flex items-center justify-between mb-4">
-                  <h2 className="text-xl font-bold bg-gradient-to-r from-gray-800 to-gray-600 dark:from-white dark:to-gray-300 bg-clip-text text-transparent">
-                    {mainSections[activeSection].title}
-                  </h2>
-                  <div className="flex space-x-2">
-                    <button
-                      onClick={() => handleSectionSwipe(-1)}
-                      disabled={activeSection === 0}
-                      className={`p-2 rounded-full backdrop-blur-sm ${
-                        activeSection === 0 
-                          ? 'text-gray-400 cursor-not-allowed' 
-                          : 'text-gray-600 hover:bg-gray-100/50 dark:text-gray-300 dark:hover:bg-gray-800/50'
-                      }`}
-                    >
-                      ←
-                    </button>
-                    <button
-                      onClick={() => handleSectionSwipe(1)}
-                      disabled={activeSection === mainSections.length - 1}
-                      className={`p-2 rounded-full backdrop-blur-sm ${
-                        activeSection === mainSections.length - 1
-                          ? 'text-gray-400 cursor-not-allowed'
-                          : 'text-gray-600 hover:bg-gray-100/50 dark:text-gray-300 dark:hover:bg-gray-800/50'
-                      }`}
-                    >
-                      →
-                    </button>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-2 gap-4">
-                  {mainSections[activeSection]?.items?.map((item, i) => {
-                    const Icon = item.icon;
-                    return (
-                      <div
-                        key={`${item.title}-${i}`}
-                        className={`
-                          bg-gradient-to-br ${item.color} p-4 rounded-2xl text-white 
-                          shadow-md hover:shadow-2xl transition-all duration-300 hover:scale-105
-                          backdrop-blur-md border border-white/10
-                        `}
-                      >
-                        <div className="flex items-center mb-2">
-                          <Icon className="text-2xl mr-2" />
-                          <span className="font-semibold">{item.title}</span>
-                        </div>
-                        <div className="text-3xl font-bold">{item.value}</div>
-                        <div className="text-sm opacity-80">{item.unit}</div>
+                {section.items && (
+                  <div className="relative px-4">
+                    <div className="absolute left-0 top-0 bottom-0 w-8 bg-gradient-to-r from-gray-50 to-transparent dark:from-gray-900 z-10" />
+                    <div className="absolute right-0 top-0 bottom-0 w-8 bg-gradient-to-l from-gray-50 to-transparent dark:from-gray-900 z-10" />
+                    
+                    <div className="overflow-x-auto scrollbar-hide pb-4">
+                      <div className="flex min-w-min">
+                        {section.items.map((item, i) => (
+                          <motion.div
+                            key={item.title}
+                            initial={sectionIndex === activeSection ? { opacity: 0, x: 20 } : false}
+                            animate={sectionIndex === activeSection ? { opacity: 1, x: 0 } : false}
+                            transition={{ delay: i * 0.1 }}
+                          >
+                            {renderStatCard(item)}
+                          </motion.div>
+                        ))}
                       </div>
-                    );
-                  })}
-                </div>
-
-                {(() => {
-                  const activeData = mainSections[activeSection];
-                  return activeData?.chartData && activeData.chartData.length > 0 ? (
-                    <div className="mt-6 p-4 bg-white/90 dark:bg-gray-800/90 rounded-2xl shadow-xl backdrop-blur-md border border-gray-100/50 dark:border-gray-700/50">
-                      {renderChart(activeData.chartData, activeData.chartType)}
                     </div>
-                  ) : null;
-                })()}
-              </motion.div>
-            </AnimatePresence>
-
-            {/* Close Button */}
-            <motion.div 
-              className="absolute bottom-6 left-0 right-0 flex justify-center"
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.6, duration: 0.4 }}
-            >
-              <motion.button
-                onClick={() => setIsPullDownOpen(false)}
-                className="bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300 px-8 py-2 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors shadow-lg flex items-center gap-2"
-                whileHover={{ scale: 1.05 }}
-                whileTap={{ scale: 0.95 }}
-              >
-                Close
-                <FiChevronDown className="w-5 h-5" />
-              </motion.button>
-            </motion.div>
+                  </div>
+                )}
+                
+                {section.chartData && section.chartType && (
+                  <motion.div
+                    className="px-4"
+                    initial={sectionIndex === activeSection ? { opacity: 0, y: 20 } : false}
+                    animate={sectionIndex === activeSection ? { opacity: 1, y: 0 } : false}
+                    transition={{ delay: 0.3 }}
+                  >
+                    {renderChart(section)}
+                  </motion.div>
+                )}
+              </div>
+            ))}
           </motion.div>
-        </motion.div>
-      </motion.div>
-
-      {/* Bottom Menu Button */}
-      <motion.button
-        onClick={() => {
-          const controls = document.querySelector('.fixed');
-          controls?.classList.toggle('translate-y-0');
-          controls?.classList.toggle('-translate-y-full');
-        }}
-        className="fixed bottom-20 right-4 z-50 bg-violet-600 hover:bg-violet-700 text-white p-3 rounded-full shadow-lg"
-        whileHover={{ scale: 1.1 }}
-        whileTap={{ scale: 0.9 }}
-      >
-        {isPullDownOpen ? <FiChevronDown size={24} /> : <FiChevronUp size={24} />}
-      </motion.button>
-    </>
+        </div>
+      </div>
+    </div>
   );
 };
 

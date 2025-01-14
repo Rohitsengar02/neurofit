@@ -119,26 +119,55 @@ const ProfilePage = () => {
     }
 
     try {
-      toast.loading('Uploading image...');
+      const loadingToast = toast.loading('Uploading image...');
       setImageFile(file);
+      
+      // Create a preview URL
       const previewUrl = URL.createObjectURL(file);
       setPreviewUrl(previewUrl);
 
+      // Ensure we have the required environment variables
+      const cloudName = process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME;
+      const uploadPreset = process.env.NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET;
+
+      if (!cloudName || !uploadPreset) {
+        throw new Error('Missing Cloudinary configuration');
+      }
+
+      console.log('Starting upload to Cloudinary...');
       const result = await uploadToCloudinary(file);
+      
+      if (!result || !result.url) {
+        throw new Error('Failed to get upload URL from Cloudinary');
+      }
+
       const photoURL = result.url;
+      console.log('Upload successful, updating Firebase...');
       
       // Update user document with new photo URL
-      await updateDoc(doc(db, 'users', auth.currentUser.uid), { photoURL });
+      const userRef = doc(db, 'users', auth.currentUser.uid);
+      await updateDoc(userRef, { 
+        photoURL,
+        lastUpdated: new Date().toISOString()
+      });
       
-      setUser((prev: UserProfile | null) => prev ? { ...prev, photoURL } : { photoURL });
-      toast.dismiss();
+      // Update local state
+      setUser(prev => prev ? { ...prev, photoURL } : { photoURL });
+      
+      // Clean up
+      URL.revokeObjectURL(previewUrl);
+      toast.dismiss(loadingToast);
       toast.success('Profile image updated successfully');
     } catch (error: any) {
       console.error('Upload error:', error);
-      toast.dismiss();
-      toast.error(error.message || 'Failed to upload image');
+      // Clean up
+      URL.revokeObjectURL(previewUrl);
       setPreviewUrl('');
       setImageFile(null);
+      
+      // Show error
+      toast.dismiss();
+      toast.error(error.message || 'Failed to upload image');
     }
   };
 
