@@ -1,0 +1,407 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Helper functions
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    
+    function isAdmin() {
+      return isAuthenticated() && 
+        exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+    }
+    
+    function validateProduct() {
+      let product = request.resource.data;
+      return 
+        // Basic Information validation
+        product.name is string && product.name.size() > 0 &&
+        product.description is string &&
+        (('sku' in product && product.sku is string) || !('sku' in product)) &&
+        (('brand' in product && product.brand is string) || !('brand' in product)) &&
+        product.category is string &&
+        (('tags' in product && product.tags is list) || !('tags' in product)) &&
+        (('features' in product && product.features is list) || !('features' in product)) &&
+        
+        // Pricing and Inventory validation
+        product.price is number && product.price >= 0 &&
+        (!('discountedPrice' in product) || product.discountedPrice is number) &&
+        product.stock is number && product.stock >= 0 &&
+        (('lowStockThreshold' in product && product.lowStockThreshold is number) || !('lowStockThreshold' in product)) &&
+        product.stockStatus in ['in_stock', 'out_of_stock', 'backorder'] &&
+        
+        // Images and Media validation
+        (('mainImage' in product && product.mainImage is string) || !('mainImage' in product)) &&
+        (('additionalImages' in product && product.additionalImages is list) || !('additionalImages' in product)) &&
+        (('imageGallery' in product && product.imageGallery is list) || !('imageGallery' in product)) &&
+        (!('videoUrl' in product) || product.videoUrl is string) &&
+        
+        // Long Description and Rich Content
+        (('longDescription' in product && product.longDescription is string) || !('longDescription' in product)) &&
+        
+        // Cross-sell and Up-sell Products
+        (('crossSellProducts' in product && product.crossSellProducts is list) || !('crossSellProducts' in product)) &&
+        (('upSellProducts' in product && product.upSellProducts is list) || !('upSellProducts' in product)) &&
+        
+        // Shipping and Attributes validation
+        (('weight' in product && product.weight is number) || !('weight' in product)) &&
+        (('weightUnit' in product && product.weightUnit in ['kg', 'lb']) || !('weightUnit' in product)) &&
+        (('dimensions' in product && product.dimensions is map) || !('dimensions' in product)) &&
+        (!('dimensions' in product) || (
+          product.dimensions.length is number && 
+          product.dimensions.width is number && 
+          product.dimensions.height is number &&
+          product.dimensions.unit in ['cm', 'in']
+        )) &&
+        (('shippingClass' in product && product.shippingClass is string) || !('shippingClass' in product)) &&
+        (('variants' in product && product.variants is list) || !('variants' in product))
+    }
+
+    function validateProductCategory() {
+      let category = request.resource.data;
+      return 
+        // Basic Information validation
+        category.name is string && category.name.size() > 0 &&
+        (('description' in category && category.description is string) || !('description' in category)) &&
+        (('image' in category && category.image is string) || !('image' in category)) &&
+        (('icon' in category && category.icon is string) || !('icon' in category)) &&
+        (('gradientStart' in category && category.gradientStart is string) || !('gradientStart' in category)) &&
+        (('gradientEnd' in category && category.gradientEnd is string) || !('gradientEnd' in category)) &&
+        (('featured' in category && category.featured is bool) || !('featured' in category)) &&
+        category.slug is string && category.slug.size() > 0 &&
+        category.createdAt is timestamp &&
+        category.updatedAt is timestamp;
+    }
+
+    function validateWorkoutCategory() {
+      let category = request.resource.data;
+      return 
+        category.name is string && category.name.size() > 0 &&
+        category.iconUrl is string && category.iconUrl.size() > 0 &&
+        category.backgroundColor is string && category.backgroundColor.matches('^#([A-Fa-f0-9]{6}|[A-Fa-f0-9]{8})$');
+    }
+
+    function validateWorkout() {
+      let workout = request.resource.data;
+      return 
+        workout.title is string && workout.title.size() > 0 &&
+        workout.description is string &&
+        workout.image is string && workout.image.size() > 0 &&
+        workout.duration is number && workout.duration > 0 &&
+        workout.intensity in ['Low', 'Medium', 'High'] &&
+        workout.type in ['challenge', 'cardio', 'strength', 'workout'] &&
+        workout.categoryId is string && workout.categoryId.size() > 0;
+    }
+
+    function validateBanner() {
+      let banner = request.resource.data;
+      return 
+        banner.title is string && banner.title.size() > 0 &&
+        banner.description is string &&
+        banner.imageUrl is string && banner.imageUrl.size() > 0 &&
+        banner.offerPercentage is number &&
+        banner.offerPercentage >= 0 &&
+        banner.boxShadow is string &&
+        banner.createdAt is timestamp &&
+        banner.updatedAt is timestamp;
+    }
+
+    function validateShopSection() {
+      let section = request.resource.data;
+      return 
+        section.title is string && section.title.size() > 0 &&
+        section.description is string &&
+        section.productIds is list &&
+        section.order is number && section.order >= 0 &&
+        section.createdAt is timestamp &&
+        section.displayType in ['scroll', 'grid'];
+    }
+
+    function validateAddress() {
+      let address = request.resource.data;
+      return 
+        address.type in ['home', 'office', 'other'] &&
+        address.name is string && address.name.size() > 0 &&
+        address.phoneNumber is string && address.phoneNumber.matches('^[0-9]{10}$') &&
+        address.addressLine1 is string && address.addressLine1.size() > 0 &&
+        (address.addressLine2 == null || (address.addressLine2 is string)) &&
+        address.city is string && address.city.size() > 0 &&
+        address.state is string && address.state.size() > 0 &&
+        address.pincode is string && address.pincode.matches('^[0-9]{6}$') &&
+        address.isDefault is bool;
+    }
+
+    // Order validation functions
+    function isValidOrderItem() {
+      let item = request.resource.data;
+      return item.keys().hasAll(['id', 'name', 'mainImage', 'price', 'discountedPrice', 'quantity', 'totalItemPrice']) &&
+        item.id is string &&
+        item.name is string &&
+        item.mainImage is string &&
+        item.price is number && item.price >= 0 &&
+        item.discountedPrice is number && item.discountedPrice >= 0 &&
+        item.quantity is number && item.quantity > 0 &&
+        item.totalItemPrice is number && item.totalItemPrice >= 0;
+    }
+
+    function isValidOrderStatus() {
+      let status = request.resource.data.orderStatus;
+      return status.keys().hasAll(['current', 'history']) &&
+        status.current in ['pending', 'confirmed', 'shipped', 'delivered', 'cancelled'] &&
+        status.history is list &&
+        status.history[0].keys().hasAll(['status', 'timestamp', 'message']);
+    }
+
+    function isValidOrderData() {
+      let order = request.resource.data;
+      return order.keys().hasAll([
+        'items', 'orderSummary', 'address', 'payment', 
+        'orderStatus', 'customerInfo', 'metadata'
+      ]) &&
+      order.items is list &&
+      order.orderSummary.keys().hasAll(['subtotal', 'totalAmount', 'itemCount']) &&
+      order.address.keys().hasAll(['street', 'city', 'state', 'pincode']) &&
+      order.payment.keys().hasAll(['method', 'status']) &&
+      order.customerInfo.keys().hasAll(['uid', 'email']) &&
+      order.metadata.keys().hasAll(['createdAt', 'updatedAt', 'platform']);
+    }
+
+    // Admin collection rules
+    match /admins/{userId} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null 
+                   && request.auth.token.email == request.resource.data.email;
+    }
+
+    // Products collection rules
+    match /products/{productId} {
+      // Allow all users to read products
+      allow read: if true;
+      
+      // Only admins can create products with valid data
+      allow create: if isAdmin() && validateProduct();
+      
+      // Only admins can update products
+      allow update: if isAdmin() && validateProduct();
+      
+      // Only admins can delete products
+      allow delete: if isAdmin();
+    }
+
+    // Product Categories collection rules
+    match /productCategories/{categoryId} {
+      allow read: if isAuthenticated();
+      allow write: if isAdmin() && validateProductCategory();
+      
+      match /products/{productId} {
+        allow read: if true;
+        allow write: if request.auth != null;
+      }
+    }
+
+    // Categories collection rules
+    match /categories/{categoryId} {
+      // Allow all users to read categories and their workouts
+      allow read: if true;
+      
+      // Only admins can create/update/delete categories
+      allow create, update, delete: if isAdmin();
+      
+      // Workouts subcollection rules
+      match /workouts/{workoutId} {
+        // Allow all users to read workouts
+        allow read: if true;
+        
+        // Only admins can create/update/delete workouts
+        allow create, update, delete: if isAdmin();
+      }
+    }
+
+    // Workout Categories Rules
+    match /workoutCategories/{categoryId} {
+      allow read: if true;  // Public read access
+      allow create, update: if isAdmin() && validateWorkoutCategory();
+      allow delete: if isAdmin();
+    }
+
+    // Workouts Rules
+    match /workouts/{workoutId} {
+      allow read: if true;  // Public read access
+      allow create, update: if isAdmin() && validateWorkout();
+      allow delete: if isAdmin();
+    }
+
+    // Shop Sections Rules
+    match /shopSections/{sectionId} {
+      allow read: if true;  // Public read access
+      allow create: if isAdmin() && validateShopSection();
+      allow update: if isAdmin() && validateShopSection();
+      allow delete: if isAdmin();
+    }
+
+    // User profiles with admin access
+    match /users/{userId} {
+      // Allow admins to read and write all user data
+      allow read, write: if isAdmin();
+      
+      // Allow users to read and write their own data
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+
+      // Address rules
+      match /addresses/{addressId} {
+        allow read: if request.auth != null && request.auth.uid == userId;
+        allow write: if request.auth != null && request.auth.uid == userId;
+      }
+      
+      // Cart subcollection rules
+      match /cart/{itemId} {
+        allow read: if request.auth != null && request.auth.uid == userId;
+        allow write: if request.auth != null && request.auth.uid == userId;
+        allow delete: if request.auth != null && request.auth.uid == userId;
+      }
+      
+      // Order rules
+      match /orders/{orderId} {
+        allow read: if request.auth != null && request.auth.uid == userId;
+        allow create: if request.auth != null && 
+                     request.auth.uid == userId && 
+                     request.resource.data.customerInfo.uid == userId;
+        allow update: if request.auth != null && 
+                     request.auth.uid == userId && 
+                     request.resource.data.customerInfo.uid == userId;
+        allow delete: if false; // Orders should never be deleted
+      }
+      
+      // Allow access to userData subcollection
+      match /userData/{document=**} {
+        allow read, write: if isAdmin() || (request.auth != null && request.auth.uid == userId);
+      }
+
+      // Allow access to assistance subcollection
+      match /assistance/{messageId} {
+        allow read, write: if isAdmin() || (request.auth != null && request.auth.uid == userId);
+      }
+      
+      // Allow access to user's workouts subcollection
+      match /workouts/{document=**} {
+        allow read, write: if isAdmin() || (request.auth != null && request.auth.uid == userId);
+      }
+      
+      // Allow access to challenges subcollection
+      match /challenges/{document=**} {
+        allow read, write: if isAdmin() || (request.auth != null && request.auth.uid == userId);
+      }
+
+      // Allow access to workoutData subcollection
+      match /workoutData/{document=**} {
+        allow read, write: if isAdmin() || (request.auth != null && request.auth.uid == userId);
+      }
+      
+      // User's active workouts
+      match /activeWorkouts/{workoutId} {
+        allow read: if isAuthenticated() && request.auth.uid == userId;
+        allow create: if isAuthenticated() && request.auth.uid == userId;
+        allow update: if isAuthenticated() && request.auth.uid == userId;
+        allow delete: if isAuthenticated() && request.auth.uid == userId;
+      }
+    }
+    
+    // Workouts
+    match /workouts/{workoutId} {
+      allow read: if request.auth != null && resource.data.userId == request.auth.uid;
+      allow write: if request.auth != null && request.auth.uid == request.resource.data.userId;
+      allow create: if request.auth != null;
+    }
+
+    // Weights
+    match /weights/{weightId} {
+      allow read: if request.auth != null && resource.data.userId == request.auth.uid;
+      allow create: if request.auth != null && request.resource.data.userId == request.auth.uid;
+      allow update, delete: if request.auth != null && resource.data.userId == request.auth.uid;
+    }
+
+    // Profile data rules
+    match /userdata/{userId} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null && request.auth.uid == userId;
+      
+      match /profile/{document=**} {
+        allow read: if request.auth != null;
+        allow write: if request.auth != null && request.auth.uid == userId;
+      }
+    }
+    
+    // Allow users to read public exercise data
+    match /exercises/{exerciseId} {
+      allow read: if request.auth != null;
+      allow write: if false; // Only admins can modify exercises
+    }
+    
+    // Allow all authenticated users to read challenges
+    match /challenges/{challengeId} {
+      allow read: if request.auth != null;
+      // Only allow admins to write to challenges
+      allow write: if request.auth != null && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+      
+      // Allow users to commit to challenges
+      match /commits/{commitId} {
+        allow read: if request.auth != null;
+        allow create, write: if request.auth != null && request.resource.data.userId == request.auth.uid;
+      }
+    }
+    
+    // Admin Notes collection rules
+    match /admin-notes/{noteId} {
+      allow read, write: if isAdmin();
+    }
+
+    // Allow admins to read all collections
+    match /{collection}/{document=**} {
+      allow read: if isAdmin();
+    }
+
+    // Deny access to all other collections by default
+    match /{document=**} {
+      allow read, write: if false;
+    }
+    
+    // Products collection rules
+    match /products/{productId} {
+      allow write: if request.auth != null && 
+        (request.resource.data.categoryId is string ||
+         request.resource.data.categoryId == null);
+    }
+    
+    match /categories/{categoryId} {
+      allow read: if true;  // Public read access
+      allow write: if isAdmin();  // Only admin can modify categories
+    }
+    
+    // Stats collection rules
+    match /stats/{statId} {
+      allow read: if true;
+      allow write: if isAdmin();
+      
+      function isValidStat() {
+        let stat = request.resource.data;
+        return stat.title is string &&
+               stat.title.size() > 0 &&
+               stat.value is string &&
+               stat.change is number &&
+               stat.icon in ['currency', 'cart', 'users', 'chart', 'sparkles', 'fire', 'heart', 'star'] &&
+               stat.gradient is string &&
+               stat.order is number &&
+               stat.isActive is bool;
+      }
+    }
+    
+    // Banner Rules
+    match /products/{productId}/banners/{bannerId} {
+      allow read: if true;  // Public read access
+      allow create, update: if isAdmin() && validateBanner();
+      allow delete: if isAdmin();
+    }
+  }
+}
