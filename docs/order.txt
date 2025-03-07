@@ -1,0 +1,81 @@
+{
+  id: string,
+  userId: string,
+  createdAt: timestamp,
+  updatedAt: timestamp,
+  items: [
+    {
+      id: string,
+      name: string,
+      price: number,
+      quantity: number,
+      image: string,
+      productId: string,
+      sku: string,
+      variantId: string
+    }
+  ],
+  orderStatus: {
+    current: "pending" | "processing" | "shipped" | "delivered" | "cancelled",
+    history: [
+      {
+        status: string,
+        timestamp: timestamp,
+        note: string,
+        updatedBy: string
+      }
+    ]
+  },
+  cancellation: {
+    reason: {
+      id: string,
+      title: string,
+      description: string
+    },
+    comments: string,
+    timestamp: timestamp,
+    processedBy: string
+  },
+  shipping: {
+    address: {
+      street: string,
+      city: string,
+      state: string,
+      country: string,
+      postalCode: string,
+      isVerified: boolean
+    },
+    name: string,
+    email: string,
+    phone: string,
+    trackingNumber: string,
+    carrier: string,
+    estimatedDelivery: timestamp
+  },
+  payment: {
+    method: string,
+    status: "pending" | "completed" | "failed",
+    transactionId: string,
+    amount: number,
+    currency: string,
+    verificationStatus: boolean,
+    lastFour: string
+  },
+  totals: {
+    subtotal: number,
+    shipping: number,
+    tax: number,
+    discount: number,
+    total: number
+  },
+  metadata: {
+    userAgent: string,
+    ipAddress: string,
+    source: string
+  },
+  verification: {
+    isVerified: boolean,
+    verifiedAt: timestamp,
+    verifiedBy: string
+  }
+}

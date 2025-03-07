@@ -1,18 +1,15 @@
 rules_version = '2';
-
 service cloud.firestore {
   match /databases/{database}/documents {
     // Helper functions
     function isAuthenticated() {
       return request.auth != null;
     }
-    
+
     function isAdmin() {
-      return isAuthenticated() && 
-        exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
-        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+      return isAuthenticated() && exists(/databases/$(database)/documents/admins/$(request.auth.uid));
     }
-    
+
     function validateProduct() {
       let product = request.resource.data;
       return 
@@ -160,19 +157,55 @@ service cloud.firestore {
         'items', 'orderSummary', 'address', 'payment', 
         'orderStatus', 'customerInfo', 'metadata'
       ]) &&
-      order.items is list &&
-      order.orderSummary.keys().hasAll(['subtotal', 'totalAmount', 'itemCount']) &&
-      order.address.keys().hasAll(['street', 'city', 'state', 'pincode']) &&
-      order.payment.keys().hasAll(['method', 'status']) &&
-      order.customerInfo.keys().hasAll(['uid', 'email']) &&
-      order.metadata.keys().hasAll(['createdAt', 'updatedAt', 'platform']);
+      order.orderStatus.current in ['pending', 'confirmed', 'processing', 'shipped', 'delivered', 'cancelled'] &&
+      order.orderStatus.history is list &&
+      order.orderStatus.history.size() > 0 &&
+      order.orderStatus.history[0].status == order.orderStatus.current &&
+      order.orderStatus.history[0].timestamp is number &&
+      order.orderStatus.history[0].message != '' &&
+      order.payment.method in ['Cash on Delivery', 'Online Payment'] &&
+      order.payment.status in ['pending', 'not_initiated', 'completed', 'failed'] &&
+      order.metadata.createdAt is number &&
+      order.metadata.updatedAt is number;
+    }
+
+    // Exercise category validation
+    function isValidExerciseCategory() {
+      let category = request.resource.data;
+      return category.name is string 
+        && category.name.size() > 0 
+        && category.name.size() <= 100 
+        && (category.description == null || (category.description is string && category.description.size() <= 500))
+        && (category.imageUrl == null || category.imageUrl is string)
+        && (category.cloudinaryImageId == null || category.cloudinaryImageId is string)
+        && category.createdAt is timestamp
+        && category.updatedAt is timestamp;
+    }
+
+    // Exercise validation
+    function isValidExercise() {
+      let exercise = request.resource.data;
+      return exercise.categoryId is string 
+        && exercise.name is string 
+        && exercise.name.size() > 0 
+        && exercise.name.size() <= 100
+        && exercise.description is string 
+        && exercise.description.size() <= 1000
+        && (exercise.gifUrl == null || (exercise.gifUrl is string && exercise.gifUrl.matches('https://.*')))
+        && (exercise.videoUrl == null || (exercise.videoUrl is string && exercise.videoUrl.matches('https://.*')))
+        && (exercise.youtubeUrl == null || (exercise.youtubeUrl is string && exercise.youtubeUrl.matches('https://(www\\.)?youtube\\.com/.*')))
+        && (exercise.additionalImages == null || (exercise.additionalImages is list && exercise.additionalImages.size() <= 10))
+        && (exercise.cloudinaryGifId == null || exercise.cloudinaryGifId is string)
+        && (exercise.cloudinaryVideoId == null || exercise.cloudinaryVideoId is string)
+        && (exercise.cloudinaryImageIds == null || (exercise.cloudinaryImageIds is list && exercise.cloudinaryImageIds.size() <= 10))
+        && exercise.createdAt is timestamp
+        && exercise.updatedAt is timestamp;
     }
 
     // Admin collection rules
     match /admins/{userId} {
       allow read: if request.auth != null;
-      allow write: if request.auth != null 
-                   && request.auth.token.email == request.resource.data.email;
+      allow write: if false;  // Only modifiable through backend
     }
 
     // Products collection rules
@@ -270,7 +303,15 @@ service cloud.firestore {
                      request.resource.data.customerInfo.uid == userId;
         allow update: if request.auth != null && 
                      request.auth.uid == userId && 
-                     request.resource.data.customerInfo.uid == userId;
+                     request.resource.data.customerInfo.uid == userId &&
+                     (request.resource.data.orderStatus.current == 'cancelled' && 
+                      resource.data.orderStatus.current == 'pending' &&
+                      request.resource.data.orderStatus.history is list &&
+                      request.resource.data.orderStatus.history.size() > resource.data.orderStatus.history.size() &&
+                      request.resource.data.orderStatus.history[request.resource.data.orderStatus.history.size()-1].status == 'cancelled' &&
+                      request.resource.data.orderStatus.history[request.resource.data.orderStatus.history.size()-1].reason != '' &&
+                      request.resource.data.orderStatus.history[request.resource.data.orderStatus.history.size()-1].timestamp is number) || 
+                     isAdmin();
         allow delete: if false; // Orders should never be deleted
       }
       
@@ -335,15 +376,15 @@ service cloud.firestore {
     
     // Allow users to read public exercise data
     match /exercises/{exerciseId} {
-      allow read: if request.auth != null;
-      allow write: if false; // Only admins can modify exercises
+      allow read: if true;
+      allow write: if isAuthenticated();
     }
-    
+
     // Allow all authenticated users to read challenges
     match /challenges/{challengeId} {
       allow read: if request.auth != null;
       // Only allow admins to write to challenges
-      allow write: if request.auth != null && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+      allow write: if isAdmin();
       
       // Allow users to commit to challenges
       match /commits/{commitId} {
@@ -402,6 +443,111 @@ service cloud.firestore {
       allow read: if true;  // Public read access
       allow create, update: if isAdmin() && validateBanner();
       allow delete: if isAdmin();
+    }
+
+    // Exercise Categories Rules
+    match /exerciseCategories/{categoryId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    // Exercises collection
+    match /exercises/{exerciseId} {
+      allow read: if true;
+      
+      function isValidExercise() {
+        let exercise = request.resource.data;
+        return exercise.name is string &&
+               exercise.name.size() <= 100 &&
+               exercise.description is string &&
+               exercise.description.size() <= 1000 &&
+               exercise.categoryId is string &&
+               (exercise.gifUrl == null || exercise.gifUrl is string) &&
+               (exercise.videoUrl == null || exercise.videoUrl is string) &&
+               (exercise.youtubeUrl == null || exercise.youtubeUrl is string) &&
+               (exercise.additionalImages == null || exercise.additionalImages is list) &&
+               (exercise.cloudinaryIds == null || exercise.cloudinaryIds is map);
+      }
+
+      allow create: if isAdmin() && isValidExercise();
+      allow update: if isAdmin() && isValidExercise();
+      allow delete: if isAdmin();
+    }
+
+    // Exercises subcollection under categories
+    match /exercises/{categoryId} {
+      allow read: if true;
+      allow write: if isAdmin();
+      
+      match /exercises/{exerciseId} {
+        allow read: if true;
+        allow write: if isAdmin();
+
+        function isValidExercise() {
+          let exercise = request.resource.data;
+          return exercise.name is string &&
+                 exercise.name.size() <= 100 &&
+                 exercise.description is string &&
+                 exercise.description.size() <= 1000 &&
+                 exercise.categoryId is string &&
+                 (exercise.gifUrl == null || exercise.gifUrl is string) &&
+                 (exercise.videoUrl == null || exercise.videoUrl is string) &&
+                 (exercise.youtubeUrl == null || exercise.youtubeUrl is string) &&
+                 (exercise.additionalImages == null || exercise.additionalImages is list) &&
+                 (exercise.cloudinaryIds == null || exercise.cloudinaryIds is map);
+        }
+
+        allow create: if isAdmin() && isValidExercise();
+        allow update: if isAdmin() && isValidExercise();
+        allow delete: if isAdmin();
+      }
+    }
+
+    // Exercise Rules
+    match /exercises/{exerciseId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    // Orders collection rules
+    match /orders/{orderId} {
+      allow read: if request.auth != null && (
+        request.auth.uid == resource.data.customerInfo.uid || isAdmin()
+      );
+      allow create: if request.auth != null && 
+                   request.auth.uid == request.resource.data.customerInfo.uid && 
+                   isValidOrderData();
+      allow update: if request.auth != null && (
+        (request.auth.uid == resource.data.customerInfo.uid && 
+         request.resource.data.customerInfo.uid == resource.data.customerInfo.uid &&
+         (request.resource.data.orderStatus.current == 'cancelled' && 
+          resource.data.orderStatus.current == 'pending' &&
+          request.resource.data.orderStatus.history is list &&
+          request.resource.data.orderStatus.history.size() > resource.data.orderStatus.history.size() &&
+          request.resource.data.orderStatus.history[request.resource.data.orderStatus.history.size()-1].status == 'cancelled' &&
+          request.resource.data.orderStatus.history[request.resource.data.orderStatus.history.size()-1].reason != '' &&
+          request.resource.data.orderStatus.history[request.resource.data.orderStatus.history.size()-1].timestamp is number)) || 
+        isAdmin()
+      );
+      allow delete: if false; // Orders should never be deleted
+    }
+
+    function isValidOrderData() {
+      let order = request.resource.data;
+      return order.keys().hasAll([
+        'items', 'orderSummary', 'address', 'payment', 
+        'orderStatus', 'customerInfo', 'metadata'
+      ]) &&
+      order.orderStatus.current in ['pending', 'confirmed', 'processing', 'shipped', 'delivered', 'cancelled'] &&
+      order.orderStatus.history is list &&
+      order.orderStatus.history.size() > 0 &&
+      order.orderStatus.history[0].status == order.orderStatus.current &&
+      order.orderStatus.history[0].timestamp is number &&
+      order.orderStatus.history[0].message != '' &&
+      order.payment.method in ['Cash on Delivery', 'Online Payment'] &&
+      order.payment.status in ['pending', 'not_initiated', 'completed', 'failed'] &&
+      order.metadata.createdAt is number &&
+      order.metadata.updatedAt is number;
     }
   }
 }

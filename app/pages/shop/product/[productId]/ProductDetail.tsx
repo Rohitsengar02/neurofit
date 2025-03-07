@@ -219,6 +219,39 @@ export default function ProductDetail({ productId }: { productId: string }) {
       });
   };
 
+  // Buy now function
+  const handleBuyNow = () => {
+    if (!user) {
+      toast.error('Please sign in to purchase');
+      return;
+    }
+
+    if (!product) {
+      toast.error('Product not available');
+      return;
+    }
+
+    try {
+      const buyNowItem = {
+        id: product.id,
+        name: product.name,
+        mainImage: product.mainImage,
+        price: product.price,
+        discountedPrice: product.discountedPrice,
+        quantity: 1
+      };
+
+      // Store the buy now item in localStorage
+      localStorage.setItem('buyNowItem', JSON.stringify(buyNowItem));
+      
+      // Redirect to checkout
+      window.location.href = '/pages/shop/checkout?mode=buynow';
+    } catch (error) {
+      console.error('Error processing buy now:', error);
+      toast.error('Failed to process purchase');
+    }
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-50 dark:bg-gray-900 p-4">
@@ -450,6 +483,12 @@ export default function ProductDetail({ productId }: { productId: string }) {
           </div>
 
           <div className="flex gap-2">
+            <button
+              onClick={handleBuyNow}
+              className="w-full sm:w-auto px-6 py-3 bg-red-600 text-white font-medium rounded-lg hover:bg-red-700 transition-colors"
+            >
+              Buy Now
+            </button>
             <motion.button
               className={`relative ${
                 isInCart 
@@ -492,18 +531,7 @@ export default function ProductDetail({ productId }: { productId: string }) {
               </motion.div>
             </motion.button>
 
-            <motion.button
-              className="relative bg-gradient-to-r from-gray-900 via-gray-800 to-gray-900 dark:from-brown-800 dark:via-brown-700 dark:to-brown-900 text-white h-10 px-4 rounded-full font-medium flex items-center justify-center gap-2 overflow-hidden group"
-              whileHover={{ scale: 1.02 }}
-              whileTap={{ scale: 0.98 }}
-            >
-              <svg className="w-4 h-4 relative z-10" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                <path d="M21 12L13 12M21 12L18 15M21 12L18 9" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-                <path d="M3 8V16C3 18.2091 4.79086 20 7 20H13" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
-                <path d="M7 4H13C15.2091 4 17 5.79086 17 8V8" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
-              </svg>
-              <span className="relative z-10 text-sm font-medium">Buy Now</span>
-            </motion.button>
+           
           </div>
         </div>
       </motion.div>

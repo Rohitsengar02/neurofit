@@ -1,12 +1,27 @@
 'use client';
-import React, { useEffect, useState } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import React, { useState, useEffect } from 'react';
 import { useAuthState } from 'react-firebase-hooks/auth';
 import { auth, db } from '@/app/firebase/config';
-import { collection, getDocs, query, orderBy, Timestamp } from 'firebase/firestore';
+import { collection, query, where, getDocs, orderBy } from 'firebase/firestore';
+import { motion } from 'framer-motion';
+import { FiPackage, FiClock, FiMapPin, FiShoppingBag, FiCheck, FiX, FiTruck, FiShoppingCart, FiDollarSign, FiAlertCircle, FiChevronRight } from 'react-icons/fi';
 import Image from 'next/image';
-import { FiPackage, FiClock, FiMapPin, FiCheck, FiTruck } from 'react-icons/fi';
-import { toast } from 'react-hot-toast';
+import { format } from 'date-fns';
+import { useRouter } from 'next/navigation';
+import Link from 'next/link';
+
+interface OrderStatusEvent {
+  status: string;
+  timestamp: number;
+  message: string;
+  reason?: string;
+  comments?: string;
+  details?: {
+    items?: number;
+    total?: number;
+    paymentMethod?: string;
+  };
+}
 
 interface OrderItem {
   id: string;
@@ -15,57 +30,36 @@ interface OrderItem {
   price: number;
   discountedPrice: number;
   quantity: number;
+  totalItemPrice: number;
 }
 
 interface Order {
   id: string;
   items: OrderItem[];
-  totalAmount: number;
-  address: {
-    street: string;
-    city: string;
-    state: string;
-    pincode: string;
+  orderSummary: {
+    subtotal: number;
+    discount: number;
+    totalAmount: number;
+    itemCount: number;
   };
-  paymentMethod: string;
-  status: 'pending' | 'confirmed' | 'shipped' | 'delivered';
-  createdAt: Timestamp;
+  orderStatus: {
+    current: string;
+    history: OrderStatusEvent[];
+    estimatedDelivery?: number;
+    lastUpdated: number;
+  };
+  metadata: {
+    orderId: string;
+    createdAt: number;
+    updatedAt: number;
+  };
 }
-
-const getStatusColor = (status: Order['status']) => {
-  switch (status) {
-    case 'pending':
-      return 'text-yellow-500 dark:text-yellow-400';
-    case 'confirmed':
-      return 'text-blue-500 dark:text-blue-400';
-    case 'shipped':
-      return 'text-purple-500 dark:text-purple-400';
-    case 'delivered':
-      return 'text-green-500 dark:text-green-400';
-    default:
-      return 'text-gray-500 dark:text-gray-400';
-  }
-};
-
-const getStatusIcon = (status: Order['status']) => {
-  switch (status) {
-    case 'pending':
-      return <FiClock className="w-5 h-5" />;
-    case 'confirmed':
-      return <FiCheck className="w-5 h-5" />;
-    case 'shipped':
-      return <FiTruck className="w-5 h-5" />;
-    case 'delivered':
-      return <FiPackage className="w-5 h-5" />;
-    default:
-      return <FiClock className="w-5 h-5" />;
-  }
-};
 
 export default function OrdersPage() {
   const [user] = useAuthState(auth);
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
+  const router = useRouter();
 
   useEffect(() => {
     if (user) {
@@ -76,143 +70,220 @@ export default function OrdersPage() {
   const fetchOrders = async () => {
     if (!user) return;
     try {
-      const ordersRef = collection(db, `users/${user.uid}/orders`);
-      const q = query(ordersRef, orderBy('createdAt', 'desc'));
+      const ordersRef = collection(db, 'orders');
+      const q = query(
+        ordersRef,
+        where('customerInfo.uid', '==', user.uid)
+      );
       const snapshot = await getDocs(q);
-      const ordersData = snapshot.docs.map(doc => ({
+      const ordersList = snapshot.docs.map(doc => ({
         id: doc.id,
         ...doc.data()
       })) as Order[];
-      setOrders(ordersData);
+      setOrders(ordersList);
     } catch (error) {
       console.error('Error fetching orders:', error);
-      toast.error('Failed to fetch orders');
     } finally {
       setLoading(false);
     }
   };
 
-  if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-purple-500"></div>
-      </div>
-    );
-  }
+  const getStatusBadge = (status: string) => {
+    switch (status.toLowerCase()) {
+      case 'cancelled':
+        return (
+          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">
+            <FiX className="mr-1 h-3 w-3" />
+            Cancelled
+          </span>
+        );
+      case 'delivered':
+        return (
+          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+            <FiCheck className="mr-1 h-3 w-3" />
+            Delivered
+          </span>
+        );
+      case 'shipped':
+        return (
+          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+            <FiTruck className="mr-1 h-3 w-3" />
+            Shipped
+          </span>
+        );
+      case 'processing':
+        return (
+          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
+            <FiClock className="mr-1 h-3 w-3" />
+            Processing
+          </span>
+        );
+      default:
+        return (
+          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
+            <FiPackage className="mr-1 h-3 w-3" />
+            {status.charAt(0).toUpperCase() + status.slice(1)}
+          </span>
+        );
+    }
+  };
+
+  const handleOrderClick = (orderId: string) => {
+    router.push(`/pages/shop/orders/${orderId}`);
+  };
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 py-8 px-4 sm:px-6 lg:px-8">
-      <div className="max-w-4xl mx-auto">
-        <h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-8">My Orders</h1>
-        
-        <div className="space-y-6">
-          <AnimatePresence>
-            {orders.length === 0 ? (
-              <motion.div
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                className="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6 text-center"
+    <div className="min-h-screen bg-gray-50">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <div className="flex items-center justify-between mb-6">
+          <h1 className="text-2xl font-bold text-gray-900 sm:text-3xl">My Orders</h1>
+          {/* Filter/Sort Options - Can be implemented later */}
+          <div className="flex space-x-2">
+            <select 
+              className="hidden sm:block rounded-md border-gray-300 py-2 pl-3 pr-10 text-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+              defaultValue="all"
+            >
+              <option value="all">All Orders</option>
+              <option value="pending">Pending</option>
+              <option value="processing">Processing</option>
+              <option value="shipped">Shipped</option>
+              <option value="delivered">Delivered</option>
+              <option value="cancelled">Cancelled</option>
+            </select>
+          </div>
+        </div>
+      
+        {loading ? (
+          <div className="flex flex-col items-center justify-center py-12">
+            <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-indigo-500 mb-4"></div>
+            <p className="text-sm text-gray-500">Loading your orders...</p>
+          </div>
+        ) : orders.length === 0 ? (
+          <div className="text-center py-12 px-4">
+            <div className="rounded-full bg-gray-100 h-20 w-20 flex items-center justify-center mx-auto mb-4">
+              <FiShoppingBag className="h-10 w-10 text-gray-400" />
+            </div>
+            <h3 className="text-lg font-medium text-gray-900 mb-2">No orders yet</h3>
+            <p className="text-sm text-gray-500 mb-6 max-w-sm mx-auto">
+              Looks like you haven't placed any orders. Start shopping to see your orders here.
+            </p>
+            <Link 
+              href="/shop" 
+              className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+            >
+              <FiShoppingCart className="mr-2 h-4 w-4" />
+              Browse Products
+            </Link>
+          </div>
+        ) : (
+          <div className="grid gap-4 sm:gap-6 grid-cols-1 lg:grid-cols-2">
+            {orders.map((order) => (
+              <div
+                key={order.id}
+                className={`bg-white rounded-lg shadow-sm hover:shadow-md transition-all duration-200 overflow-hidden cursor-pointer ${
+                  order.orderStatus.current === 'cancelled' ? 'border-l-4 border-red-500' : ''
+                }`}
+                onClick={() => handleOrderClick(order.id)}
               >
-                <FiPackage className="w-16 h-16 mx-auto text-gray-400 dark:text-gray-500 mb-4" />
-                <p className="text-gray-600 dark:text-gray-300">No orders found</p>
-              </motion.div>
-            ) : (
-              orders.map((order) => (
-                <motion.div
-                  key={order.id}
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -20 }}
-                  className="bg-white dark:bg-gray-800 rounded-lg shadow-lg overflow-hidden"
-                >
+                <div className="p-4 sm:p-6">
                   {/* Order Header */}
-                  <div className="p-6 bg-gradient-to-r from-purple-600 to-indigo-600 dark:from-purple-800 dark:to-indigo-800">
-                    <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-                      <div>
-                        <p className="text-white text-sm">Order #{order.id.slice(-8)}</p>
-                        <p className="text-purple-100 text-sm mt-1">
-                          {order.createdAt.toDate().toLocaleDateString('en-US', {
-                            day: 'numeric',
-                            month: 'long',
-                            year: 'numeric'
-                          })}
+                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-4">
+                    <div className="mb-2 sm:mb-0">
+                      <div className="flex items-center space-x-2 mb-1">
+                        <span className="text-base sm:text-lg font-semibold text-gray-900">
+                          Order #{order.metadata.orderId}
+                        </span>
+                        {getStatusBadge(order.orderStatus.current)}
+                      </div>
+                      <p className="text-xs sm:text-sm text-gray-500">
+                        Placed on {format(order.metadata.createdAt, 'PP')}
+                      </p>
+                    </div>
+                    <div className="flex items-center justify-between sm:flex-col sm:items-end">
+                      <div className="sm:order-2">
+                        <p className="text-base sm:text-lg font-bold text-gray-900">
+                          ₹{order.orderSummary.totalAmount.toFixed(2)}
                         </p>
                       </div>
-                      <div className={`flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/10 ${getStatusColor(order.status)}`}>
-                        {getStatusIcon(order.status)}
-                        <span className="text-sm font-medium capitalize">{order.status}</span>
+                      <div className="text-xs sm:text-sm text-gray-500 sm:order-1 sm:mb-1">
+                        {order.orderSummary.itemCount} items
                       </div>
                     </div>
                   </div>
 
-                  {/* Order Items */}
-                  <div className="p-6">
-                    <div className="space-y-4">
-                      {order.items.map((item) => (
-                        <motion.div
-                          key={item.id}
-                          className="flex gap-4 p-4 bg-gray-50 dark:bg-gray-700/50 rounded-lg"
-                          layout
-                        >
-                          <div className="relative w-20 h-20 rounded-md overflow-hidden bg-gray-200 dark:bg-gray-700">
+                  {/* Order Items Preview */}
+                  <div className="mt-4 -mx-4 px-4 sm:mx-0 sm:px-0">
+                    <div className="flex space-x-3 overflow-x-auto pb-2 scrollbar-hide">
+                      {order.items.slice(0, 3).map((item) => (
+                        <div key={item.id} className="flex-none">
+                          <div className="relative w-16 sm:w-20 h-16 sm:h-20 rounded-lg overflow-hidden bg-gray-100">
                             <Image
                               src={item.mainImage}
                               alt={item.name}
                               fill
                               className="object-cover"
                             />
-                          </div>
-                          <div className="flex-1">
-                            <h3 className="text-sm font-medium text-gray-900 dark:text-white">{item.name}</h3>
-                            <div className="mt-1 flex items-center gap-2">
-                              <span className="text-sm font-semibold text-gray-900 dark:text-white">
-                                ₹{item.discountedPrice.toLocaleString()}
-                              </span>
-                              {item.price > item.discountedPrice && (
-                                <span className="text-xs text-gray-500 dark:text-gray-400 line-through">
-                                  ₹{item.price.toLocaleString()}
-                                </span>
-                              )}
+                            <div className="absolute bottom-0 left-0 right-0 bg-black bg-opacity-40 text-white text-xs text-center py-0.5">
+                              x{item.quantity}
                             </div>
-                            <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-                              Quantity: {item.quantity}
-                            </p>
-                          </div>
-                        </motion.div>
-                      ))}
-                    </div>
-
-                    {/* Order Details */}
-                    <div className="mt-6 pt-6 border-t border-gray-200 dark:border-gray-700">
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-                        <div>
-                          <h4 className="text-sm font-medium text-gray-900 dark:text-white mb-2">Delivery Address</h4>
-                          <div className="flex items-start gap-2 text-sm text-gray-600 dark:text-gray-300">
-                            <FiMapPin className="w-4 h-4 mt-0.5 flex-shrink-0" />
-                            <p>
-                              {order.address.street}<br />
-                              {order.address.city}, {order.address.state}<br />
-                              {order.address.pincode}
-                            </p>
                           </div>
                         </div>
-                        <div>
-                          <h4 className="text-sm font-medium text-gray-900 dark:text-white mb-2">Payment Details</h4>
-                          <div className="space-y-2 text-sm text-gray-600 dark:text-gray-300">
-                            <p>Payment Method: {order.paymentMethod}</p>
-                            <p className="font-medium text-gray-900 dark:text-white">
-                              Total Amount: ₹{order.totalAmount.toLocaleString()}
-                            </p>
-                          </div>
+                      ))}
+                      {order.items.length > 3 && (
+                        <div className="flex-none w-16 sm:w-20 h-16 sm:h-20 bg-gray-100 rounded-lg flex items-center justify-center">
+                          <span className="text-xs sm:text-sm text-gray-600 font-medium">
+                            +{order.items.length - 3}
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Cancellation Notice */}
+                  {order.orderStatus.current === 'cancelled' && (
+                    <div className="mt-4 p-3 bg-red-50 rounded-md">
+                      <div className="flex items-start">
+                        <FiAlertCircle className="h-5 w-5 text-red-400 mt-0.5" />
+                        <div className="ml-2">
+                          <p className="text-sm text-red-700">
+                            <span className="font-medium">Cancelled:</span>{' '}
+                            {order.orderStatus.history.find(h => h.status === 'cancelled')?.reason || 'Order was cancelled'}
+                          </p>
                         </div>
                       </div>
                     </div>
+                  )}
+
+                  {/* Order Timeline */}
+                  <div className="mt-4 pt-4 border-t border-gray-200">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center space-x-2">
+                        <FiClock className="h-4 w-4 text-gray-400" />
+                        <span className="text-xs sm:text-sm text-gray-500">
+                          {order.orderStatus.current === 'cancelled'
+                            ? 'Cancelled on ' + format(order.orderStatus.history.find(h => h.status === 'cancelled')?.timestamp || 0, 'PP')
+                            : order.orderStatus.estimatedDelivery
+                            ? 'Est. delivery: ' + format(order.orderStatus.estimatedDelivery, 'PP')
+                            : 'Processing'}
+                        </span>
+                      </div>
+                      <button 
+                        className="text-indigo-600 hover:text-indigo-800 text-sm font-medium flex items-center"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleOrderClick(order.id);
+                        }}
+                      >
+                        Details
+                        <FiChevronRight className="ml-1 h-4 w-4" />
+                      </button>
+                    </div>
                   </div>
-                </motion.div>
-              ))
-            )}
-          </AnimatePresence>
-        </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );

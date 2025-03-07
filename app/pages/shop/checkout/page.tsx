@@ -159,6 +159,10 @@ const CheckoutPage = () => {
     try {
       setLoading(true);
       const selectedAddr = addresses.find(addr => addr.id === selectedAddress);
+
+      // Get user details
+      const userDoc = await getDoc(doc(db, 'users', user.uid));
+      const userData = userDoc.data();
       
       // Create comprehensive order data
       const orderData = {
@@ -189,7 +193,8 @@ const CheckoutPage = () => {
         },
         payment: {
           method: paymentMethod,
-          status: paymentMethod === 'Cash on Delivery' ? 'pending' : 'not_initiated'
+          status: paymentMethod === 'Cash on Delivery' ? 'pending' : 'not_initiated',
+          timestamp: Date.now()
         },
         couponApplied: appliedCoupon ? {
           code: appliedCoupon.code,
@@ -200,46 +205,50 @@ const CheckoutPage = () => {
           current: 'pending',
           history: [{
             status: 'pending',
-            timestamp: new Date(),
-            message: 'Order placed successfully'
-          }]
+            timestamp: Date.now(),
+            message: 'Order placed successfully',
+            details: {
+              items: cartItems.length,
+              total: calculateTotal(),
+              paymentMethod: paymentMethod
+            }
+          }],
+          estimatedDelivery: Date.now() + 7 * 24 * 60 * 60 * 1000, // 7 days from now
+          lastUpdated: Date.now()
         },
         customerInfo: {
           uid: user.uid,
           email: user.email,
-          name: user.displayName
+          name: userData?.displayName || user.displayName,
+          phone: selectedAddr?.phoneNumber,
+          profileImage: userData?.photoURL || user.photoURL
         },
         metadata: {
-          createdAt: new Date(),
-          updatedAt: new Date(),
+          orderId: `ORD${Date.now().toString().slice(-8)}${Math.random().toString(36).substring(7)}`,
+          createdAt: Date.now(),
+          updatedAt: Date.now(),
           platform: 'web',
-          source: 'checkout'
+          userAgent: window.navigator.userAgent
         }
       };
 
-      // Create the order in the orders subcollection
-      const orderRef = collection(db, `users/${user.uid}/orders`);
-      const newOrderDoc = await addDoc(orderRef, orderData);
+      // Create order in main orders collection
+      const ordersRef = collection(db, 'orders');
+      const newOrderDoc = await addDoc(ordersRef, orderData);
 
-      // If it's cash on delivery, clear the cart
-      if (paymentMethod === 'Cash on Delivery') {
-        const cartRef = collection(db, `users/${user.uid}/cart`);
-        const snapshot = await getDocs(cartRef);
-        const deletePromises = snapshot.docs.map(doc => deleteDoc(doc.ref));
-        await Promise.all(deletePromises);
-        
-        // Update order with ID
-        await updateDoc(doc(db, `users/${user.uid}/orders`, newOrderDoc.id), {
-          orderId: newOrderDoc.id,
-          'metadata.orderNumber': `ORD${Date.now().toString().slice(-8)}${Math.random().toString(36).substring(7)}`
-        });
+      // Update order with ID
+      await updateDoc(doc(db, 'orders', newOrderDoc.id), {
+        'metadata.orderId': `ORD${Date.now().toString().slice(-8)}${Math.random().toString(36).substring(7)}`
+      });
 
-        toast.success('Order placed successfully!');
-        router.push('/pages/shop/thankyou');
-      } else {
-        // Handle other payment methods here
-        toast.error('Only Cash on Delivery is available at the moment');
-      }
+      // Clear cart after successful order
+      const cartRef = collection(db, `users/${user.uid}/cart`);
+      const cartSnapshot = await getDocs(cartRef);
+      const deletePromises = cartSnapshot.docs.map(doc => deleteDoc(doc.ref));
+      await Promise.all(deletePromises);
+
+      toast.success('Order placed successfully!');
+      router.push('/pages/shop/thankyou');
     } catch (error) {
       console.error('Error placing order:', error);
       toast.error('Failed to place order');
@@ -384,8 +393,8 @@ const CheckoutPage = () => {
                       </div>
                       {appliedCoupon && (
                         <motion.div
-                          initial={{ opacity: 0, height: 0 }}
-                          animate={{ opacity: 1, height: 'auto' }}
+                          initial={{ opacity: 0, y: 10 }}
+                          animate={{ opacity: 1, y: 0 }}
                           className="flex justify-between text-green-600 dark:text-green-400 transition-colors duration-200"
                         >
                           <span className="flex items-center">
