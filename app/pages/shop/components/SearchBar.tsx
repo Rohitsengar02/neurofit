@@ -1,13 +1,15 @@
 'use client';
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { collection, getDocs, query, where, orderBy, limit } from 'firebase/firestore';
-import { db } from '@/app/firebase/config';
+import { collection, getDocs, query, where, orderBy, limit, onSnapshot, doc, updateDoc, deleteDoc } from 'firebase/firestore';
+import { db, auth } from '@/app/firebase/config';
 import Image from 'next/image';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import { useAuthState } from 'react-firebase-hooks/auth';
 import debounce from 'lodash/debounce';
-import { FiSearch, FiArrowRight } from 'react-icons/fi';
+import { FiSearch, FiArrowRight, FiShoppingCart, FiMapPin, FiPackage, FiHeart } from 'react-icons/fi';
+import CartSidebar, { CartItem } from '@/app/components/shop/CartSidebar';
 
 interface Product {
   id: string;
@@ -28,8 +30,44 @@ const SearchBar = () => {
   const [suggestions, setSuggestions] = useState<Product[]>([]);
   const [categories, setCategories] = useState<ProductCategory[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [cartItems, setCartItems] = useState<CartItem[]>([]);
+  const [isCartOpen, setIsCartOpen] = useState(false);
+  const [user] = useAuthState(auth);
   const router = useRouter();
   const searchRef = useRef<HTMLDivElement>(null);
+
+  // Subscribe to cart updates
+  useEffect(() => {
+    if (!user) return;
+
+    const unsubscribe = onSnapshot(
+      collection(db, `users/${user.uid}/cart`),
+      (snapshot) => {
+        const items = snapshot.docs.map(doc => ({
+          id: doc.id,
+          ...doc.data()
+        })) as CartItem[];
+        setCartItems(items);
+      }
+    );
+
+    return () => unsubscribe();
+  }, [user]);
+
+  // Cart operations
+  const handleUpdateQuantity = async (id: string, newQuantity: number) => {
+    if (!user || newQuantity < 1) return;
+    
+    const cartItemRef = doc(db, `users/${user.uid}/cart/${id}`);
+    await updateDoc(cartItemRef, { quantity: newQuantity });
+  };
+
+  const handleRemoveItem = async (id: string) => {
+    if (!user) return;
+    
+    const cartItemRef = doc(db, `users/${user.uid}/cart/${id}`);
+    await deleteDoc(cartItemRef);
+  };
 
   // Fetch categories on mount
   useEffect(() => {
@@ -147,133 +185,161 @@ const SearchBar = () => {
     }
   };
 
+  // Navigation handlers
+  const handleCartClick = () => setIsCartOpen(true);
+  const handleAddressClick = () => router.push('/pages/shop/address');
+  const handleOrdersClick = () => router.push('/pages/shop/orders');
+  const handleWishlistClick = () => router.push('/pages/shop/wishlist');
+
   return (
-    <div ref={searchRef} className="relative w-full">
-      {/* Search Input */}
-      <div className="relative">
-        <motion.div
-          className="relative flex items-center overflow-hidden rounded-2xl bg-white dark:bg-gray-800 shadow-lg ring-1 ring-gray-200/50 dark:ring-gray-700/50 backdrop-blur-lg"
-          initial={{ opacity: 0, y: -10 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.3 }}
-        >
-          {/* Search Icon */}
-          <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-4">
-            <motion.div
-              animate={{ 
-                scale: isLoading ? [1, 1.2, 1] : 1,
-                rotate: isLoading ? [0, 180, 360] : 0 
-              }}
-              transition={{ 
-                duration: 1.5,
-                repeat: isLoading ? Infinity : 0,
-                ease: "linear"
-              }}
-            >
-              <FiSearch className="h-5 w-5 text-gray-400 dark:text-gray-500" />
-            </motion.div>
-          </div>
+    <>
+      <div className="sticky top-0 z-50 bg-white/95 dark:bg-gray-900/95 backdrop-blur-lg shadow-sm">
+        <div className="max-w-9xl mx-auto pl-4 pr-2 pb-2 pt-4">
+          <div className="flex items-center ">
+            {/* Search Bar */}
+            <div className="relative flex-1" ref={searchRef}>
+              <div className="relative">
+                <FiSearch className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 w-5 h-5" />
+                <input
+                  type="text"
+                  placeholder="Search for products..."
+                  value={searchTerm}
+                  onChange={handleSearch}
+                  onKeyDown={handleKeyDown}
+                  className="w-full pl-12 pr-4 py-3.5 bg-gray-100 dark:bg-gray-800/50 rounded-full text-base focus:outline-none focus:ring-2 focus:ring-violet-500 dark:text-gray-200 transition-all duration-300 hover:bg-gray-200 dark:hover:bg-gray-800"
+                />
+              </div>
 
-          {/* Input Field */}
-          <input
-            type="text"
-            value={searchTerm}
-            onChange={handleSearch}
-            onKeyDown={handleKeyDown}
-            className="w-full bg-transparent py-4 pl-12 pr-4 text-sm text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none"
-            placeholder="Search for products..."
-            autoComplete="off"
-          />
+              <AnimatePresence>
+                {searchTerm && (
+                  <motion.div
+                    initial={{ opacity: 0, y: -10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -10 }}
+                    className="absolute top-full left-0 right-0 mt-2 bg-white dark:bg-gray-800 rounded-2xl shadow-xl overflow-hidden border border-gray-100 dark:border-gray-700"
+                  >
+                    {suggestions.length > 0 ? (
+                      <div className="divide-y divide-gray-100 dark:divide-gray-700/50">
+                        {suggestions.map((product) => (
+                          <Link 
+                            key={product.id}
+                            href={`/pages/shop/product/${product.id}`}
+                          >
+                            <motion.div 
+                              className="flex items-center gap-4 p-3 transition-all hover:bg-gray-50 dark:hover:bg-gray-700/50"
+                              whileHover={{ x: 4 }}
+                            >
+                              {/* Product Image */}
+                              <div className="relative h-16 w-16 overflow-hidden rounded-xl bg-gray-100 dark:bg-gray-700">
+                                {product.mainImage && (
+                                  <Image
+                                    src={product.mainImage}
+                                    alt={product.name}
+                                    fill
+                                    className="object-cover"
+                                    sizes="64px"
+                                  />
+                                )}
+                              </div>
 
-          {/* Loading Spinner */}
-          <AnimatePresence>
-            {isLoading && (
-              <motion.div
-                initial={{ opacity: 0, scale: 0.5 }}
-                animate={{ opacity: 1, scale: 1 }}
-                exit={{ opacity: 0, scale: 0.5 }}
-                className="absolute right-4"
+                              {/* Product Info */}
+                              <div className="flex-1 min-w-0">
+                                <h3 className="truncate text-sm font-medium text-gray-900 dark:text-white">
+                                  {product.name}
+                                </h3>
+                                <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+                                  {product.category}
+                                </p>
+                                <p className="mt-1 text-sm font-semibold text-gray-900 dark:text-white">
+                                  ₹{product.price}
+                                </p>
+                              </div>
+
+                              {/* Arrow Icon */}
+                              <FiArrowRight className="h-5 w-5 text-gray-400 dark:text-gray-500" />
+                            </motion.div>
+                          </Link>
+                        ))}
+                      </div>
+                    ) : (
+                      <motion.div 
+                        className="p-8 text-center"
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                      >
+                        <div className="mx-auto mb-4 h-12 w-12 text-gray-400 dark:text-gray-500">
+                          <FiSearch className="h-full w-full" />
+                        </div>
+                        <p className="text-sm text-gray-500 dark:text-gray-400">
+                          No products found
+                        </p>
+                      </motion.div>
+                    )}
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
+
+            {/* Navigation Icons */}
+            <div className="flex items-center ">
+              
+
+              <motion.button
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
+                onClick={handleOrdersClick}
+                className="p-2.5 text-gray-600 dark:text-gray-300 hover:text-violet-600 dark:hover:text-violet-400 relative group"
               >
-                <div className="h-5 w-5 animate-spin rounded-full border-2 border-gray-300 border-t-gray-600 dark:border-gray-600 dark:border-t-gray-300"/>
-              </motion.div>
-            )}
-          </AnimatePresence>
-        </motion.div>
+                <FiPackage className="w-6 h-6" />
+                <span className="absolute -bottom-8 left-1/2 transform -translate-x-1/2 bg-gray-800 text-white text-xs py-1 px-2 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap">
+                  Orders
+                </span>
+              </motion.button>
 
-        {/* Subtle Gradient Effect */}
-        <div className="absolute inset-0 -z-10 rounded-2xl bg-gradient-to-r from-pink-100/40 via-purple-100/40 to-indigo-100/40 dark:from-pink-900/20 dark:via-purple-900/20 dark:to-indigo-900/20 blur-xl"/>
+              <motion.button
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
+                onClick={handleAddressClick}
+                className="p-2.5 text-gray-600 dark:text-gray-300 hover:text-violet-600 dark:hover:text-violet-400 relative group"
+              >
+                <FiMapPin className="w-6 h-6" />
+                <span className="absolute -bottom-8 left-1/2 transform -translate-x-1/2 bg-gray-800 text-white text-xs py-1 px-2 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap">
+                  Address
+                </span>
+              </motion.button>
+
+              <motion.button
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
+                onClick={handleCartClick}
+                className="p-2.5 text-gray-600 dark:text-gray-300 hover:text-violet-600 dark:hover:text-violet-400 relative group"
+              >
+                <div className="relative">
+                  <FiShoppingCart className="w-6 h-6" />
+                  {cartItems.length > 0 && (
+                    <span className="absolute -top-2 -right-2 bg-violet-600 text-white text-xs w-5 h-5 rounded-full flex items-center justify-center">
+                      {cartItems.length}
+                    </span>
+                  )}
+                </div>
+                <span className="absolute -bottom-8 left-1/2 transform -translate-x-1/2 bg-gray-800 text-white text-xs py-1 px-2 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap">
+                  Cart
+                </span>
+              </motion.button>
+            </div>
+          </div>
+        </div>
       </div>
 
-      {/* Search Suggestions */}
-      <AnimatePresence>
-        {searchTerm.trim() && (
-          <motion.div
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: 10 }}
-            className="absolute left-0 right-0 mt-2 overflow-hidden rounded-2xl bg-white/80 dark:bg-gray-800/80 backdrop-blur-lg shadow-xl ring-1 ring-gray-200/50 dark:ring-gray-700/50"
-          >
-            {suggestions.length > 0 ? (
-              <div className="divide-y divide-gray-100 dark:divide-gray-700/50">
-                {suggestions.map((product) => (
-                  <Link 
-                    key={product.id}
-                    href={`/pages/shop/product/${product.id}`}
-                  >
-                    <motion.div 
-                      className="flex items-center gap-4 p-3 transition-all hover:bg-gray-50 dark:hover:bg-gray-700/50"
-                      whileHover={{ x: 4 }}
-                    >
-                      {/* Product Image */}
-                      <div className="relative h-16 w-16 overflow-hidden rounded-xl bg-gray-100 dark:bg-gray-700">
-                        {product.mainImage && (
-                          <Image
-                            src={product.mainImage}
-                            alt={product.name}
-                            fill
-                            className="object-cover"
-                            sizes="64px"
-                          />
-                        )}
-                      </div>
-
-                      {/* Product Info */}
-                      <div className="flex-1 min-w-0">
-                        <h3 className="truncate text-sm font-medium text-gray-900 dark:text-white">
-                          {product.name}
-                        </h3>
-                        <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-                          {product.category}
-                        </p>
-                        <p className="mt-1 text-sm font-semibold text-gray-900 dark:text-white">
-                          ₹{product.price}
-                        </p>
-                      </div>
-
-                      {/* Arrow Icon */}
-                      <FiArrowRight className="h-5 w-5 text-gray-400 dark:text-gray-500" />
-                    </motion.div>
-                  </Link>
-                ))}
-              </div>
-            ) : (
-              <motion.div 
-                className="p-8 text-center"
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-              >
-                <div className="mx-auto mb-4 h-12 w-12 text-gray-400 dark:text-gray-500">
-                  <FiSearch className="h-full w-full" />
-                </div>
-                <p className="text-sm text-gray-500 dark:text-gray-400">
-                  No products found
-                </p>
-              </motion.div>
-            )}
-          </motion.div>
-        )}
-      </AnimatePresence>
-    </div>
+      {/* Cart Sidebar */}
+      <CartSidebar
+        isOpen={isCartOpen}
+        onClose={() => setIsCartOpen(false)}
+        cartItems={cartItems}
+        onUpdateQuantity={handleUpdateQuantity}
+        onRemoveItem={handleRemoveItem}
+      />
+    </>
   );
 };
 

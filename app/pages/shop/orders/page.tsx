@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { useAuthState } from 'react-firebase-hooks/auth';
 import { auth, db } from '@/app/firebase/config';
-import { collection, query, where, getDocs, orderBy } from 'firebase/firestore';
+import { collection, query, where, getDocs } from 'firebase/firestore';
 import { motion } from 'framer-motion';
 import { FiPackage, FiClock, FiMapPin, FiShoppingBag, FiCheck, FiX, FiTruck, FiShoppingCart, FiDollarSign, FiAlertCircle, FiChevronRight } from 'react-icons/fi';
 import Image from 'next/image';
@@ -67,6 +67,41 @@ export default function OrdersPage() {
     }
   }, [user]);
 
+  const getValidTimestamp = (timestamp: number | undefined): number => {
+    if (!timestamp) return 0;
+    
+    try {
+      // Convert to string to check length (Unix timestamp vs milliseconds)
+      const timestampStr = timestamp.toString();
+      // If it's a Unix timestamp (10 digits), convert to milliseconds
+      if (timestampStr.length === 10) {
+        return timestamp * 1000;
+      }
+      // If it's already in milliseconds (13 digits) or any other value, return as is
+      return timestamp;
+    } catch (error) {
+      console.error('Error converting timestamp:', error);
+      return 0;
+    }
+  };
+
+  const formatTimestamp = (timestamp: number | undefined): string => {
+    if (!timestamp) return 'N/A';
+    try {
+      const validTime = getValidTimestamp(timestamp);
+      if (validTime === 0) return 'N/A';
+      
+      // Create a new Date object and validate it
+      const date = new Date(validTime);
+      if (isNaN(date.getTime())) return 'N/A';
+      
+      return format(date, 'PP');
+    } catch (error) {
+      console.error('Error formatting timestamp:', error);
+      return 'N/A';
+    }
+  };
+
   const fetchOrders = async () => {
     if (!user) return;
     try {
@@ -80,6 +115,14 @@ export default function OrdersPage() {
         id: doc.id,
         ...doc.data()
       })) as Order[];
+
+      // Sort orders client-side with safe timestamp handling
+      ordersList.sort((a, b) => {
+        const timeA = getValidTimestamp(a.metadata?.createdAt);
+        const timeB = getValidTimestamp(b.metadata?.createdAt);
+        return timeB - timeA;
+      });
+
       setOrders(ordersList);
     } catch (error) {
       console.error('Error fetching orders:', error);
@@ -90,37 +133,44 @@ export default function OrdersPage() {
 
   const getStatusBadge = (status: string) => {
     switch (status.toLowerCase()) {
-      case 'cancelled':
+      case 'pending':
         return (
-          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">
-            <FiX className="mr-1 h-3 w-3" />
-            Cancelled
-          </span>
-        );
-      case 'delivered':
-        return (
-          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
-            <FiCheck className="mr-1 h-3 w-3" />
-            Delivered
-          </span>
-        );
-      case 'shipped':
-        return (
-          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
-            <FiTruck className="mr-1 h-3 w-3" />
-            Shipped
+          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-500">
+            <FiClock className="mr-1 h-3 w-3" />
+            Pending
           </span>
         );
       case 'processing':
         return (
-          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
-            <FiClock className="mr-1 h-3 w-3" />
+          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-500">
+            <FiPackage className="mr-1 h-3 w-3" />
             Processing
+          </span>
+        );
+      case 'shipped':
+        return (
+          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-indigo-100 text-indigo-500">
+            <FiTruck className="mr-1 h-3 w-3" />
+            Shipped
+          </span>
+        );
+      case 'delivered':
+        return (
+          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-500">
+            <FiCheck className="mr-1 h-3 w-3" />
+            Delivered
+          </span>
+        );
+      case 'cancelled':
+        return (
+          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-500">
+            <FiX className="mr-1 h-3 w-3" />
+            Cancelled
           </span>
         );
       default:
         return (
-          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
+          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-500">
             <FiPackage className="mr-1 h-3 w-3" />
             {status.charAt(0).toUpperCase() + status.slice(1)}
           </span>
@@ -181,7 +231,7 @@ export default function OrdersPage() {
               <div
                 key={order.id}
                 className={`bg-white rounded-lg shadow-sm hover:shadow-md transition-all duration-200 overflow-hidden cursor-pointer ${
-                  order.orderStatus.current === 'cancelled' ? 'border-l-4 border-red-500' : ''
+                  order.orderStatus?.current === 'cancelled' ? 'border-l-4 border-red-500' : ''
                 }`}
                 onClick={() => handleOrderClick(order.id)}
               >
@@ -191,12 +241,12 @@ export default function OrdersPage() {
                     <div className="mb-2 sm:mb-0">
                       <div className="flex items-center space-x-2 mb-1">
                         <span className="text-base sm:text-lg font-semibold text-gray-900">
-                          Order #{order.metadata.orderId}
+                          Order #{order.metadata?.orderId || 'Unknown'}
                         </span>
-                        {getStatusBadge(order.orderStatus.current)}
+                        {getStatusBadge(order.orderStatus?.current || 'unknown')}
                       </div>
                       <p className="text-xs sm:text-sm text-gray-500">
-                        Placed on {format(order.metadata.createdAt, 'PP')}
+                        Placed on {formatTimestamp(order.metadata?.createdAt)}
                       </p>
                     </div>
                     <div className="flex items-center justify-between sm:flex-col sm:items-end">
@@ -240,14 +290,14 @@ export default function OrdersPage() {
                   </div>
 
                   {/* Cancellation Notice */}
-                  {order.orderStatus.current === 'cancelled' && (
+                  {order.orderStatus?.current === 'cancelled' && (
                     <div className="mt-4 p-3 bg-red-50 rounded-md">
                       <div className="flex items-start">
                         <FiAlertCircle className="h-5 w-5 text-red-400 mt-0.5" />
                         <div className="ml-2">
                           <p className="text-sm text-red-700">
                             <span className="font-medium">Cancelled:</span>{' '}
-                            {order.orderStatus.history.find(h => h.status === 'cancelled')?.reason || 'Order was cancelled'}
+                            {order.orderStatus?.history?.find(h => h.status === 'cancelled')?.reason || 'Order was cancelled'}
                           </p>
                         </div>
                       </div>
@@ -260,10 +310,10 @@ export default function OrdersPage() {
                       <div className="flex items-center space-x-2">
                         <FiClock className="h-4 w-4 text-gray-400" />
                         <span className="text-xs sm:text-sm text-gray-500">
-                          {order.orderStatus.current === 'cancelled'
-                            ? 'Cancelled on ' + format(order.orderStatus.history.find(h => h.status === 'cancelled')?.timestamp || 0, 'PP')
-                            : order.orderStatus.estimatedDelivery
-                            ? 'Est. delivery: ' + format(order.orderStatus.estimatedDelivery, 'PP')
+                          {order.orderStatus?.current === 'cancelled'
+                            ? 'Cancelled on ' + formatTimestamp(order.orderStatus?.history?.find(h => h.status === 'cancelled')?.timestamp)
+                            : order.orderStatus?.estimatedDelivery
+                            ? 'Est. delivery: ' + formatTimestamp(order.orderStatus?.estimatedDelivery)
                             : 'Processing'}
                         </span>
                       </div>

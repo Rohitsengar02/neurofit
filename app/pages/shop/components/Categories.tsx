@@ -41,8 +41,8 @@ const Categories = () => {
 
   if (loading) {
     return (
-      <div className="px-4 py-3">
-        <div className="flex items-center justify-between mb-3">
+      <div className="pt-4">
+        <div className="flex items-center justify-between ">
           <div className="h-7 w-32 bg-gray-200 dark:bg-gray-700 rounded animate-pulse"></div>
           <div className="h-5 w-16 bg-gray-200 dark:bg-gray-700 rounded animate-pulse"></div>
         </div>
@@ -60,7 +60,7 @@ const Categories = () => {
 
   return (
     <motion.div 
-      className="px-4 py-3"
+      className="pt-4"
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       transition={{ delay: 0.2 }}

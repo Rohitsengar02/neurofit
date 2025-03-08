@@ -11,7 +11,7 @@ interface ProductPageProps {
 export default function ProductPage({ params }: ProductPageProps) {
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
-      <LocationHeader />
+     
       <ProductDetail productId={params.productId} />
     </div>
   );

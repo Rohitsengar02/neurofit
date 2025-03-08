@@ -1,7 +1,9 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
+import Link from 'next/link';
+import { FiMenu, FiX } from 'react-icons/fi';
 import AuthForm from './components/Auth/AuthForm';
 import Dashboard from './components/Dashboard/Dashboard';
 import MainLayout from './components/Layout/MainLayout';
@@ -9,6 +11,17 @@ import { auth } from './utils/firebase';
 import { getUserData, saveUserData, UserData } from './utils/userService';
 import { onAuthStateChanged } from 'firebase/auth';
 import { useRouter } from 'next/navigation';
+
+// Import Landing Page Sections
+import HeroSection from './components/Landing/HeroSection';
+import FeaturesSection from './components/Landing/FeaturesSection';
+import ProgramsSection from './components/Landing/ProgramsSection';
+import TestimonialsSection from './components/Landing/TestimonialsSection';
+import PricingSection from './components/Landing/PricingSection';
+import ContactSection from './components/Landing/ContactSection';
+import NavBar from './components/Landing/NavBar';
+
+// Import all onboarding components
 import AgeSelection from './components/OnboardingSteps/AgeSelection';
 import BodyFatSelection from './components/OnboardingSteps/BodyFatSelection';
 import BodyTypeSelection from './components/OnboardingSteps/BodyTypeSelection';
@@ -29,6 +42,7 @@ import WorkoutDuration from './components/OnboardingSteps/WorkoutDuration';
 import WorkoutFrequency from './components/OnboardingSteps/WorkoutFrequency';
 import WorkoutLocation from './components/OnboardingSteps/WorkoutLocation';
 import WorkoutTimePreference from './components/OnboardingSteps/WorkoutTimePreference';
+import Navbar from './components/Navigation/Navbar';
 
 interface StepProps {
   onNext: (...args: any[]) => Promise<void>;
@@ -96,12 +110,25 @@ const initialUserData: UserData = {
 };
 
 export default function Home() {
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [scrolled, setScrolled] = useState(false);
   const [currentStep, setCurrentStep] = useState(0);
   const [loading, setLoading] = useState(true);
   const [userData, setUserData] = useState<UserData>(initialUserData);
   const [onboardingComplete, setOnboardingComplete] = useState(false);
+  const [showAuth, setShowAuth] = useState(false);
   const router = useRouter();
   const totalSteps = 21;
+
+  // Handle scroll effect for navbar
+  useEffect(() => {
+    const handleScroll = () => {
+      setScrolled(window.scrollY > 50);
+    };
+
+    window.addEventListener('scroll', handleScroll);
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, []);
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
@@ -133,6 +160,14 @@ export default function Home() {
 
     return () => unsubscribe();
   }, []);
+
+  const navLinks = [
+    { name: 'Features', href: '#features' },
+    { name: 'Programs', href: '#programs' },
+    { name: 'Testimonials', href: '#testimonials' },
+    { name: 'Pricing', href: '#pricing' },
+    { name: 'Contact', href: '#contact' }
+  ];
 
   const updateUserData = async (newData: Partial<UserData>) => {
     try {
@@ -491,7 +526,7 @@ export default function Home() {
     );
   }
 
-  if (onboardingComplete && userData) {
+  if (onboardingComplete && userData && auth.currentUser) {
     console.log('Rendering dashboard with user data:', userData);
     return (
       <motion.div
@@ -506,11 +541,117 @@ export default function Home() {
     );
   }
 
-  return (
-    <MainLayout>
-      <div className="min-h-screen bg-gray-900 text-white">
-        {renderOnboardingStep()}
+  if (showAuth) {
+    return (
+      <div className="min-h-screen bg-gray-900 flex flex-col items-center justify-center p-6">
+        <div className="max-w-md w-full">
+          <h1 className="text-3xl font-bold text-white text-center mb-8">
+            Welcome to NeuroFit
+          </h1>
+          <AuthForm onSuccess={() => setCurrentStep(1)} />
+        </div>
       </div>
-    </MainLayout>
+    );
+  }
+
+  if (auth.currentUser && !onboardingComplete) {
+    return (
+      <MainLayout>
+        <div className="min-h-screen bg-gray-900 text-white">
+          {renderOnboardingStep()}
+        </div>
+      </MainLayout>
+    );
+  }
+
+  return (
+    <main className="relative min-h-screen bg-gray-900">
+      {/* Navigation Bar */}
+     
+      <nav className={`fixed w-full z-50 transition-all duration-300 ${
+        scrolled ? 'bg-gray-900/95 backdrop-blur-sm shadow-lg' : 'bg-transparent'
+      }`}>
+        <div className="container mx-auto px-4">
+          <div className="flex items-center justify-between h-20">
+            {/* Logo */}
+            <Link href="/" className="text-2xl font-bold text-white">
+              NeuroFit
+            </Link>
+
+            {/* Desktop Navigation */}
+            <div className="hidden md:flex items-center space-x-8">
+              {navLinks.map((link) => (
+                <a
+                  key={link.name}
+                  href={link.href}
+                  className="text-gray-300 hover:text-white transition-colors"
+                >
+                  {link.name}
+                </a>
+              ))}
+              <button
+                onClick={() => setShowAuth(true)}
+                className="bg-gradient-to-r from-purple-600 to-violet-600 text-white px-6 py-2 rounded-lg font-semibold hover:from-purple-700 hover:to-violet-700 transition-all duration-300"
+              >
+                Get Started
+              </button>
+            </div>
+
+            {/* Mobile Menu Button */}
+            <button
+              className="md:hidden text-white p-2"
+              onClick={() => setIsMenuOpen(!isMenuOpen)}
+            >
+              {isMenuOpen ? <FiX size={24} /> : <FiMenu size={24} />}
+            </button>
+          </div>
+        </div>
+
+        {/* Mobile Navigation */}
+        <AnimatePresence>
+          {isMenuOpen && (
+            <motion.div
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: 'auto' }}
+              exit={{ opacity: 0, height: 0 }}
+              className="md:hidden bg-gray-900/95 backdrop-blur-sm border-t border-gray-800"
+            >
+              <div className="container mx-auto px-4 py-4">
+                <div className="flex flex-col space-y-4">
+                  {navLinks.map((link) => (
+                    <a
+                      key={link.name}
+                      href={link.href}
+                      className="text-gray-300 hover:text-white transition-colors py-2"
+                      onClick={() => setIsMenuOpen(false)}
+                    >
+                      {link.name}
+                    </a>
+                  ))}
+                  <button
+                    onClick={() => {
+                      setIsMenuOpen(false);
+                      setShowAuth(true);
+                    }}
+                    className="bg-gradient-to-r from-purple-600 to-violet-600 text-white px-6 py-3 rounded-lg font-semibold hover:from-purple-700 hover:to-violet-700 transition-all duration-300 text-center"
+                  >
+                    Get Started
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </nav>
+
+      {/* Landing Page Sections */}
+      <HeroSection onGetStarted={() => setShowAuth(true)} />
+      <FeaturesSection />
+      <ProgramsSection />
+      
+      <TestimonialsSection />
+      <PricingSection  />
+    
+    </main>
   );
 }

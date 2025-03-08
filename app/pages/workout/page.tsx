@@ -11,6 +11,7 @@ import { Clock, Activity, ChevronRight, CalendarDays, Dumbbell, Flame, Target, T
 import ChallengeCommitment from '@/app/components/Workout/ChallengeCommitment';
 import { addActiveWorkout } from '@/app/firebase/services/activeWorkouts';
 import { useAuth } from '@/app/hooks/useAuth';
+import ActiveWorkouts from './components/ActiveWorkouts';
 
 // UI Components
 const Card = ({ className = '', children }: { className?: string, children: React.ReactNode }) => (
@@ -269,6 +270,7 @@ export default function WorkoutPage() {
         />
       ) : (
         <div className="container mx-auto px-4 py-8">
+          <ActiveWorkouts />
           {/* Categories Section */}
           <section className="mb-12 relative">
             <h2 className="text-2xl font-bold mb-6 text-gray-900 dark:text-white">
