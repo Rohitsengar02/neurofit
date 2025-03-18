@@ -17,18 +17,6 @@ export interface Exercise {
   restBetweenSets: number; // in seconds
 }
 
-export interface Workout {
-  id: string;
-  title: string;
-  description: string;
-  imageUrl: string;
-  level: 'beginner' | 'intermediate' | 'advanced';
-  days: number;
-  caloriesPerDay: number;
-  exercises: Exercise[];
-  categoryId: string;
-}
-
 export interface WorkoutCategory {
   id: string;
   name: string;
@@ -50,9 +38,9 @@ export interface Workout {
   categoryId: string;
 }
 
-export interface ChallengeWorkout extends Workout {
+export interface ChallengeWorkout extends BaseWorkout {
   type: 'challenge';
-  duration: number; // Days
+  duration: number;
   levels: {
     name: string;
     exercises: {
@@ -79,4 +67,4 @@ export interface ActiveWorkout {
   status: 'active' | 'completed' | 'failed';
 }
 
-export type UpdatedWorkout = Workout | ChallengeWorkout;
+export type UpdatedWorkout = Partial<ActiveWorkout>;

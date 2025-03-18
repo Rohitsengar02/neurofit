@@ -106,7 +106,8 @@ const initialUserData: UserData = {
     previousExperience: [],
     trainingDuration: '',
     consistency: ''
-  }
+  },
+  currentStep: 0
 };
 
 export default function Home() {
@@ -137,17 +138,22 @@ export default function Home() {
           console.log('User is authenticated:', user.uid);
           const data = await getUserData();
           console.log('Fetched user data:', data);
-          if (data) {
+          if (data && data.currentStep === totalSteps) {
             setUserData(data);
             setOnboardingComplete(true);
             console.log('User has completed onboarding');
           } else {
-            setCurrentStep(1);
-            setUserData(initialUserData);
-            console.log('User needs to complete onboarding');
+            // If user data exists but onboarding is not complete, resume from last step
+            const nextStep = data ? (data.currentStep || 1) : 1;
+            setCurrentStep(nextStep);
+            setUserData(data || initialUserData);
+            setOnboardingComplete(false);
+            console.log('User needs to complete onboarding, starting at step:', nextStep);
           }
         } catch (error) {
           console.error('Error loading user data:', error);
+          setCurrentStep(1);
+          setUserData(initialUserData);
         }
       } else {
         console.log('No authenticated user');
@@ -186,16 +192,25 @@ export default function Home() {
 
   const handleNext = async (stepData: any) => {
     try {
-      await updateUserData(stepData);
+      const updatedData = {
+        ...userData,
+        ...stepData,
+        currentStep: currentStep + 1 // Save current step to resume later
+      };
+      await saveUserData(updatedData);
+      setUserData(updatedData);
+
       if (currentStep < totalSteps - 1) {
         setCurrentStep(currentStep + 1);
       } else {
         console.log('Onboarding complete, showing dashboard');
+        const finalData = {
+          ...updatedData,
+          currentStep: totalSteps // Mark as completed
+        };
+        await saveUserData(finalData);
+        setUserData(finalData);
         setOnboardingComplete(true);
-        const updatedData = await getUserData();
-        if (updatedData) {
-          setUserData(updatedData);
-        }
       }
     } catch (error) {
       console.error('Error in handleNext:', error);
@@ -230,265 +245,18 @@ export default function Home() {
               <h1 className="text-3xl font-bold text-white text-center mb-8">
                 Welcome to NeuroFit
               </h1>
-              <AuthForm onSuccess={() => setCurrentStep(1)} />
+              <AuthForm onSuccess={() => {
+                setCurrentStep(1);
+                setUserData(prev => ({
+                  ...prev,
+                  currentStep: 1
+                }));
+                setShowAuth(false);
+              }} />
             </div>
           </div>
         );
-      case 1:
-        return (
-          <AgeSelection
-            {...commonProps}
-            onNext={async (data: { age: number }) => {
-              await handleNext({
-                personalInfo: { ...userData.personalInfo, age: data.age }
-              });
-            }}
-          />
-        );
-      case 2:
-        return (
-          <GenderSelection
-            {...commonProps}
-            onNext={async (data: { gender: string }) => {
-              await handleNext({
-                personalInfo: { ...userData.personalInfo, gender: data.gender }
-              });
-            }}
-          />
-        );
-      case 3:
-        return (
-          <BodyTypeSelection
-            {...commonProps}
-            onNext={async (data: { bodyType: string }) => {
-              await handleNext({
-                personalInfo: { ...userData.personalInfo, bodyType: data.bodyType }
-              });
-            }}
-          />
-        );
-      case 4:
-        return (
-          <BodyFatSelection
-            {...commonProps}
-            onNext={async (data: { bodyFat: number }) => {
-              await handleNext({
-                personalInfo: { ...userData.personalInfo, bodyFat: data.bodyFat }
-              });
-            }}
-          />
-        );
-      case 5:
-        return (
-          <FitnessGoals
-            {...commonProps}
-            onNext={async (goals: string[]) => {
-              await handleNext({
-                fitnessGoals: goals
-              });
-            }}
-          />
-        );
-      case 6:
-        return (
-          <WeightGoals
-            {...commonProps}
-            onNext={async ({ currentWeight, targetWeight }: { currentWeight: number; targetWeight: number }) => {
-              await handleNext({
-                weightGoals: { currentWeight, targetWeight }
-              });
-            }}
-          />
-        );
-      case 7:
-        return (
-          <ExperienceLevel
-            {...commonProps}
-            onNext={async (level: string) => {
-              await handleNext({
-                experienceLevel: level
-              });
-            }}
-          />
-        );
-      case 8:
-        return (
-          <WeightliftingExperience
-            {...commonProps}
-            onNext={async (experience: string) => {
-              await handleNext({
-                weightliftingExperience: experience
-              });
-            }}
-          />
-        );
-      case 9:
-        return (
-          <WorkoutLocation
-            {...commonProps}
-            onNext={async (location: string) => {
-              await handleNext({
-                workoutPreferences: { ...userData.workoutPreferences, location }
-              });
-            }}
-          />
-        );
-      case 10:
-        return (
-          <WorkoutFrequency
-            {...commonProps}
-            onNext={async (frequency: string) => {
-              await handleNext({
-                workoutPreferences: { ...userData.workoutPreferences, frequency }
-              });
-            }}
-          />
-        );
-      case 11:
-        return (
-          <WorkoutDuration
-            {...commonProps}
-            onNext={async (duration: number) => {
-              await handleNext({
-                workoutPreferences: { ...userData.workoutPreferences, duration: duration.toString() }
-              });
-            }}
-          />
-        );
-      case 12:
-        return (
-          <WorkoutTimePreference
-            {...commonProps}
-            onNext={async ({ preferredTime, daysPerWeek, timePerWorkout }: { preferredTime: string; daysPerWeek: number; timePerWorkout: number }) => {
-              await handleNext({
-                workoutPreferences: { ...userData.workoutPreferences, preferredTime, daysPerWeek, timePerWorkout }
-              });
-            }}
-          />
-        );
-      case 13:
-        return (
-          <WeeklySchedule
-            {...commonProps}
-            onNext={async ({ days, sessionsPerWeek }: { days: string[]; sessionsPerWeek: number }) => {
-              await handleNext({
-                weeklySchedule: days,
-                workoutPreferences: { ...userData.workoutPreferences, daysPerWeek: sessionsPerWeek }
-              });
-            }}
-          />
-        );
-      case 14:
-        return (
-          <DailyRoutine
-            {...commonProps}
-            onNext={async ({ wakeTime, sleepTime, mealsPerDay, workHours }: { 
-              wakeTime: string; 
-              sleepTime: string; 
-              mealsPerDay: number;
-              workHours: number;
-            }) => {
-              await handleNext({
-                dailyRoutine: { 
-                  wakeUpTime: wakeTime, 
-                  sleepTime, 
-                  mealtimes: Array(mealsPerDay).fill(''), // Initialize empty mealtime slots
-                  workHours
-                }
-              });
-            }}
-          />
-        );
-      case 15:
-        return (
-          <ExercisePreferences
-            {...commonProps}
-            onNext={async (preferences: string[]) => {
-              // Split the preferences into preferred and avoid exercises
-              // Assume preferences with '-' prefix are exercises to avoid
-              const preferredExercises = preferences.filter(p => !p.startsWith('-'));
-              const avoidExercises = preferences
-                .filter(p => p.startsWith('-'))
-                .map(p => p.substring(1));
-
-              await handleNext({
-                exercisePreferences: { preferredExercises, avoidExercises }
-              });
-            }}
-          />
-        );
-      case 16:
-        return (
-          <HealthConditions
-            {...commonProps}
-            onNext={async ({ conditions, medications, injuries }: { 
-              conditions: string[]; 
-              medications: boolean;
-              injuries: string[];
-            }) => {
-              await handleNext({
-                healthConditions: { 
-                  conditions, 
-                  medications: medications ? ['Taking medications'] : [], 
-                  injuries 
-                }
-              });
-            }}
-          />
-        );
-      case 17:
-        return (
-          <Measurements
-            {...commonProps}
-            onNext={async ({ height, weight }: { height: number; weight: number }) => {
-              await handleNext({
-                measurements: {
-                  height,
-                  weight,
-                  chest: userData.measurements?.chest || 0,
-                  waist: userData.measurements?.waist || 0,
-                  hips: userData.measurements?.hips || 0,
-                  arms: userData.measurements?.arms || 0,
-                  legs: userData.measurements?.legs || 0
-                }
-              });
-            }}
-          />
-        );
-      case 18:
-        return (
-          <StressLevel
-            {...commonProps}
-            onNext={async ({ stressLevel, stressors }: { stressLevel: number; stressors: string[] }) => {
-              await handleNext({
-                stressLevel: { 
-                  level: stressLevel.toString(), // Convert number to string for storage
-                  stressors 
-                }
-              });
-            }}
-          />
-        );
-      case 19:
-        return (
-          <TrainingHistory
-            {...commonProps}
-            onNext={async ({ previousExperience, trainingDuration, consistency }: {
-              previousExperience: string[];
-              trainingDuration: string;
-              consistency: string;
-            }) => {
-              await handleNext({
-                trainingHistory: {
-                  previousExperience,
-                  trainingDuration,
-                  consistency
-                }
-              });
-            }}
-          />
-        );
-      case 20:
+        case 1:
         return (
           <ProfileSetup
             onNext={() => {
@@ -513,6 +281,261 @@ export default function Home() {
             }}
           />
         );
+      case 2:
+        return (
+          <AgeSelection
+            {...commonProps}
+            onNext={async (data: { age: number }) => {
+              await handleNext({
+                personalInfo: { ...userData.personalInfo, age: data.age }
+              });
+            }}
+          />
+        );
+      case 3:
+        return (
+          <GenderSelection
+            {...commonProps}
+            onNext={async (data: { gender: string }) => {
+              await handleNext({
+                personalInfo: { ...userData.personalInfo, gender: data.gender }
+              });
+            }}
+          />
+        );
+      case 4:
+        return (
+          <BodyTypeSelection
+            {...commonProps}
+            onNext={async (data: { bodyType: string }) => {
+              await handleNext({
+                personalInfo: { ...userData.personalInfo, bodyType: data.bodyType }
+              });
+            }}
+          />
+        );
+      case 5:
+        return (
+          <BodyFatSelection
+            {...commonProps}
+            onNext={async (data: { bodyFat: number }) => {
+              await handleNext({
+                personalInfo: { ...userData.personalInfo, bodyFat: data.bodyFat }
+              });
+            }}
+          />
+        );
+      case 6:
+        return (
+          <FitnessGoals
+            {...commonProps}
+            onNext={async (goals: string[]) => {
+              await handleNext({
+                fitnessGoals: goals
+              });
+            }}
+          />
+        );
+      case 7:
+        return (
+          <WeightGoals
+            {...commonProps}
+            onNext={async ({ currentWeight, targetWeight }: { currentWeight: number; targetWeight: number }) => {
+              await handleNext({
+                weightGoals: { currentWeight, targetWeight }
+              });
+            }}
+          />
+        );
+      case 8:
+        return (
+          <ExperienceLevel
+            {...commonProps}
+            onNext={async (level: string) => {
+              await handleNext({
+                experienceLevel: level
+              });
+            }}
+          />
+        );
+      case 9:
+        return (
+          <WeightliftingExperience
+            {...commonProps}
+            onNext={async (experience: string) => {
+              await handleNext({
+                weightliftingExperience: experience
+              });
+            }}
+          />
+        );
+      case 10:
+        return (
+          <WorkoutLocation
+            {...commonProps}
+            onNext={async (location: string) => {
+              await handleNext({
+                workoutPreferences: { ...userData.workoutPreferences, location }
+              });
+            }}
+          />
+        );
+      case 11:
+        return (
+          <WorkoutFrequency
+            {...commonProps}
+            onNext={async (frequency: string) => {
+              await handleNext({
+                workoutPreferences: { ...userData.workoutPreferences, frequency }
+              });
+            }}
+          />
+        );
+      case 12:
+        return (
+          <WorkoutDuration
+            {...commonProps}
+            onNext={async (duration: number) => {
+              await handleNext({
+                workoutPreferences: { ...userData.workoutPreferences, duration: duration.toString() }
+              });
+            }}
+          />
+        );
+      case 13:
+        return (
+          <WorkoutTimePreference
+            {...commonProps}
+            onNext={async ({ preferredTime, daysPerWeek, timePerWorkout }: { preferredTime: string; daysPerWeek: number; timePerWorkout: number }) => {
+              await handleNext({
+                workoutPreferences: { ...userData.workoutPreferences, preferredTime, daysPerWeek, timePerWorkout }
+              });
+            }}
+          />
+        );
+      case 14:
+        return (
+          <WeeklySchedule
+            {...commonProps}
+            onNext={async ({ days, sessionsPerWeek }: { days: string[]; sessionsPerWeek: number }) => {
+              await handleNext({
+                weeklySchedule: days,
+                workoutPreferences: { ...userData.workoutPreferences, daysPerWeek: sessionsPerWeek }
+              });
+            }}
+          />
+        );
+      case 15:
+        return (
+          <DailyRoutine
+            {...commonProps}
+            onNext={async ({ wakeTime, sleepTime, mealsPerDay, workHours }: { 
+              wakeTime: string; 
+              sleepTime: string; 
+              mealsPerDay: number;
+              workHours: number;
+            }) => {
+              await handleNext({
+                dailyRoutine: { 
+                  wakeUpTime: wakeTime, 
+                  sleepTime, 
+                  mealtimes: Array(mealsPerDay).fill(''), // Initialize empty mealtime slots
+                  workHours
+                }
+              });
+            }}
+          />
+        );
+      case 16:
+        return (
+          <ExercisePreferences
+            {...commonProps}
+            onNext={async (preferences: string[]) => {
+              // Split the preferences into preferred and avoid exercises
+              // Assume preferences with '-' prefix are exercises to avoid
+              const preferredExercises = preferences.filter(p => !p.startsWith('-'));
+              const avoidExercises = preferences
+                .filter(p => p.startsWith('-'))
+                .map(p => p.substring(1));
+
+              await handleNext({
+                exercisePreferences: { preferredExercises, avoidExercises }
+              });
+            }}
+          />
+        );
+      case 17:
+        return (
+          <HealthConditions
+            {...commonProps}
+            onNext={async ({ conditions, medications, injuries }: { 
+              conditions: string[]; 
+              medications: boolean;
+              injuries: string[];
+            }) => {
+              await handleNext({
+                healthConditions: { 
+                  conditions, 
+                  medications: medications ? ['Taking medications'] : [], 
+                  injuries 
+                }
+              });
+            }}
+          />
+        );
+      case 18:
+        return (
+          <Measurements
+            {...commonProps}
+            onNext={async ({ height, weight }: { height: number; weight: number }) => {
+              await handleNext({
+                measurements: {
+                  height,
+                  weight,
+                  chest: userData.measurements?.chest || 0,
+                  waist: userData.measurements?.waist || 0,
+                  hips: userData.measurements?.hips || 0,
+                  arms: userData.measurements?.arms || 0,
+                  legs: userData.measurements?.legs || 0
+                }
+              });
+            }}
+          />
+        );
+      case 19:
+        return (
+          <StressLevel
+            {...commonProps}
+            onNext={async ({ stressLevel, stressors }: { stressLevel: number; stressors: string[] }) => {
+              await handleNext({
+                stressLevel: { 
+                  level: stressLevel.toString(), // Convert number to string for storage
+                  stressors 
+                }
+              });
+            }}
+          />
+        );
+      case 20:
+        return (
+          <TrainingHistory
+            {...commonProps}
+            onNext={async ({ previousExperience, trainingDuration, consistency }: {
+              previousExperience: string[];
+              trainingDuration: string;
+              consistency: string;
+            }) => {
+              await handleNext({
+                trainingHistory: {
+                  previousExperience,
+                  trainingDuration,
+                  consistency
+                }
+              });
+            }}
+          />
+        );
+      
       default:
         return null;
     }
@@ -548,7 +571,14 @@ export default function Home() {
           <h1 className="text-3xl font-bold text-white text-center mb-8">
             Welcome to NeuroFit
           </h1>
-          <AuthForm onSuccess={() => setCurrentStep(1)} />
+          <AuthForm onSuccess={() => {
+            setCurrentStep(1);
+            setUserData(prev => ({
+              ...prev,
+              currentStep: 1
+            }));
+            setShowAuth(false);
+          }} />
         </div>
       </div>
     );
@@ -558,7 +588,17 @@ export default function Home() {
     return (
       <MainLayout>
         <div className="min-h-screen bg-gray-900 text-white">
-          {renderOnboardingStep()}
+          <AnimatePresence mode="wait">
+            <motion.div
+              key={currentStep}
+              initial={{ opacity: 0, x: 50 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: -50 }}
+              transition={{ duration: 0.3 }}
+            >
+              {renderOnboardingStep()}
+            </motion.div>
+          </AnimatePresence>
         </div>
       </MainLayout>
     );
@@ -590,7 +630,10 @@ export default function Home() {
                 </a>
               ))}
               <button
-                onClick={() => setShowAuth(true)}
+                onClick={() => {
+                  setShowAuth(true);
+                  setCurrentStep(1);
+                }}
                 className="bg-gradient-to-r from-purple-600 to-violet-600 text-white px-6 py-2 rounded-lg font-semibold hover:from-purple-700 hover:to-violet-700 transition-all duration-300"
               >
                 Get Started
@@ -632,6 +675,7 @@ export default function Home() {
                     onClick={() => {
                       setIsMenuOpen(false);
                       setShowAuth(true);
+                      setCurrentStep(1);
                     }}
                     className="bg-gradient-to-r from-purple-600 to-violet-600 text-white px-6 py-3 rounded-lg font-semibold hover:from-purple-700 hover:to-violet-700 transition-all duration-300 text-center"
                   >
@@ -645,7 +689,10 @@ export default function Home() {
       </nav>
 
       {/* Landing Page Sections */}
-      <HeroSection onGetStarted={() => setShowAuth(true)} />
+      <HeroSection onGetStarted={() => {
+        setShowAuth(true);
+        setCurrentStep(1);
+      }} />
       <FeaturesSection />
       <ProgramsSection />
       

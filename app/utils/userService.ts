@@ -58,6 +58,7 @@ export interface UserData {
     trainingDuration: string;
     consistency: string;
   };
+  currentStep: number; // Track onboarding progress
   workouts?: Array<{
     date: string;
     type: string;
