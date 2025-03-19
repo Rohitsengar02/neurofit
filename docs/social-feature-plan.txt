@@ -1,0 +1,156 @@
+# NeuroFit Social Feature Plan
+
+## Database Structure (Firestore)
+
+### Collection: social
+- posts (subcollection)
+  - postId (document)
+    - userId: string
+    - username: string
+    - userAvatar: string
+    - content: string
+    - mediaUrls: string[]
+    - mediaType: 'image' | 'video' | 'poll'
+    - pollOptions?: { text: string, votes: number }[]
+    - likes: number
+    - commentsCount: number
+    - shares: number
+    - createdAt: timestamp
+    - updatedAt: timestamp
+    - visibility: 'public' | 'friends' | 'private'
+    - tags: string[]
+    - fitnessData?: {
+      steps?: number
+      calories?: number
+      duration?: number
+      activityType?: string
+    }
+
+- comments (subcollection)
+  - commentId (document)
+    - postId: string
+    - userId: string
+    - username: string
+    - userAvatar: string
+    - content: string
+    - likes: number
+    - createdAt: timestamp
+    - parentCommentId?: string (for nested comments)
+
+- likes (subcollection)
+  - likeId (document)
+    - postId: string
+    - userId: string
+    - createdAt: timestamp
+
+## Features
+
+1. Post Creation
+   - Text posts with rich formatting
+   - Image uploads to Cloudinary
+   - Polls with multiple options
+   - Share fitness achievements
+   - Tag other users
+   - Privacy settings
+
+2. Post Interactions
+   - Like/unlike posts
+   - Comment on posts
+   - Reply to comments
+   - Share posts
+   - Save posts
+
+3. Feed
+   - Infinite scroll
+   - Filter by:
+     - Latest posts
+     - Following
+     - Popular
+     - Fitness category
+   - Search functionality
+
+4. User Interactions
+   - Follow/unfollow users
+   - View user profiles
+   - See user's fitness progress
+   - Direct messaging
+
+## Technical Implementation
+
+1. Frontend Components
+   - SocialPage (main feed)
+   - CreatePost
+   - PostCard
+   - CommentSection
+   - UserProfile
+   - PostModal
+   - PollComponent
+   - MediaUploader
+
+2. Backend Services
+   - Cloudinary integration for media storage
+   - Firebase Functions for:
+     - Post processing
+     - Notification system
+     - Feed generation
+     - Analytics
+
+3. APIs
+   - Post CRUD operations
+   - Comment management
+   - Like/Unlike functionality
+   - User interactions
+   - Media upload
+   - Poll management
+
+4. State Management
+   - User session
+   - Post cache
+   - Feed pagination
+   - Real-time updates
+
+## Security Rules
+
+1. Post Access
+   - Public posts visible to all
+   - Private posts visible to author only
+   - Friends posts visible to followers
+
+2. Actions
+   - Only authenticated users can post
+   - Users can edit/delete their own posts
+   - Admin can moderate all content
+
+## Performance Considerations
+
+1. Optimization
+   - Lazy loading images
+   - Pagination for feeds
+   - Caching frequently accessed data
+   - Optimizing media uploads
+
+2. Real-time Updates
+   - WebSocket connections for:
+     - New posts
+     - Likes/comments
+     - Notifications
+
+## Implementation Phases
+
+Phase 1:
+- Basic post creation (text + image)
+- Feed implementation
+- Like functionality
+- Basic comments
+
+Phase 2:
+- Polls
+- Advanced comments (replies)
+- Share functionality
+- User profiles
+
+Phase 3:
+- Direct messaging
+- Advanced filters
+- Analytics
+- Performance optimization

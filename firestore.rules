@@ -10,6 +10,48 @@ service cloud.firestore {
       return isAuthenticated() && exists(/databases/$(database)/documents/admins/$(request.auth.uid));
     }
 
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    function isPostOwner(postId) {
+      return isAuthenticated() && 
+        get(/databases/$(database)/documents/posts/$(postId)).data.userId == request.auth.uid;
+    }
+
+    function validatePost() {
+      let post = request.resource.data;
+      return 
+        // Required fields
+        post.content is string &&
+        post.userId is string &&
+        post.username is string &&
+        post.userAvatar is string &&
+        post.createdAt is timestamp &&
+        post.updatedAt is timestamp &&
+        post.likes is number && post.likes >= 0 &&
+        post.commentsCount is number && post.commentsCount >= 0 &&
+        post.shares is number && post.shares >= 0 &&
+        post.visibility in ['public', 'private', 'friends'] &&
+        post.tags is list &&
+
+        // Optional fields
+        (!('mediaUrls' in post) || (post.mediaUrls is list)) &&
+        (!('mediaType' in post) || post.mediaType in ['image', 'video', null]) &&
+        (!('pollOptions' in post) || (
+          post.pollOptions is list && 
+          post.pollOptions.size() <= 4 &&
+          post.pollOptions.size() >= 0
+        )) &&
+        (!('fitnessData' in post) || (
+          post.fitnessData.keys().hasAll(['steps', 'calories', 'duration', 'activityType']) &&
+          (!('steps' in post.fitnessData) || post.fitnessData.steps is number) &&
+          (!('calories' in post.fitnessData) || post.fitnessData.calories is number) &&
+          (!('duration' in post.fitnessData) || post.fitnessData.duration is number) &&
+          (!('activityType' in post.fitnessData) || post.fitnessData.activityType is string)
+        ));
+    }
+
     function validateProduct() {
       let product = request.resource.data;
       return 
@@ -128,6 +170,23 @@ service cloud.firestore {
         address.state is string && address.state.size() > 0 &&
         address.pincode is string && address.pincode.matches('^[0-9]{6}$') &&
         address.isDefault is bool;
+    }
+
+    function validatePollOption() {
+      let option = request.resource.data;
+      return 
+        option.text is string && option.text.size() > 0 &&
+        option.votes is number && option.votes >= 0;
+    }
+
+    function validateComment() {
+      let comment = request.resource.data;
+      return 
+        comment.userId == request.auth.uid &&
+        comment.content is string &&
+        comment.likes is number &&
+        comment.createdAt is timestamp &&
+        (!('parentCommentId' in comment) || comment.parentCommentId is string);
     }
 
     // Order validation functions
@@ -538,6 +597,66 @@ service cloud.firestore {
     match /users/{userId} {
       allow read: if request.auth != null && request.auth.uid == userId;
       allow write: if request.auth != null && request.auth.uid == userId;
+    }
+
+    // Social Media Collections
+    match /posts/{postId} {
+      allow read: if true;
+      allow create: if isAuthenticated() && 
+        request.resource.data.userId == request.auth.uid &&
+        request.resource.data.content is string &&
+        request.resource.data.mediaUrls is list &&
+        request.resource.data.visibility in ['public', 'private', 'friends'] &&
+        request.resource.data.tags is list &&
+        request.resource.data.likes is number &&
+        request.resource.data.commentsCount is number &&
+        request.resource.data.shares is number &&
+        request.resource.data.createdAt is timestamp &&
+        request.resource.data.updatedAt is timestamp;
+      allow update: if isAuthenticated() && (
+        request.auth.uid == resource.data.userId || isAdmin()
+      );
+      allow delete: if isAuthenticated() && (
+        request.auth.uid == resource.data.userId || isAdmin()
+      );
+    }
+
+    match /comments/{commentId} {
+      allow read: if true;
+      allow create: if isAuthenticated() && 
+        request.resource.data.userId == request.auth.uid &&
+        request.resource.data.postId is string &&
+        request.resource.data.content is string &&
+        request.resource.data.likes is number &&
+        request.resource.data.createdAt is timestamp;
+      allow update: if isAuthenticated() && (
+        request.auth.uid == resource.data.userId || isAdmin()
+      );
+      allow delete: if isAuthenticated() && (
+        request.auth.uid == resource.data.userId || isAdmin()
+      );
+    }
+
+    match /likes/{likeId} {
+      allow read: if true;
+      allow create: if isAuthenticated() && 
+        request.resource.data.userId == request.auth.uid &&
+        request.resource.data.postId is string &&
+        request.resource.data.createdAt is timestamp;
+      allow delete: if isAuthenticated() && (
+        request.auth.uid == resource.data.userId || isAdmin()
+      );
+    }
+
+    match /shares/{shareId} {
+      allow read: if true;
+      allow create: if isAuthenticated() && 
+        request.resource.data.userId == request.auth.uid &&
+        request.resource.data.postId is string &&
+        request.resource.data.createdAt is timestamp;
+      allow delete: if isAuthenticated() && (
+        request.auth.uid == resource.data.userId || isAdmin()
+      );
     }
   }
 }
