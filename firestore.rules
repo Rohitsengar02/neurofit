@@ -338,6 +338,26 @@ service cloud.firestore {
       // Allow users to read and write their own data
       allow read, write: if request.auth != null && request.auth.uid == userId;
 
+      // Active workouts subcollection
+      match /activeWorkouts/{workoutId} {
+        allow read: if isAuthenticated() && request.auth.uid == userId;
+        allow create: if isAuthenticated() && request.auth.uid == userId &&
+          request.resource.data.title is string &&
+          request.resource.data.categoryName is string &&
+          request.resource.data.imageUrl is string &&
+          request.resource.data.level is string &&
+          request.resource.data.startDate is string &&
+          request.resource.data.totalDays is number;
+        allow update: if isAuthenticated() && request.auth.uid == userId;
+        allow delete: if isAuthenticated() && request.auth.uid == userId;
+      }
+
+      // Workout progress subcollection
+      match /workoutProgress/{progressId} {
+        allow read: if isAuthenticated() && request.auth.uid == userId;
+        allow write: if isAuthenticated() && request.auth.uid == userId;
+      }
+
       // Address rules
       match /addresses/{addressId} {
         allow read: if request.auth != null && request.auth.uid == userId;

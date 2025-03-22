@@ -25,7 +25,6 @@ const moreMenuItems: Tab[] = [
   { id: 'physical', label: 'Physical', icon: FaDumbbell, color: 'from-blue-400 to-blue-600', href: '/' },
   { id: 'mental', label: 'Mental', icon: FaBrain, color: 'from-purple-400 to-purple-600', href: '/pages/mental' },
   { id: 'nutrition', label: 'Nutrition', icon: FaAppleAlt, color: 'from-green-400 to-green-600', href: '/nutrition' },
-  { id: 'social', label: 'Social', icon: FaUserFriends, color: 'from-pink-400 to-pink-600', href: '/social' },
   { id: 'relax', label: 'Relax', icon: FaSpa, color: 'from-pink-400 to-pink-600', href: '/pages/relax' },
   { id: 'wellness', label: 'Wellness', icon: FaHeart, color: 'from-red-400 to-red-600', href: '/wellness' },
   { id: 'mindful', label: 'Mindful', icon: FaYinYang, color: 'from-yellow-400 to-yellow-600', href: '/mindful' },

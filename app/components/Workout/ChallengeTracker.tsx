@@ -3,7 +3,7 @@
 import { useState, useMemo } from 'react';
 import { motion } from 'framer-motion';
 import { FaLock, FaCheck, FaChevronLeft, FaChevronRight, FaCalendarAlt, FaDumbbell, FaCalendarCheck, FaTrophy } from 'react-icons/fa';
-import { format, addDays, isSunday } from 'date-fns';
+import { format, addDays, isSunday, isValid } from 'date-fns';
 import CurrentDayWorkout from './CurrentDayWorkout';
 import { Workout, ActiveWorkout } from '@/app/types/workout';
 
@@ -48,6 +48,12 @@ export default function ChallengeTracker({
   const [currentMonthIndex, setCurrentMonthIndex] = useState(0);
   const [selectedDay, setSelectedDay] = useState<number | null>(null);
 
+  // Ensure startDate is valid
+  const validStartDate = useMemo(() => {
+    const date = new Date(startDate);
+    return isValid(date) ? date : new Date();
+  }, [startDate]);
+
   // Calculate progress percentage
   const progressPercentage = Math.round((completedDays.length / (workout.days || challengeDuration)) * 100);
   
@@ -65,7 +71,7 @@ export default function ChallengeTracker({
   const months = useMemo(() => {
     const result: ChallengeMonth[] = [];
     let currentDay = 1;
-    let currentDate = startDate;
+    let currentDate = validStartDate;
     
     while (currentDay <= effectiveDuration) {
       const month = currentDate.getMonth();
@@ -74,12 +80,15 @@ export default function ChallengeTracker({
       const daysLeftInChallenge = effectiveDuration - currentDay + 1;
       const daysToAdd = Math.min(daysInMonth, daysLeftInChallenge);
 
-      const days: ChallengeDay[] = Array.from({ length: daysToAdd }, (_, i) => ({
-        day: currentDay + i,
-        completed: completedDays.includes(currentDay + i),
-        locked: currentDay + i > 1 && !completedDays.includes(currentDay + i - 1),
-        isSunday: isSunday(addDays(startDate, currentDay + i - 1))
-      }));
+      const days: ChallengeDay[] = Array.from({ length: daysToAdd }, (_, i) => {
+        const dayDate = addDays(validStartDate, currentDay + i - 1);
+        return {
+          day: currentDay + i,
+          completed: completedDays.includes(currentDay + i),
+          locked: currentDay + i > 1 && !completedDays.includes(currentDay + i - 1),
+          isSunday: isValid(dayDate) && isSunday(dayDate)
+        };
+      });
 
       result.push({
         month,
@@ -92,7 +101,7 @@ export default function ChallengeTracker({
     }
 
     return result;
-  }, [effectiveDuration, startDate, completedDays]);
+  }, [effectiveDuration, validStartDate, completedDays]);
 
   // Ensure we have months data before rendering
   if (!months.length) {
@@ -141,7 +150,7 @@ export default function ChallengeTracker({
                 <div>
                   <div className="flex items-center gap-2 text-gray-300 mb-2">
                     <FaCalendarAlt className="text-blue-400" />
-                    <span className="text-sm md:text-base">Started {format(startDate, 'MMM d, yyyy')}</span>
+                    <span className="text-sm md:text-base">Started {format(validStartDate, 'MMM d, yyyy')}</span>
                   </div>
                   <h1 className="text-2xl md:text-4xl font-bold text-white mb-2">{effectiveChallengeName}</h1>
                 </div>
