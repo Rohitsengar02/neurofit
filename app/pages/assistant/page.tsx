@@ -233,10 +233,15 @@ const VoiceAssistant = () => {
       });
 
       if (!response.ok) {
-        throw new Error('Failed to get response from Gemini API');
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to get response from Gemini API');
       }
 
       const data = await response.json();
+
+      if (!data.response) {
+        throw new Error('No response from Gemini API');
+      }
 
       // Add assistant response to Firebase
       await addDoc(collection(db, `users/${user.uid}/assistance`), {
@@ -254,6 +259,12 @@ const VoiceAssistant = () => {
 
     } catch (error) {
       console.error('Error:', error);
+      // Add error message to chat
+      await addDoc(collection(db, `users/${user.uid}/assistance`), {
+        text: 'Sorry, I encountered an error. Please try again.',
+        sender: 'assistant' as const,
+        timestamp: new Date()
+      });
     } finally {
       setIsLoading(false);
       setInputText('');
