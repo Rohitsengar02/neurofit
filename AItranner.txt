@@ -1,2 +1,6 @@
 now i want to make a AI tranner name -" Gymo " when user call its name " gymo  " then it activated and shown in center of mobile screen with beautiful animation . user can  talk to gymo like the workouts of user , nutrition , relax , physical health trackers , mental etc all user can ask to gymo , and gymo can answer every question by getting the data which is save in firebase in users/uid collection . make a 3d cute caracter for it . and the 3d character is can navigate on any page and seen on any page . and when user ask and question then it answerd by the gamini API . gymo can talk with users with animations .   my ganini API key -> " NEXT_PUBLIC_GEMINI_API_KEY=AIzaSyBJDcErVEtkkx5r3i1x7oGLwBrEkRGYsYA
  "   and add that 3d caracter in mobilebottommenu in center .  and create a AITranner-plan.txt file which 
+
+
+
+ gamini-1.5-flash
