@@ -258,6 +258,67 @@ service cloud.firestore {
         && exercise.updatedAt is timestamp;
     }
 
+    // Validate AI recommendation data structure
+    function validateAiRecommendation() {
+      let rec = request.resource.data;
+      return rec.keys().hasAll(['recommendations', 'lastUpdate']) &&
+        rec.recommendations is list &&
+        rec.lastUpdate is number &&
+        rec.recommendations.size() <= 10 &&
+        rec.recommendations[0].keys().hasAll(['id', 'type', 'title', 'description', 'timestamp']) &&
+        rec.recommendations[0].type in ['workout', 'nutrition', 'mental', 'sleep', 'cardio'] &&
+        rec.recommendations[0].title is string &&
+        rec.recommendations[0].description is string &&
+        rec.recommendations[0].timestamp is number;
+    }
+
+    // Validate water log data structure
+    function validateWaterData() {
+      let data = request.resource.data;
+      return data.keys().hasAll(['current', 'target', 'unit', 'lastDrink', 'logs', 'lastResetDate']) &&
+        data.current is number && data.current >= 0 &&
+        data.target is number && data.target > 0 &&
+        data.unit is string &&
+        data.lastDrink is string &&
+        data.lastResetDate is string &&
+        data.logs is list &&
+        (data.logs.size() == 0 || (
+          data.logs[0].keys().hasAll(['id', 'time', 'amount', 'timestamp', 'date']) &&
+          data.logs[0].id is string &&
+          data.logs[0].time is string &&
+          data.logs[0].amount is number && data.logs[0].amount > 0 &&
+          data.logs[0].timestamp is number &&
+          data.logs[0].date is string
+        ));
+    }
+
+    // Validate water history data structure
+    function validateWaterHistory() {
+      let data = request.resource.data;
+      return data.keys().hasAll(['date', 'total', 'target', 'logs']) &&
+        data.date is string &&
+        data.total is number && data.total >= 0 &&
+        data.target is number && data.target > 0 &&
+        data.logs is list;
+    }
+
+    // Validate weight entry data structure
+    function validateWeightEntry() {
+      let data = request.resource.data;
+      return data.keys().hasAll(['date', 'weight', 'timestamp']) &&
+        data.date is string &&
+        data.weight is number && data.weight > 0 &&
+        data.timestamp is number;
+    }
+
+    // Validate weight goal data structure
+    function validateWeightGoal() {
+      let data = request.resource.data;
+      return data.keys().hasAll(['weight', 'timestamp']) &&
+        data.weight is number && data.weight > 0 &&
+        data.timestamp is number;
+    }
+
     // Admin collection rules
     match /admins/{userId} {
       allow read: if request.auth != null;
@@ -427,6 +488,44 @@ service cloud.firestore {
       // Current day workout data
       match /customWorkout/currentDayWorkout {
         allow read, write: if isOwner(userId);
+      }
+
+      // AI Recommendations Rules
+      match /userData/aiRecommendations {
+        allow read: if isOwner(userId);
+        allow write: if isOwner(userId) && validateAiRecommendation();
+      }
+
+      // Water Rules
+      match /userData/water {
+        allow read: if isOwner(userId);
+        allow write: if isOwner(userId) && validateWaterData();
+      }
+
+      // Water History Rules
+      match /userData/waterHistory/{date} {
+        allow read: if isOwner(userId);
+        allow write: if isOwner(userId) && validateWaterHistory();
+      }
+
+      // Weight Rules
+      match /userData/weight/{entryId} {
+        allow read: if isOwner(userId);
+        allow create: if isOwner(userId) && validateWeightEntry();
+        allow delete: if isOwner(userId);
+      }
+
+      // Weight Goals Rules
+      match /userData/profile/weightGoals/{goalType} {
+        allow read: if isOwner(userId);
+        allow write: if isOwner(userId) && validateWeightGoal();
+      }
+
+      // Weight History Rules
+      match /weightHistory/{entryId} {
+        allow read: if isOwner(userId);
+        allow create: if isOwner(userId) && validateWeightEntry();
+        allow delete: if isOwner(userId);
       }
     }
     
@@ -685,6 +784,11 @@ service cloud.firestore {
         allow read: if true;
         allow write: if isAuthenticated() && isAdmin();
       }
+    }
+
+    // Nutrition rules
+    match /users/{userId}/nutrition/{document=**} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
     }
   }
 }

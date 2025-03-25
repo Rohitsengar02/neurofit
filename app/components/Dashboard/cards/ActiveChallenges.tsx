@@ -73,7 +73,7 @@ const ActiveChallenges = () => {
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.5 }}
-        className="relative overflow-hidden bg-gradient-to-br from-green-500 to-green-600 dark:from-green-600 dark:to-green-800 rounded-2xl p-6 text-white h-[300px]"
+        className="relative overflow-hidden bg-gradient-to-br from-yellow-500 to-yellow-600 dark:from-yellow-600 dark:to-yellow-800 rounded-2xl p-6 text-white h-[300px]"
       >
         <div className="animate-pulse space-y-4">
           <div className="h-8 w-48 bg-white/20 rounded"></div>

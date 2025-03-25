@@ -1,27 +1,281 @@
 'use client';
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 import { FaWeight, FaChartLine, FaBullseye, FaArrowDown, FaArrowUp } from 'react-icons/fa';
+import { useAuth } from '@/app/context/AuthContext';
+import { db } from '@/app/firebase/config';
+import { doc, getDoc, setDoc, collection, addDoc, query, orderBy, limit, getDocs } from 'firebase/firestore';
+
+interface WeightEntry {
+  date: string;
+  weight: number;
+  timestamp: number;
+}
+
+interface WeightData {
+  current: number;
+  target: number;
+  start: number;
+  unit: string;
+  history: WeightEntry[];
+  weeklyChange: number;
+  totalChange: number;
+  remainingToGoal: number;
+}
+
+const DEFAULT_WEIGHT_DATA: WeightData = {
+  current: 0,
+  target: 0,
+  start: 0,
+  unit: 'kg',
+  history: [],
+  weeklyChange: 0,
+  totalChange: 0,
+  remainingToGoal: 0
+};
 
 const WeightProgress = () => {
-  // Demo weight data
-  const weightData = {
-    current: 75.5,
-    target: 72,
-    start: 82,
-    unit: 'kg',
-    history: [
-      { date: 'Jan 1', weight: 82.0 },
-      { date: 'Jan 8', weight: 80.5 },
-      { date: 'Jan 15', weight: 79.0 },
-      { date: 'Jan 22', weight: 77.8 },
-      { date: 'Jan 29', weight: 76.5 },
-      { date: 'Feb 5', weight: 75.5 }
-    ],
-    weeklyChange: -0.8,
-    totalChange: -6.5,
-    remainingToGoal: 3.5
+  const { user } = useAuth();
+  const [weightData, setWeightData] = useState<WeightData>(DEFAULT_WEIGHT_DATA);
+  const [loading, setLoading] = useState(true);
+  const [newWeight, setNewWeight] = useState<string>('');
+  const [showSetup, setShowSetup] = useState(false);
+  const [setupData, setSetupData] = useState({
+    currentWeight: '',
+    goalWeight: ''
+  });
+
+  const calculateWeightMetrics = (history: WeightEntry[]) => {
+    if (history.length < 2) return { weeklyChange: 0, totalChange: 0 };
+
+    const sortedHistory = [...history].sort((a, b) => b.timestamp - a.timestamp);
+    const latestWeight = sortedHistory[0].weight;
+    const weekAgoEntry = sortedHistory.find(entry => 
+      Date.now() - entry.timestamp <= 7 * 24 * 60 * 60 * 1000
+    );
+    const startWeight = sortedHistory[sortedHistory.length - 1].weight;
+
+    return {
+      weeklyChange: weekAgoEntry ? latestWeight - weekAgoEntry.weight : 0,
+      totalChange: latestWeight - startWeight
+    };
   };
+
+  const formatDate = (date: Date) => {
+    return date.toLocaleDateString('en-US', {
+      month: 'short',
+      day: 'numeric'
+    });
+  };
+
+  // Fetch weight data
+  useEffect(() => {
+    const fetchWeightData = async () => {
+      if (!user) return;
+
+      try {
+        // Get current weight from profile
+        const weightGoalsRef = doc(db, `users/${user.uid}/userData/profile`);
+        const currentWeightRef = doc(weightGoalsRef, 'weightGoals/currentWeight');
+        const targetWeightRef = doc(weightGoalsRef, 'weightGoals/targetWeight');
+
+        const [currentWeightSnap, targetWeightSnap] = await Promise.all([
+          getDoc(currentWeightRef),
+          getDoc(targetWeightRef)
+        ]);
+
+        if (!currentWeightSnap.exists() || !targetWeightSnap.exists()) {
+          setShowSetup(true);
+          setLoading(false);
+          return;
+        }
+
+        const currentWeight = currentWeightSnap.data().weight;
+        const targetWeight = targetWeightSnap.data().weight;
+
+        // Get weight history
+        const weightHistoryRef = collection(db, `users/${user.uid}/weightHistory`);
+        const weightQuery = query(weightHistoryRef, orderBy('timestamp', 'desc'), limit(30));
+        const weightSnap = await getDocs(weightQuery);
+        
+        const history: WeightEntry[] = weightSnap.docs.map(doc => ({
+          date: doc.data().date,
+          weight: doc.data().weight,
+          timestamp: doc.data().timestamp
+        }));
+
+        const { weeklyChange, totalChange } = calculateWeightMetrics(history);
+
+        const newWeightData: WeightData = {
+          current: currentWeight,
+          target: targetWeight,
+          start: history.length > 0 ? history[history.length - 1].weight : currentWeight,
+          unit: 'kg',
+          history,
+          weeklyChange,
+          totalChange,
+          remainingToGoal: targetWeight - currentWeight
+        };
+
+        setWeightData(newWeightData);
+      } catch (error) {
+        console.error('Error fetching weight data:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchWeightData();
+  }, [user]);
+
+  const handleSetupSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!user) return;
+
+    const currentWeight = parseFloat(setupData.currentWeight);
+    const goalWeight = parseFloat(setupData.goalWeight);
+
+    if (isNaN(currentWeight) || isNaN(goalWeight)) return;
+
+    try {
+      const now = new Date();
+      const weightGoalsRef = doc(db, `users/${user.uid}/userData/profile`);
+      
+      // Set current weight
+      await setDoc(doc(weightGoalsRef, 'weightGoals/currentWeight'), {
+        weight: currentWeight,
+        timestamp: now.getTime()
+      });
+
+      // Set target weight
+      await setDoc(doc(weightGoalsRef, 'weightGoals/targetWeight'), {
+        weight: goalWeight,
+        timestamp: now.getTime()
+      });
+
+      // Add first history entry
+      const weightHistoryRef = collection(db, `users/${user.uid}/weightHistory`);
+      await addDoc(weightHistoryRef, {
+        date: formatDate(now),
+        weight: currentWeight,
+        timestamp: now.getTime()
+      });
+
+      // Update local state
+      setWeightData({
+        ...DEFAULT_WEIGHT_DATA,
+        current: currentWeight,
+        target: goalWeight,
+        start: currentWeight,
+        remainingToGoal: goalWeight - currentWeight
+      });
+
+      setShowSetup(false);
+    } catch (error) {
+      console.error('Error setting up weight data:', error);
+    }
+  };
+
+  const updateWeight = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!user || !newWeight) return;
+
+    const weightValue = parseFloat(newWeight);
+    if (isNaN(weightValue)) return;
+
+    try {
+      const now = new Date();
+      const newEntry: WeightEntry = {
+        date: formatDate(now),
+        weight: weightValue,
+        timestamp: now.getTime()
+      };
+
+      // Update current weight in profile
+      const weightGoalsRef = doc(db, `users/${user.uid}/userData/profile`);
+      const currentWeightRef = doc(weightGoalsRef, 'weightGoals/currentWeight');
+      await setDoc(currentWeightRef, { 
+        weight: weightValue, 
+        timestamp: now.getTime() 
+      });
+
+      // Add to weight history
+      const weightHistoryRef = collection(db, `users/${user.uid}/weightHistory`);
+      await addDoc(weightHistoryRef, newEntry);
+
+      // Update local state
+      const updatedHistory = [newEntry, ...weightData.history];
+      const { weeklyChange, totalChange } = calculateWeightMetrics(updatedHistory);
+
+      setWeightData(prev => ({
+        ...prev,
+        current: weightValue,
+        history: updatedHistory,
+        weeklyChange,
+        totalChange,
+        remainingToGoal: prev.target - weightValue
+      }));
+
+      setNewWeight('');
+    } catch (error) {
+      console.error('Error updating weight:', error);
+    }
+  };
+
+  if (loading) {
+    return <div>Loading...</div>;
+  }
+
+  if (showSetup) {
+    return (
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.5 }}
+        className="relative overflow-hidden bg-gradient-to-br from-purple-500 to-indigo-600 dark:from-purple-600 dark:to-indigo-800 rounded-2xl p-6 text-white"
+      >
+        <div className="flex items-center space-x-3 mb-6">
+          <div className="p-2 bg-white/20 backdrop-blur-sm rounded-xl">
+            <FaWeight className="w-6 h-6" />
+          </div>
+          <h3 className="text-lg font-semibold">Set Up Weight Tracking</h3>
+        </div>
+
+        <form onSubmit={handleSetupSubmit} className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium mb-2">Current Weight (kg)</label>
+            <input
+              type="number"
+              step="0.1"
+              required
+              value={setupData.currentWeight}
+              onChange={(e) => setSetupData(prev => ({ ...prev, currentWeight: e.target.value }))}
+              className="bg-white/10 backdrop-blur-sm rounded-xl px-3 py-2 text-sm w-full"
+              placeholder="Enter your current weight"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium mb-2">Goal Weight (kg)</label>
+            <input
+              type="number"
+              step="0.1"
+              required
+              value={setupData.goalWeight}
+              onChange={(e) => setSetupData(prev => ({ ...prev, goalWeight: e.target.value }))}
+              className="bg-white/10 backdrop-blur-sm rounded-xl px-3 py-2 text-sm w-full"
+              placeholder="Enter your goal weight"
+            />
+          </div>
+          <button
+            type="submit"
+            className="w-full bg-white/20 hover:bg-white/30 backdrop-blur-sm rounded-xl px-4 py-2 text-sm font-medium transition-colors"
+          >
+            Start Tracking
+          </button>
+        </form>
+      </motion.div>
+    );
+  }
 
   const progressPercentage = ((weightData.start - weightData.current) / (weightData.start - weightData.target)) * 100;
 
@@ -188,6 +442,25 @@ const WeightProgress = () => {
           Great progress! You're consistently losing weight at a healthy rate. Keep it up! 💪
         </div>
       </motion.div>
+
+      <form onSubmit={updateWeight} className="mt-4">
+        <div className="flex items-center space-x-2">
+          <input
+            type="number"
+            step="0.1"
+            value={newWeight}
+            onChange={(e) => setNewWeight(e.target.value)}
+            placeholder="Enter weight"
+            className="bg-white/10 backdrop-blur-sm rounded-xl px-3 py-2 text-sm w-32"
+          />
+          <button
+            type="submit"
+            className="bg-white/20 hover:bg-white/30 backdrop-blur-sm rounded-xl px-4 py-2 text-sm transition-colors"
+          >
+            Update
+          </button>
+        </div>
+      </form>
     </motion.div>
   );
 };

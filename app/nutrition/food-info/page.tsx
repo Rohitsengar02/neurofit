@@ -1,12 +1,15 @@
 'use client';
 
 import React, { useEffect, useState, useRef } from 'react';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import { useRouter } from 'next/navigation';
-import { FaArrowLeft, FaBolt, FaWeight, FaApple, FaFire, FaInfoCircle } from 'react-icons/fa';
+import { FaArrowLeft, FaBolt, FaWeight, FaApple, FaFire, FaInfoCircle, FaUtensils, FaList, FaHeart } from 'react-icons/fa';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import gsap from 'gsap';
 import { PieChart, Pie, Cell, ResponsiveContainer, Legend, Tooltip } from 'recharts';
+import { useAuth } from '@/app/context/AuthContext';
+import { db } from '@/app/firebase/config';
+import { collection, doc, setDoc, getDoc, Timestamp } from 'firebase/firestore';
 
 interface FoodItem {
   name: string;
@@ -24,6 +27,22 @@ interface NutritionInfo {
   minerals: { name: string; amount: string }[];
   description: string;
   health_benefits: string[];
+}
+
+interface DailyMeal {
+  foodName: string;
+  mealType: string;
+  calories: number;
+  protein: number;
+  carbs: number;
+  fats: number;
+  servingSize: string;
+  addedAt: Timestamp;
+}
+
+interface DailyMeals {
+  date: string;
+  meals: Record<string, DailyMeal>;
 }
 
 const COLORS = ['#FF6B6B', '#4ECDC4', '#45B7D1'];
@@ -46,6 +65,12 @@ const FoodInfoPage = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string>('');
   const [activeIndex, setActiveIndex] = useState<number | null>(null);
+  const [showMealsSummary, setShowMealsSummary] = useState(false);
+  const [todaysMeals, setTodaysMeals] = useState<DailyMeals | null>(null);
+  const [loadingMeals, setLoadingMeals] = useState(false);
+  const [isAddingMeal, setIsAddingMeal] = useState(false);
+  const [success, setSuccess] = useState<string | null>(null);
+  const { user } = useAuth();
 
   // Refs for GSAP animations
   const pageRef = useRef(null);
@@ -181,6 +206,84 @@ const FoodInfoPage = () => {
     setActiveIndex(index);
   };
 
+  const fetchTodaysMeals = async () => {
+    if (!user) return;
+
+    setLoadingMeals(true);
+    try {
+      const today = new Date().toISOString().split('T')[0];
+      const mealsRef = doc(db, `users/${user.uid}/nutrition`, today);
+      const mealsDoc = await getDoc(mealsRef);
+
+      if (mealsDoc.exists()) {
+        setTodaysMeals(mealsDoc.data() as DailyMeals);
+      } else {
+        setTodaysMeals({ date: today, meals: {} });
+      }
+    } catch (err) {
+      console.error('Error fetching meals:', err);
+      setError('Failed to fetch today\'s meals');
+    } finally {
+      setLoadingMeals(false);
+    }
+  };
+
+  const handleAddMeal = async () => {
+    if (!user) {
+      setError('Please login to add meals');
+      return;
+    }
+
+    if (!foodData || !nutritionInfo) {
+      setError('No food data found');
+      return;
+    }
+
+    setIsAddingMeal(true);
+    setError('');
+    setSuccess(null);
+
+    try {
+      const today = new Date().toISOString().split('T')[0];
+      
+      // Create meal data
+      const mealData: DailyMeal = {
+        foodName: foodData.name,
+        mealType: selectedMeal,
+        calories: nutritionInfo.calories,
+        protein: nutritionInfo.protein_g,
+        carbs: nutritionInfo.carbohydrates_total_g,
+        fats: nutritionInfo.fat_total_g,
+        servingSize: nutritionInfo.fiber_g.toString() + 'g',
+        addedAt: Timestamp.now()
+      };
+
+      // Reference to the user's nutrition collection for today
+      const userNutritionRef = doc(db, `users/${user.uid}/nutrition`, today);
+
+      // Add the meal to the date document
+      await setDoc(userNutritionRef, {
+        date: today,
+        meals: {
+          [Timestamp.now().toMillis()]: mealData
+        }
+      }, { merge: true });
+
+      setSuccess('Meal added successfully!');
+      
+      // Refresh meals list if it's open
+      if (showMealsSummary) {
+        fetchTodaysMeals();
+      }
+
+    } catch (err) {
+      console.error('Error adding meal:', err);
+      setError('Failed to add meal. Please try again.');
+    } finally {
+      setIsAddingMeal(false);
+    }
+  };
+
   if (isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-purple-50">
@@ -301,21 +404,30 @@ const FoodInfoPage = () => {
                 <option value="dinner">Dinner</option>
                 <option value="snack">Snack</option>
               </select>
-              <button className="w-full px-6 py-3 bg-gradient-to-r from-blue-500 to-purple-500 text-white rounded-lg hover:from-blue-600 hover:to-purple-600 transition-all transform hover:scale-105">
-                Add to {selectedMeal.charAt(0).toUpperCase() + selectedMeal.slice(1)}
-              </button>
               <button 
-                className="w-full mt-4 px-6 py-3 bg-gradient-to-r from-green-500 to-teal-500 text-white rounded-lg hover:from-green-600 hover:to-teal-600 transition-all transform hover:scale-105 flex items-center justify-center"
-                onClick={() => {
-                  // Save functionality will be added later
-                  alert('Food saved to favorites!');
-                }}
+                onClick={handleAddMeal}
+                disabled={isAddingMeal}
+                className="w-full px-6 py-3 bg-gradient-to-r from-blue-500 to-purple-500 text-white rounded-lg hover:from-blue-600 hover:to-purple-600 transition-all transform hover:scale-105 flex items-center justify-center"
               >
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" viewBox="0 0 20 20" fill="currentColor">
-                  <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
-                </svg>
-                Save Food
+                {isAddingMeal ? (
+                  <>
+                    <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin mr-2" />
+                    Adding...
+                  </>
+                ) : (
+                  `Add to ${selectedMeal.charAt(0).toUpperCase() + selectedMeal.slice(1)}`
+                )}
               </button>
+
+              {error && (
+                <p className="mt-2 text-red-500 text-center">{error}</p>
+              )}
+
+              {success && (
+                <p className="mt-2 text-green-500 text-center">{success}</p>
+              )}
+
+              
             </div>
           </div>
 
@@ -437,6 +549,156 @@ const FoodInfoPage = () => {
           </div>
         </div>
       </div>
+
+      {/* Today's Meals Summary Button */}
+      <motion.button
+        initial={{ y: 20, opacity: 0 }}
+        animate={{ y: 0, opacity: 1 }}
+        className="fixed bottom-8 right-4 bg-purple-500 hover:bg-purple-600 text-white rounded-full p-4 shadow-lg transform transition-all hover:scale-105 z-50"
+        onClick={() => {
+          fetchTodaysMeals();
+          setShowMealsSummary(true);
+        }}
+      >
+        <FaList className="w-6 h-6" />
+      </motion.button>
+
+      {/* Today's Meals Summary Modal */}
+      <AnimatePresence>
+        {showMealsSummary && (
+          <>
+            {/* Backdrop */}
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 0.5 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 bg-black z-40"
+              onClick={() => setShowMealsSummary(false)}
+            />
+
+            {/* Modal */}
+            <motion.div
+              initial={{ y: '100%', opacity: 0 }}
+              animate={{ y: 0, opacity: 1 }}
+              exit={{ y: '100%', opacity: 0 }}
+              className="fixed bottom-0 left-0 right-0 bg-white dark:bg-gray-800 rounded-t-3xl p-6 shadow-xl max-h-[80vh] overflow-y-auto z-50"
+            >
+              <div className="space-y-6">
+                <div className="flex justify-between items-center">
+                  <h3 className="text-2xl font-bold text-gray-900 dark:text-white">
+                    Today's Meals
+                  </h3>
+                  <button
+                    onClick={() => setShowMealsSummary(false)}
+                    className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
+                  >
+                    ✕
+                  </button>
+                </div>
+
+                {loadingMeals ? (
+                  <div className="flex justify-center py-8">
+                    <div className="w-8 h-8 border-4 border-purple-500 border-t-transparent rounded-full animate-spin" />
+                  </div>
+                ) : todaysMeals && Object.keys(todaysMeals.meals).length > 0 ? (
+                  <div className="space-y-4">
+                    {/* Daily Summary */}
+                    <div className="bg-purple-50 dark:bg-purple-900/20 rounded-xl p-4">
+                      <h4 className="font-semibold text-purple-900 dark:text-purple-100 mb-2">
+                        Daily Summary
+                      </h4>
+                      <div className="grid grid-cols-4 gap-4">
+                        <div>
+                          <p className="text-sm text-gray-500 dark:text-gray-400">Calories</p>
+                          <p className="font-semibold text-gray-900 dark:text-white">
+                            {Object.values(todaysMeals.meals).reduce((sum, meal) => sum + meal.calories, 0).toFixed(0)}
+                          </p>
+                        </div>
+                        <div>
+                          <p className="text-sm text-gray-500 dark:text-gray-400">Protein</p>
+                          <p className="font-semibold text-gray-900 dark:text-white">
+                            {Object.values(todaysMeals.meals).reduce((sum, meal) => sum + meal.protein, 0).toFixed(1)}g
+                          </p>
+                        </div>
+                        <div>
+                          <p className="text-sm text-gray-500 dark:text-gray-400">Carbs</p>
+                          <p className="font-semibold text-gray-900 dark:text-white">
+                            {Object.values(todaysMeals.meals).reduce((sum, meal) => sum + meal.carbs, 0).toFixed(1)}g
+                          </p>
+                        </div>
+                        <div>
+                          <p className="text-sm text-gray-500 dark:text-gray-400">Fats</p>
+                          <p className="font-semibold text-gray-900 dark:text-white">
+                            {Object.values(todaysMeals.meals).reduce((sum, meal) => sum + meal.fats, 0).toFixed(1)}g
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Meals List */}
+                    <div className="space-y-3">
+                      {Object.entries(todaysMeals.meals)
+                        .sort(([a], [b]) => Number(b) - Number(a))
+                        .map(([timestamp, meal]) => (
+                          <div
+                            key={timestamp}
+                            className="bg-white dark:bg-gray-700 rounded-xl p-4 shadow-sm"
+                          >
+                            <div className="flex justify-between items-start">
+                              <div>
+                                <h5 className="font-semibold text-gray-900 dark:text-white">
+                                  {meal.foodName}
+                                </h5>
+                                <p className="text-sm text-purple-500 dark:text-purple-300 capitalize">
+                                  {meal.mealType}
+                                </p>
+                              </div>
+                              <div className="text-right">
+                                <p className="font-medium text-gray-900 dark:text-white">
+                                  {meal.calories.toFixed(0)} cal
+                                </p>
+                                <p className="text-xs text-gray-500 dark:text-gray-400">
+                                  {new Date(Number(timestamp)).toLocaleTimeString([], {
+                                    hour: '2-digit',
+                                    minute: '2-digit'
+                                  })}
+                                </p>
+                              </div>
+                            </div>
+                            <div className="mt-2 grid grid-cols-3 gap-2 text-sm">
+                              <div>
+                                <span className="text-gray-500 dark:text-gray-400">Protein: </span>
+                                <span className="font-medium text-gray-900 dark:text-white">
+                                  {meal.protein.toFixed(1)}g
+                                </span>
+                              </div>
+                              <div>
+                                <span className="text-gray-500 dark:text-gray-400">Carbs: </span>
+                                <span className="font-medium text-gray-900 dark:text-white">
+                                  {meal.carbs.toFixed(1)}g
+                                </span>
+                              </div>
+                              <div>
+                                <span className="text-gray-500 dark:text-gray-400">Fats: </span>
+                                <span className="font-medium text-gray-900 dark:text-white">
+                                  {meal.fats.toFixed(1)}g
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                    </div>
+                  </div>
+                ) : (
+                  <div className="text-center py-8 text-gray-500 dark:text-gray-400">
+                    No meals added today
+                  </div>
+                )}
+              </div>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
     </div>
   );
 };

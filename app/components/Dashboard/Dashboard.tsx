@@ -209,29 +209,30 @@ function Dashboard() {
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -20 }}
-                className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4"
+                className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 mb-4 gap-4"
               >
-                 <ActiveChallenges />
+
+                <NutritionScore />
+                <ActiveChallenges />
                 <ActivityStats />
+                <AiRecommendations />
+                <HydrationTracker />
+                <WeightProgress />
+
+
                 <StepsTracker />
                 <WorkoutStreak />
-               
-                <NutritionScore />
-                <MacroAnalysis />
+                
                 <FitnessGoals />
                 <WorkoutPlan />
-               
-               
-                <HydrationTracker />
+                
                 <WeeklyFitness />
-                <AiRecommendations />
+                
                 <SleepQuality />
                 <HeartRate />
-                <WeightProgress />
-                <ExerciseStreaks />
-                <SleepTracker />
-                <CalorieTracker />
-                <GoalsTracker />
+                
+               
+                
                 
               </motion.div>
             )}

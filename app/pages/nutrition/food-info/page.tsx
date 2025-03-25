@@ -1,9 +1,12 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import { useRouter } from 'next/navigation';
-import { FaArrowLeft, FaUtensils, FaWeight, FaFire, FaClock } from 'react-icons/fa';
+import { FaArrowLeft, FaUtensils, FaWeight, FaFire, FaClock, FaList } from 'react-icons/fa';
+import { useAuth } from '@/app/context/AuthContext';
+import { db } from '@/app/firebase/config';
+import { collection, doc, setDoc, getDoc, Timestamp } from 'firebase/firestore';
 
 interface NutritionInfo {
   name: string;
@@ -128,6 +131,22 @@ const NutrientCard: React.FC<{
   </div>
 );
 
+interface DailyMeal {
+  foodName: string;
+  mealType: string;
+  calories: number;
+  protein: number;
+  carbs: number;
+  fats: number;
+  servingSize: string;
+  addedAt: Timestamp;
+}
+
+interface DailyMeals {
+  date: string;
+  meals: Record<string, DailyMeal>;
+}
+
 const FoodInfoPage: React.FC = () => {
   const router = useRouter();
   const [foodData, setFoodData] = useState<FoodItem | null>(null);
@@ -135,6 +154,13 @@ const FoodInfoPage: React.FC = () => {
   const [unit, setUnit] = useState<string>('g');
   const [mealType, setMealType] = useState<string>('');
   const [mealTime, setMealTime] = useState<string>('');
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState<string | null>(null);
+  const [showMealsSummary, setShowMealsSummary] = useState(false);
+  const [todaysMeals, setTodaysMeals] = useState<DailyMeals | null>(null);
+  const [loadingMeals, setLoadingMeals] = useState(false);
+  const { user } = useAuth();
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
@@ -144,6 +170,27 @@ const FoodInfoPage: React.FC = () => {
       }
     }
   }, []);
+
+  const fetchTodaysMeals = async () => {
+    if (!user) return;
+
+    setLoadingMeals(true);
+    try {
+      const today = new Date().toISOString().split('T')[0];
+      const mealsRef = doc(db, `users/${user.uid}/nutrition`, today);
+      const mealsDoc = await getDoc(mealsRef);
+
+      if (mealsDoc.exists()) {
+        setTodaysMeals(mealsDoc.data() as DailyMeals);
+      } else {
+        setTodaysMeals({ date: today, meals: {} });
+      }
+    } catch (err) {
+      console.error('Error fetching meals:', err);
+    } finally {
+      setLoadingMeals(false);
+    }
+  };
 
   if (!foodData?.nutrition) {
     return (
@@ -171,42 +218,72 @@ const FoodInfoPage: React.FC = () => {
 
   const multiplier = getMultiplier();
 
-  const handleAddToMeal = async () => {
-    if (!mealType || !mealTime) {
-      alert('Please select both meal type and time');
+  const handleAddToMealPlan = async () => {
+    if (!user) {
+      setError('Please login to add meals to your plan');
       return;
     }
 
+    if (!mealType) {
+      setError('Please select a meal type');
+      return;
+    }
+
+    setIsLoading(true);
+    setError(null);
+    setSuccess(null);
+
     try {
-      // Add to your database here
+      const today = new Date();
+      const dateString = today.toISOString().split('T')[0]; // YYYY-MM-DD format
+
+      // Create a new meal entry
       const mealData = {
-        foodId: foodData.id,
-        name: foodData.name,
-        amount,
-        unit,
-        mealType,
-        mealTime,
-        nutrition: {
-          calories: nutrition.calories * multiplier,
-          protein: nutrition.protein_g * multiplier,
-          carbs: nutrition.carbohydrates_total_g * multiplier,
-          fat: nutrition.fat_total_g * multiplier
-        },
-        date: new Date().toISOString()
+        foodName: foodData.name,
+        mealType: mealType,
+        calories: nutrition.calories * multiplier,
+        protein: nutrition.protein_g * multiplier,
+        carbs: nutrition.carbohydrates_total_g * multiplier,
+        fats: nutrition.fat_total_g * multiplier,
+        servingSize: nutrition.serving_size_g,
+        addedAt: Timestamp.now(),
+        date: dateString
       };
 
-      console.log('Adding meal:', mealData);
-      // Add your database logic here
+      // Reference to the user's nutrition collection for the specific date
+      const userNutritionRef = doc(
+        collection(db, `users/${user.uid}/nutrition`),
+        dateString
+      );
 
-      router.push('/nutrition');
-    } catch (error) {
-      console.error('Error adding meal:', error);
-      alert('Failed to add meal. Please try again.');
+      // Add the meal to the date document
+      await setDoc(userNutritionRef, {
+        date: dateString,
+        meals: {
+          [Timestamp.now().toMillis()]: mealData // Use timestamp as unique ID for each meal
+        }
+      }, { merge: true }); // Use merge to keep existing meals
+
+      setSuccess('Meal added to your plan successfully!');
+      
+      // Clear the meal type selection
+      setMealType('');
+
+      // Show success for 2 seconds then redirect
+      setTimeout(() => {
+        router.push('/nutrition');
+      }, 2000);
+
+    } catch (err) {
+      console.error('Error adding meal:', err);
+      setError('Failed to add meal to your plan. Please try again.');
+    } finally {
+      setIsLoading(false);
     }
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 p-4">
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 p-4 relative">
       <div className="max-w-4xl mx-auto space-y-6">
         <motion.div
           initial={{ y: -20, opacity: 0 }}
@@ -354,34 +431,191 @@ const FoodInfoPage: React.FC = () => {
                 ))}
               </div>
 
-              {/* Meal Time Selection */}
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-                {['Morning', 'Afternoon', 'Evening', 'Night'].map((time) => (
-                  <button
-                    key={time}
-                    onClick={() => setMealTime(time.toLowerCase())}
-                    className={`px-4 py-3 rounded-xl font-semibold transition-all transform hover:scale-105
-                      ${mealTime === time.toLowerCase()
-                        ? 'bg-green-500 text-white'
-                        : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300'
-                      }`}
-                  >
-                    {time}
-                  </button>
-                ))}
-              </div>
-
               {/* Add to Meal Plan Button */}
-              <button
-                onClick={handleAddToMeal}
-                className="w-full py-4 bg-gradient-to-r from-blue-500 to-purple-500 text-white rounded-xl font-bold hover:shadow-lg transform transition-all hover:scale-105"
-              >
-                Add to Meal Plan
-              </button>
+              <div className="flex flex-col space-y-4">
+                <button
+                  onClick={handleAddToMealPlan}
+                  disabled={isLoading || !mealType}
+                  className={`w-full py-4 rounded-xl font-semibold text-white transition-all transform
+                    ${isLoading
+                      ? 'bg-gray-400 cursor-not-allowed'
+                      : mealType
+                        ? 'bg-green-500 hover:bg-green-600 hover:scale-105'
+                        : 'bg-gray-300 cursor-not-allowed'
+                    }`}
+                >
+                  {isLoading ? (
+                    <div className="flex items-center justify-center">
+                      <div className="w-6 h-6 border-2 border-white border-t-transparent rounded-full animate-spin mr-2" />
+                      Adding to meal plan...
+                    </div>
+                  ) : (
+                    'Add to Meal Plan'
+                  )}
+                </button>
+
+                {error && (
+                  <p className="text-red-500 text-center">{error}</p>
+                )}
+
+                {success && (
+                  <p className="text-green-500 text-center">{success}</p>
+                )}
+              </div>
             </div>
           </div>
         </motion.div>
       </div>
+
+      {/* Today's Meals Summary Button */}
+      <motion.button
+        initial={{ y: 20, opacity: 0 }}
+        animate={{ y: 0, opacity: 1 }}
+        className="fixed bottom-8 right-4 bg-purple-500 hover:bg-purple-600 text-white rounded-full p-4 shadow-lg transform transition-all hover:scale-105"
+        onClick={() => {
+          fetchTodaysMeals();
+          setShowMealsSummary(true);
+        }}
+      >
+        <FaList className="w-6 h-6" />
+      </motion.button>
+
+      {/* Today's Meals Summary Modal */}
+      <AnimatePresence>
+        {showMealsSummary && (
+          <>
+            {/* Backdrop */}
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 0.5 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 bg-black"
+              onClick={() => setShowMealsSummary(false)}
+            />
+
+            {/* Modal */}
+            <motion.div
+              initial={{ y: '100%', opacity: 0 }}
+              animate={{ y: 0, opacity: 1 }}
+              exit={{ y: '100%', opacity: 0 }}
+              className="fixed bottom-0 left-0 right-0 bg-white dark:bg-gray-800 rounded-t-3xl p-6 shadow-xl max-h-[80vh] overflow-y-auto"
+            >
+              <div className="space-y-6">
+                <div className="flex justify-between items-center">
+                  <h3 className="text-2xl font-bold text-gray-900 dark:text-white">
+                    Today's Meals
+                  </h3>
+                  <button
+                    onClick={() => setShowMealsSummary(false)}
+                    className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
+                  >
+                    ✕
+                  </button>
+                </div>
+
+                {loadingMeals ? (
+                  <div className="flex justify-center py-8">
+                    <div className="w-8 h-8 border-4 border-purple-500 border-t-transparent rounded-full animate-spin" />
+                  </div>
+                ) : todaysMeals && Object.keys(todaysMeals.meals).length > 0 ? (
+                  <div className="space-y-4">
+                    {/* Daily Summary */}
+                    <div className="bg-purple-50 dark:bg-purple-900/20 rounded-xl p-4">
+                      <h4 className="font-semibold text-purple-900 dark:text-purple-100 mb-2">
+                        Daily Summary
+                      </h4>
+                      <div className="grid grid-cols-4 gap-4">
+                        <div>
+                          <p className="text-sm text-gray-500 dark:text-gray-400">Calories</p>
+                          <p className="font-semibold text-gray-900 dark:text-white">
+                            {Object.values(todaysMeals.meals).reduce((sum, meal) => sum + meal.calories, 0).toFixed(0)}
+                          </p>
+                        </div>
+                        <div>
+                          <p className="text-sm text-gray-500 dark:text-gray-400">Protein</p>
+                          <p className="font-semibold text-gray-900 dark:text-white">
+                            {Object.values(todaysMeals.meals).reduce((sum, meal) => sum + meal.protein, 0).toFixed(1)}g
+                          </p>
+                        </div>
+                        <div>
+                          <p className="text-sm text-gray-500 dark:text-gray-400">Carbs</p>
+                          <p className="font-semibold text-gray-900 dark:text-white">
+                            {Object.values(todaysMeals.meals).reduce((sum, meal) => sum + meal.carbs, 0).toFixed(1)}g
+                          </p>
+                        </div>
+                        <div>
+                          <p className="text-sm text-gray-500 dark:text-gray-400">Fats</p>
+                          <p className="font-semibold text-gray-900 dark:text-white">
+                            {Object.values(todaysMeals.meals).reduce((sum, meal) => sum + meal.fats, 0).toFixed(1)}g
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Meals List */}
+                    <div className="space-y-3">
+                      {Object.entries(todaysMeals.meals)
+                        .sort(([a], [b]) => Number(b) - Number(a))
+                        .map(([timestamp, meal]) => (
+                          <div
+                            key={timestamp}
+                            className="bg-white dark:bg-gray-700 rounded-xl p-4 shadow-sm"
+                          >
+                            <div className="flex justify-between items-start">
+                              <div>
+                                <h5 className="font-semibold text-gray-900 dark:text-white">
+                                  {meal.foodName}
+                                </h5>
+                                <p className="text-sm text-purple-500 dark:text-purple-300 capitalize">
+                                  {meal.mealType}
+                                </p>
+                              </div>
+                              <div className="text-right">
+                                <p className="font-medium text-gray-900 dark:text-white">
+                                  {meal.calories.toFixed(0)} cal
+                                </p>
+                                <p className="text-xs text-gray-500 dark:text-gray-400">
+                                  {new Date(Number(timestamp)).toLocaleTimeString([], {
+                                    hour: '2-digit',
+                                    minute: '2-digit'
+                                  })}
+                                </p>
+                              </div>
+                            </div>
+                            <div className="mt-2 grid grid-cols-3 gap-2 text-sm">
+                              <div>
+                                <span className="text-gray-500 dark:text-gray-400">Protein: </span>
+                                <span className="font-medium text-gray-900 dark:text-white">
+                                  {meal.protein.toFixed(1)}g
+                                </span>
+                              </div>
+                              <div>
+                                <span className="text-gray-500 dark:text-gray-400">Carbs: </span>
+                                <span className="font-medium text-gray-900 dark:text-white">
+                                  {meal.carbs.toFixed(1)}g
+                                </span>
+                              </div>
+                              <div>
+                                <span className="text-gray-500 dark:text-gray-400">Fats: </span>
+                                <span className="font-medium text-gray-900 dark:text-white">
+                                  {meal.fats.toFixed(1)}g
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                    </div>
+                  </div>
+                ) : (
+                  <div className="text-center py-8 text-gray-500 dark:text-gray-400">
+                    No meals added today
+                  </div>
+                )}
+              </div>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
     </div>
   );
 };

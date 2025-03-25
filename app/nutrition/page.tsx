@@ -3,9 +3,12 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useRouter } from 'next/navigation';
-import { FaSearch, FaAppleAlt, FaCarrot, FaBreadSlice, FaDrumstickBite, FaFish, FaEgg, FaGlassMartini, FaPizzaSlice } from 'react-icons/fa';
+import { FaSearch, FaAppleAlt, FaCarrot, FaBreadSlice, FaDrumstickBite, FaFish, FaEgg, FaGlassMartini, FaPizzaSlice, FaList } from 'react-icons/fa';
 import { GiMilkCarton, GiFruitBowl, GiChocolateBar } from 'react-icons/gi';
 import { GoogleGenerativeAI } from '@google/generative-ai';
+import { useAuth } from '../context/AuthContext';
+import { db } from '../firebase/config';
+import { collection, doc, getDoc, Timestamp, setDoc } from 'firebase/firestore';
 
 interface NutritionInfo {
   name: string;
@@ -27,6 +30,22 @@ interface FoodItem {
   description: string;
   icon?: any;
   color?: string;
+}
+
+interface DailyMeal {
+  foodName: string;
+  mealType: string;
+  calories: number;
+  protein: number;
+  carbs: number;
+  fats: number;
+  servingSize: string;
+  addedAt: any;
+}
+
+interface DailyMeals {
+  date: string;
+  meals: Record<string, DailyMeal>;
 }
 
 const useDebounce = (value: string, delay: number) => {
@@ -69,13 +88,48 @@ const getIconForFood = (foodName: string) => {
   };
 };
 
-const NutritionPage = () => {
+export default function NutritionPage() {
   const router = useRouter();
+  const { user } = useAuth();
   const [searchQuery, setSearchQuery] = useState('');
-  const [searchResults, setSearchResults] = useState<FoodItem[]>([]);
+  const [searchResults, setSearchResults] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string>('');
+  const [showMealsSummary, setShowMealsSummary] = useState(false);
+  const [todaysMeals, setTodaysMeals] = useState<DailyMeals | null>(null);
+  const [loadingMeals, setLoadingMeals] = useState(false);
+  const [isDeleting, setIsDeleting] = useState<string | null>(null);
+
   const debouncedSearch = useDebounce(searchQuery, 500);
+
+  useEffect(() => {
+    if (debouncedSearch) {
+      searchFood(debouncedSearch);
+    } else {
+      setSearchResults([]);
+    }
+  }, [debouncedSearch]);
+
+  const fetchTodaysMeals = async () => {
+    if (!user) return;
+
+    setLoadingMeals(true);
+    try {
+      const today = new Date().toISOString().split('T')[0];
+      const mealsRef = doc(db, `users/${user.uid}/nutrition`, today);
+      const mealsDoc = await getDoc(mealsRef);
+
+      if (mealsDoc.exists()) {
+        setTodaysMeals(mealsDoc.data() as DailyMeals);
+      } else {
+        setTodaysMeals({ date: today, meals: {} });
+      }
+    } catch (err) {
+      console.error('Error fetching meals:', err);
+    } finally {
+      setLoadingMeals(false);
+    }
+  };
 
   const searchFood = async (query: string) => {
     if (!query) {
@@ -123,12 +177,6 @@ const NutritionPage = () => {
     }
   };
 
-  useEffect(() => {
-    if (debouncedSearch) {
-      searchFood(debouncedSearch);
-    }
-  }, [debouncedSearch]);
-
   const handleFoodSelect = (food: FoodItem) => {
     try {
       localStorage.setItem('selectedFood', JSON.stringify(food));
@@ -136,6 +184,38 @@ const NutritionPage = () => {
     } catch (error) {
       console.error('Error storing food data:', error);
       setErrorMessage('Error selecting food item. Please try again.');
+    }
+  };
+
+  const handleDeleteMeal = async (timestamp: string) => {
+    if (!user) return;
+    
+    setIsDeleting(timestamp);
+    try {
+      const today = new Date().toISOString().split('T')[0];
+      const mealsRef = doc(db, `users/${user.uid}/nutrition`, today);
+      
+      // Get current meals
+      const mealsDoc = await getDoc(mealsRef);
+      if (!mealsDoc.exists()) return;
+      
+      const currentData = mealsDoc.data() as DailyMeals;
+      const updatedMeals = { ...currentData.meals };
+      delete updatedMeals[timestamp];
+      
+      // Update document with meal removed
+      await setDoc(mealsRef, {
+        date: today,
+        meals: updatedMeals
+      });
+
+      // Refresh the meals list
+      await fetchTodaysMeals();
+
+    } catch (err) {
+      console.error('Error deleting meal:', err);
+    } finally {
+      setIsDeleting(null);
     }
   };
 
@@ -244,8 +324,167 @@ const NutritionPage = () => {
           <p className="text-gray-600">No food items found. Try searching for "banana" or "chicken"</p>
         </div>
       </div>
+      <motion.button
+        initial={{ y: 20, opacity: 0 }}
+        animate={{ y: 0, opacity: 1 }}
+        className="fixed bottom-20 right-4 bg-purple-500 hover:bg-purple-600 text-white rounded-full p-4 shadow-lg transform transition-all hover:scale-105 z-50"
+        onClick={() => {
+          fetchTodaysMeals();
+          setShowMealsSummary(true);
+        }}
+      >
+        <FaList className="w-6 h-6" />
+      </motion.button>
+      <AnimatePresence>
+        {showMealsSummary && (
+          <>
+            {/* Backdrop */}
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 0.5 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 bg-black z-40"
+              onClick={() => setShowMealsSummary(false)}
+            />
+
+            {/* Modal */}
+            <motion.div
+              initial={{ y: '100%', opacity: 0 }}
+              animate={{ y: 0, opacity: 1 }}
+              exit={{ y: '100%', opacity: 0 }}
+              className="fixed bottom-16 left-0 right-0 bg-white dark:bg-gray-800 rounded-t-3xl p-6 shadow-xl max-h-[80vh] overflow-y-auto z-50"
+            >
+              <div className="space-y-6">
+                <div className="flex justify-between items-center">
+                  <h3 className="text-2xl font-bold text-gray-900 dark:text-white">
+                    Today's Meals
+                  </h3>
+                  <button
+                    onClick={() => setShowMealsSummary(false)}
+                    className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
+                  >
+                    ✕
+                  </button>
+                </div>
+
+                {loadingMeals ? (
+                  <div className="flex justify-center py-8">
+                    <div className="w-8 h-8 border-4 border-purple-500 border-t-transparent rounded-full animate-spin" />
+                  </div>
+                ) : todaysMeals && Object.keys(todaysMeals.meals).length > 0 ? (
+                  <div className="space-y-4">
+                    {/* Daily Summary */}
+                    <div className="bg-purple-50 dark:bg-purple-900/20 rounded-xl p-4">
+                      <h4 className="font-semibold text-purple-900 dark:text-purple-100 mb-2">
+                        Daily Summary
+                      </h4>
+                      <div className="grid grid-cols-4 gap-4">
+                        <div>
+                          <p className="text-sm text-gray-500 dark:text-gray-400">Calories</p>
+                          <p className="font-semibold text-gray-900 dark:text-white">
+                            {Object.values(todaysMeals.meals).reduce((sum, meal) => sum + meal.calories, 0).toFixed(0)}
+                          </p>
+                        </div>
+                        <div>
+                          <p className="text-sm text-gray-500 dark:text-gray-400">Protein</p>
+                          <p className="font-semibold text-gray-900 dark:text-white">
+                            {Object.values(todaysMeals.meals).reduce((sum, meal) => sum + meal.protein, 0).toFixed(1)}g
+                          </p>
+                        </div>
+                        <div>
+                          <p className="text-sm text-gray-500 dark:text-gray-400">Carbs</p>
+                          <p className="font-semibold text-gray-900 dark:text-white">
+                            {Object.values(todaysMeals.meals).reduce((sum, meal) => sum + meal.carbs, 0).toFixed(1)}g
+                          </p>
+                        </div>
+                        <div>
+                          <p className="text-sm text-gray-500 dark:text-gray-400">Fats</p>
+                          <p className="font-semibold text-gray-900 dark:text-white">
+                            {Object.values(todaysMeals.meals).reduce((sum, meal) => sum + meal.fats, 0).toFixed(1)}g
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Meals List */}
+                    <div className="space-y-3">
+                      {Object.entries(todaysMeals.meals)
+                        .sort(([a], [b]) => Number(b) - Number(a))
+                        .map(([timestamp, meal]) => (
+                          <div
+                            key={timestamp}
+                            className="bg-white dark:bg-gray-700 rounded-xl p-4 shadow-sm"
+                          >
+                            <div className="flex justify-between items-start">
+                              <div>
+                                <h5 className="font-semibold text-gray-900 dark:text-white">
+                                  {meal.foodName}
+                                </h5>
+                                <p className="text-sm text-purple-500 dark:text-purple-300 capitalize">
+                                  {meal.mealType}
+                                </p>
+                              </div>
+                              <div className="flex items-start gap-4">
+                                <div className="text-right">
+                                  <p className="font-medium text-gray-900 dark:text-white">
+                                    {meal.calories.toFixed(0)} cal
+                                  </p>
+                                  <p className="text-xs text-gray-500 dark:text-gray-400">
+                                    {new Date(Number(timestamp)).toLocaleTimeString([], {
+                                      hour: '2-digit',
+                                      minute: '2-digit'
+                                    })}
+                                  </p>
+                                </div>
+                                <button
+                                  onClick={() => handleDeleteMeal(timestamp)}
+                                  disabled={isDeleting === timestamp}
+                                  className="text-red-500 hover:text-red-600 dark:text-red-400 dark:hover:text-red-300 p-1 rounded-full hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
+                                >
+                                  {isDeleting === timestamp ? (
+                                    <div className="w-5 h-5 border-2 border-red-500 border-t-transparent rounded-full animate-spin" />
+                                  ) : (
+                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                                      <path fillRule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clipRule="evenodd" />
+                                    </svg>
+                                  )}
+                                </button>
+                              </div>
+                            </div>
+                            <div className="mt-2 grid grid-cols-3 gap-2 text-sm">
+                              <div>
+                                <span className="text-gray-500 dark:text-gray-400">Protein: </span>
+                                <span className="font-medium text-gray-900 dark:text-white">
+                                  {meal.protein.toFixed(1)}g
+                                </span>
+                              </div>
+                              <div>
+                                <span className="text-gray-500 dark:text-gray-400">Carbs: </span>
+                                <span className="font-medium text-gray-900 dark:text-white">
+                                  {meal.carbs.toFixed(1)}g
+                                </span>
+                              </div>
+                              <div>
+                                <span className="text-gray-500 dark:text-gray-400">Fats: </span>
+                                <span className="font-medium text-gray-900 dark:text-white">
+                                  {meal.fats.toFixed(1)}g
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                    </div>
+                  </div>
+                ) : (
+                  <div className="text-center py-8 text-gray-500 dark:text-gray-400">
+                    No meals added today
+                  </div>
+                )}
+              </div>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
     </div>
   );
-};
-
-export default NutritionPage;
+}
