@@ -56,7 +56,7 @@ const FoodInfoPage = () => {
   const generateNutritionInfo = async (foodName: string) => {
     try {
       const genAI = new GoogleGenerativeAI(process.env.NEXT_PUBLIC_GEMINI_API_KEY!);
-      const model = genAI.getGenerativeModel({ model: "gemini-pro" });
+      const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
 
       const prompt = `Generate detailed nutrition information for ${foodName} per 100g serving.
       Return ONLY a valid JSON object (no markdown, no extra text) with this exact structure:

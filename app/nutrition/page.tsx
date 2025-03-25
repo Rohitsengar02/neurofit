@@ -87,7 +87,7 @@ const NutritionPage = () => {
     setIsLoading(true);
     try {
       const genAI = new GoogleGenerativeAI(process.env.NEXT_PUBLIC_GEMINI_API_KEY!);
-      const model = genAI.getGenerativeModel({ model: "gemini-pro" });
+      const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
 
       const prompt = `Generate food suggestions based on the search query "${query}". Include:
       1. The exact food item

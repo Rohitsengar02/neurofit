@@ -127,14 +127,31 @@ export default function ChallengePage() {
         </div>
       ) : workout ? (
         <ChallengeTracker
-          challengeName={workout.title}
-          challengeDuration={Number(workout.duration)}
+          challengeName={workout?.title || ''}
+          challengeDuration={workout?.duration || 30}
           startDate={startDate}
-          backgroundImage={workout.image || ''}
-          onDayClick={(day) => handleDayClick(day)}
+          backgroundImage={workout?.image || ''}
+          onDayClick={handleDayClick}
           completedDays={completedDays}
           userId={user?.uid || ''}
-          category={workout.type || 'general'}
+          category="challenge"
+          workout={{
+            id: workout?.id || '',
+            title: workout?.title || '',
+            description: workout?.description || '',
+            imageUrl: workout?.image || '',
+            level: workout?.level || 'beginner',
+            days: workout?.duration || 30,
+            caloriesPerDay: 500, // Default value
+            exercises: workout?.levels?.[0]?.exercises.map(e => ({
+              name: e.name,
+              sets: e.sets,
+              reps: e.reps,
+              restBetweenSets: e.rest
+            })) || [],
+            categoryId: workout?.id || ''
+          }}
+          workoutId={id as string}
         />
       ) : (
         <div className="flex items-center justify-center min-h-screen">

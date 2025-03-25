@@ -41,6 +41,12 @@ export interface Workout {
 export interface ChallengeWorkout extends BaseWorkout {
   type: 'challenge';
   duration: number;
+  days: number; 
+  imageUrl: string; 
+  level: 'beginner' | 'intermediate' | 'advanced'; 
+  caloriesPerDay: number; 
+  categoryId: string; 
+  exercises: Exercise[]; 
   levels: {
     name: string;
     exercises: {
@@ -65,7 +71,7 @@ export interface ActiveWorkout {
   totalDays: number;
   caloriesPerDay: number;
   status: 'active' | 'completed' | 'failed';
-  originalWorkoutId: string; // ID of the original workout in categories collection
+  originalWorkoutId: string; 
 }
 
 export type UpdatedWorkout = Partial<ActiveWorkout>;

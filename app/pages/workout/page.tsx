@@ -195,8 +195,9 @@ export default function WorkoutPage() {
       }
 
       // Create active workout object with required fields
-      const activeWorkout: ActiveWorkout = {
+      const newActiveWorkout: ActiveWorkout = {
         workoutId: selectedWorkout.id,
+        originalWorkoutId: selectedWorkout.id,
         categoryId: selectedCategory || '',
         categoryName: category.name,
         startDate: new Date(),
@@ -212,14 +213,14 @@ export default function WorkoutPage() {
 
       // Validate required fields
       const requiredFields = ['workoutId', 'categoryId', 'categoryName', 'title', 'imageUrl', 'level', 'totalDays', 'caloriesPerDay'];
-      const missingFields = requiredFields.filter(field => !activeWorkout[field as keyof ActiveWorkout]);
+      const missingFields = requiredFields.filter(field => !newActiveWorkout[field as keyof ActiveWorkout]);
       
       if (missingFields.length > 0) {
         throw new Error(`Missing required fields: ${missingFields.join(', ')}`);
       }
 
       // Add to Firebase
-      const result = await addActiveWorkout(user.uid, activeWorkout);
+      const result = await addActiveWorkout(user.uid, newActiveWorkout);
       
       if (result.success) {
         setIsCommitmentOpen(false);
@@ -262,8 +263,9 @@ export default function WorkoutPage() {
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
       {showTracker && selectedWorkout ? (
-        <ChallengeTracker 
+        <ChallengeTracker
           workout={selectedWorkout}
+          workoutId={selectedWorkout.id}
           challengeDuration={selectedWorkout.days}
           startDate={new Date()}
           completedDays={[]}
