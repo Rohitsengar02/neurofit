@@ -1,0 +1,14 @@
+now i want there is a collection exercies in exercies collection there is sub collection workouts and in workout sub collection there is sub collection days in firebase as
+- "categories/uid/workouts/uid/days "
+in this sub collection there are exercies according to day number take it from 
+- " categories/uid/workouts/uid/days/uid/dayNumber " 
+i want show all exercies from firebase in respected days in challengetracker.tsx and currentDayWorkout.tsx .
+
+ and exercies data in firebase is as follows :- 
+
+ name - categories/uid/workouts/uid/days/uid/exercises/index/exercise/name
+ description - categories/uid/workouts/uid/days/uid/exercises/index/exercise/description
+ gifUrl - categories/uid/workouts/uid/days/uid/exercises/index/exercise/gifUrl
+ categoryId - categories/uid/workouts/uid/days/uid/exercises/index/exercise/categoryId
+
+ i want first show all these exercies in the currentdayworkout.tsx page in a stack form and on the top show a beautiful section of info of the day . 

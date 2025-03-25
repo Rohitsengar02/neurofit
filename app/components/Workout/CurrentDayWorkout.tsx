@@ -1,189 +1,273 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
+import { doc, getDoc } from 'firebase/firestore';
 import { db } from '@/app/firebase/config';
-import { doc, setDoc, getDoc } from 'firebase/firestore';
+import { WorkoutDay, WorkoutExercise } from '@/app/components/Workout/workoutdaysAPI/workoutDay';
+import { Exercise } from '@/app/components/Workout/workoutdaysAPI/exercise';
 import { motion } from 'framer-motion';
-import { FaTimes } from 'react-icons/fa';
-import CurrentExercise from './CurrentExercise';
-
-interface Exercise {
-  name: string;
-  sets: number;
-  reps: number;
-  description: string;
-  videoId?: string;
-}
-
-interface WorkoutData {
-  duration: string;
-  calories: number;
-  intensity: string;
-  type: string;
-  exercises: Exercise[];
-  createdAt?: string;
-  lastUpdated?: string;
-  status?: 'in_progress' | 'completed';
-  completedExercises?: number[];
-}
+import { FaDumbbell, FaFire, FaClock } from 'react-icons/fa';
+import Image from 'next/image';
 
 interface CurrentDayWorkoutProps {
   dayNumber: number;
   userId: string;
   category: string;
+  workoutId: string;
 }
 
-export default function CurrentDayWorkout({ dayNumber, userId = '', category = '' }: CurrentDayWorkoutProps) {
-  const [currentExerciseIndex, setCurrentExerciseIndex] = useState(0);
-  const [workout, setWorkout] = useState<WorkoutData | null>(null);
+export default function CurrentDayWorkout({ dayNumber, userId, category, workoutId }: CurrentDayWorkoutProps) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [workoutDay, setWorkoutDay] = useState<WorkoutDay | null>(null);
 
   const fetchWorkoutData = useCallback(async () => {
     try {
       setLoading(true);
       setError(null);
 
-      // Check if workout exists in Firebase
-      const workoutRef = doc(db, 'users', userId, 'workoutData', category, 'days', dayNumber.toString());
-      const workoutDoc = await getDoc(workoutRef);
+      console.log('CurrentDayWorkout received props:', {
+        category,
+        workoutId,
+        dayNumber,
+        userId
+      });
 
-      let workoutData: WorkoutData;
-      if (workoutDoc.exists()) {
-        workoutData = workoutDoc.data() as WorkoutData;
-      } else {
-        // Generate new workout if not found
-        workoutData = await generateWorkoutWithGemini();
-        await saveWorkoutToFirebase(workoutData);
+      // Validate required parameters
+      if (!category) {
+        console.error('Missing category parameter');
+        setError('Missing category parameter');
+        return;
       }
 
-      setWorkout(workoutData);
+      if (!workoutId) {
+        console.error('Missing workout ID parameter');
+        setError('Missing workout ID parameter');
+        return;
+      }
+
+      if (typeof dayNumber !== 'number' || dayNumber < 1) {
+        console.error('Invalid day number:', dayNumber);
+        setError('Invalid day number');
+        return;
+      }
+
+      console.log('Fetching workout data with:', {
+        category,
+        workoutId,
+        dayNumber
+      });
+
+      // Get the day document with exercises from the categories collection
+      const dayPath = `categories/${category}/workouts/${workoutId}/days/${dayNumber}`;
+      console.log('Accessing day at path:', dayPath);
+      
+      const dayRef = doc(db, dayPath);
+      const dayDoc = await getDoc(dayRef);
+      
+      console.log('Day document exists:', dayDoc.exists());
+
+      if (!dayDoc.exists()) {
+        console.log('Day not found at path:', dayPath);
+        setError(`Workout day ${dayNumber} not found`);
+        return;
+      }
+
+      const dayData = dayDoc.data();
+      console.log('Day document data:', dayData);
+
+      if (!dayData || !Array.isArray(dayData.exercises)) {
+        console.error('Invalid day data structure:', dayData);
+        setError('Invalid workout day data');
+        return;
+      }
+
+      console.log('Day exercises:', dayData.exercises);
+
+      // Map the exercises array with proper structure
+      const exercises: WorkoutExercise[] = dayData.exercises.map((exerciseData: any) => {
+        if (!exerciseData.exercise) {
+          console.error('Invalid exercise data:', exerciseData);
+          return {
+            exercise: {
+              name: 'Unknown Exercise',
+              description: 'Exercise data is missing',
+              gifUrl: '',
+              categoryId: category
+            },
+            sets: 3,
+            reps: 10
+          };
+        }
+
+        return {
+          exercise: {
+            name: exerciseData.exercise.name || 'Unnamed Exercise',
+            description: exerciseData.exercise.description || '',
+            gifUrl: exerciseData.exercise.gifUrl || '',
+            categoryId: exerciseData.exercise.categoryId || category
+          },
+          sets: exerciseData.sets || 3,
+          reps: exerciseData.reps || 10,
+          duration: exerciseData.duration
+        };
+      });
+
+      setWorkoutDay({
+        id: dayDoc.id,
+        dayNumber,
+        exercises,
+        categoryId: category,
+        workoutId: workoutId
+      });
+
     } catch (error) {
       console.error('Error fetching workout:', error);
       setError('Failed to load workout. Please try again.');
     } finally {
       setLoading(false);
     }
-  }, [category, dayNumber, userId]);
+  }, [category, dayNumber, workoutId, userId]);
 
   useEffect(() => {
     fetchWorkoutData();
   }, [fetchWorkoutData]);
 
-  const generateWorkoutWithGemini = async () => {
-    try {
-      const response = await fetch('/api/gemini/generate-workout', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          category,
-          dayNumber,
-        }),
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to generate workout');
-      }
-
-      const data = await response.json();
-      return data.workout;
-    } catch (error) {
-      console.error('Error generating workout:', error);
-      throw error;
-    }
-  };
-
-  const saveWorkoutToFirebase = async (workoutData: WorkoutData) => {
-    try {
-      // Save workout data to users/{userId}/workoutData/{category}/days/{dayNumber}
-      const workoutRef = doc(db, 'users', userId, 'workoutData', category, 'days', dayNumber.toString());
-      await setDoc(workoutRef, {
-        ...workoutData,
-        createdAt: new Date().toISOString(),
-        lastUpdated: new Date().toISOString(),
-        status: 'in_progress',
-        completedExercises: []
-      });
-    } catch (error) {
-      console.error('Error saving workout to Firebase:', error);
-      throw error;
-    }
-  };
-
-  const handleNextExercise = async () => {
-    if (!workout) return;
-
-    try {
-      // Update completed exercises in Firebase
-      const workoutRef = doc(db, 'users', userId, 'workoutData', category, 'days', dayNumber.toString());
-      await setDoc(workoutRef, {
-        lastUpdated: new Date().toISOString(),
-        completedExercises: [...(workout.completedExercises || []), currentExerciseIndex]
-      }, { merge: true });
-
-      if (currentExerciseIndex < workout.exercises.length - 1) {
-        setCurrentExerciseIndex(prev => prev + 1);
-      } else {
-        // Workout completed
-        await setDoc(workoutRef, {
-          status: 'completed',
-          completedAt: new Date().toISOString()
-        }, { merge: true });
-      }
-    } catch (error) {
-      console.error('Error updating workout progress:', error);
-    }
-  };
-
+  // Return loading state
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-purple-500"></div>
-      </div>
-    );
-  }
-
-  if (error) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-100">
-        <div className="bg-white p-6 rounded-lg shadow-lg text-center">
-          <p className="text-gray-700 mb-4">{error}</p>
-          <div className="flex gap-4 justify-center">
-            <button
-              onClick={fetchWorkoutData}
-              className="bg-purple-600 text-white px-6 py-2 rounded-lg hover:bg-purple-700 transition-colors"
-            >
-              Try Again
-            </button>
+      <div className="min-h-screen bg-gray-50 dark:bg-gray-900 p-6">
+        <div className="max-w-4xl mx-auto text-center">
+          <div className="animate-pulse">
+            <div className="h-8 bg-gray-200 dark:bg-gray-700 rounded w-1/3 mx-auto mb-4"></div>
+            <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded w-1/2 mx-auto"></div>
           </div>
         </div>
       </div>
     );
   }
 
-  if (!workout || !workout.exercises) {
+  // Return error state
+  if (error) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-100">
-        <div className="bg-white p-6 rounded-lg shadow-lg text-center">
-          <p className="text-gray-700 mb-4">No workout available</p>
+      <div className="min-h-screen bg-gray-50 dark:bg-gray-900 p-6">
+        <div className="max-w-4xl mx-auto text-center">
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-4">
+            Error Loading Workout
+          </h1>
+          <p className="text-gray-600 dark:text-gray-400">
+            {error}
+          </p>
         </div>
       </div>
     );
   }
 
-  const currentExercise = workout.exercises[currentExerciseIndex];
+  // Return empty state if no workout day data
+  if (!workoutDay || !workoutDay.exercises || workoutDay.exercises.length === 0) {
+    return (
+      <div className="min-h-screen bg-gray-50 dark:bg-gray-900 p-6">
+        <div className="max-w-4xl mx-auto text-center">
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-4">
+            No Exercises Found
+          </h1>
+          <p className="text-gray-600 dark:text-gray-400">
+            There are no exercises scheduled for Day {dayNumber}.
+          </p>
+        </div>
+      </div>
+    );
+  }
 
+  // Main content with exercises
   return (
-    <div className="min-h-screen bg-gray-100">
-      <CurrentExercise
-        exercise={currentExercise}
-        dayNumber={dayNumber}
-        exerciseIndex={currentExerciseIndex}
-        onNext={handleNextExercise}
-        userId={userId}
-      />
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 p-6">
+      <div className="max-w-4xl mx-auto space-y-8">
+        {/* Day Header */}
+        <motion.div
+          initial={{ opacity: 0, y: -20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="relative h-48 rounded-2xl overflow-hidden bg-gradient-to-r from-blue-500 to-purple-600"
+        >
+          <div className="absolute inset-0 bg-black/30" />
+          <div className="absolute inset-0 p-6 flex flex-col justify-between">
+            <div>
+              <h1 className="text-3xl font-bold text-white mb-2">
+                Day {dayNumber}
+              </h1>
+              <p className="text-lg text-white/90">
+                {workoutDay.exercises.length} Exercises
+              </p>
+            </div>
+            <div className="flex items-center gap-6">
+              <div className="flex items-center gap-2 text-white">
+                <FaClock className="w-5 h-5" />
+                <span>45 mins</span>
+              </div>
+              <div className="flex items-center gap-2 text-white">
+                <FaFire className="w-5 h-5" />
+                <span>300 cal</span>
+              </div>
+              <div className="flex items-center gap-2 text-white">
+                <FaDumbbell className="w-5 h-5" />
+                <span>Medium</span>
+              </div>
+            </div>
+          </div>
+        </motion.div>
+
+        {/* Exercises Stack */}
+        <div className="space-y-4">
+          {workoutDay.exercises.map((exercise, index) => (
+            <motion.div
+              key={index}
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: index * 0.1 }}
+              className="bg-white dark:bg-gray-800 rounded-xl shadow-lg overflow-hidden"
+            >
+              <div className="p-6">
+                <div className="flex items-start gap-4">
+                  <div className="relative w-32 h-32 rounded-lg overflow-hidden bg-gray-100 dark:bg-gray-700 flex-shrink-0">
+                    {exercise.exercise.gifUrl && (
+                      <Image
+                        src={exercise.exercise.gifUrl}
+                        alt={exercise.exercise.name}
+                        fill
+                        className="object-cover"
+                      />
+                    )}
+                  </div>
+                  <div className="flex-1">
+                    <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-2">
+                      {exercise.exercise.name}
+                    </h3>
+                    <p className="text-gray-600 dark:text-gray-300 mb-4">
+                      {exercise.exercise.description}
+                    </p>
+                    <div className="grid grid-cols-3 gap-4 text-sm">
+                      <div className="bg-gray-50 dark:bg-gray-700 p-2 rounded-lg text-center">
+                        <span className="block text-gray-500 dark:text-gray-400">Sets</span>
+                        <span className="font-semibold text-gray-900 dark:text-white">{exercise.sets}</span>
+                      </div>
+                      <div className="bg-gray-50 dark:bg-gray-700 p-2 rounded-lg text-center">
+                        <span className="block text-gray-500 dark:text-gray-400">Reps</span>
+                        <span className="font-semibold text-gray-900 dark:text-white">{exercise.reps}</span>
+                      </div>
+                      {exercise.duration && (
+                        <div className="bg-gray-50 dark:bg-gray-700 p-2 rounded-lg text-center">
+                          <span className="block text-gray-500 dark:text-gray-400">Duration</span>
+                          <span className="font-semibold text-gray-900 dark:text-white">{exercise.duration}s</span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </motion.div>
+          ))}
+        </div>
+      </div>
     </div>
   );
 }

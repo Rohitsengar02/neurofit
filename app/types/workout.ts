@@ -65,6 +65,7 @@ export interface ActiveWorkout {
   totalDays: number;
   caloriesPerDay: number;
   status: 'active' | 'completed' | 'failed';
+  originalWorkoutId: string; // ID of the original workout in categories collection
 }
 
 export type UpdatedWorkout = Partial<ActiveWorkout>;

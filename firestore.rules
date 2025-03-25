@@ -417,6 +417,17 @@ service cloud.firestore {
         allow update: if isAuthenticated() && request.auth.uid == userId;
         allow delete: if isAuthenticated() && request.auth.uid == userId;
       }
+      
+      // Custom Workouts Rules
+      match /customWorkouts/{document=**} {
+        allow read: if isOwner(userId);
+        allow write: if isOwner(userId);
+      }
+
+      // Current day workout data
+      match /customWorkout/currentDayWorkout {
+        allow read, write: if isOwner(userId);
+      }
     }
     
     // Workouts
@@ -515,10 +526,43 @@ service cloud.firestore {
       allow delete: if isAdmin();
     }
 
-    // Exercise Categories Rules
-    match /exerciseCategories/{categoryId} {
+    // Exercises Categories Rules
+    match /exercisesCategories/{categoryId} {
       allow read: if true;
-      allow write: if isAdmin();
+      allow create, update, delete: if isAuthenticated() && isAdmin();
+      
+      match /name/{nameId} {
+        allow read: if true;
+        allow create, update, delete: if isAuthenticated() && isAdmin();
+      }
+      
+      match /{document=**} {
+        allow read: if true;
+        allow create, update, delete: if isAuthenticated() && isAdmin();
+      }
+    }
+
+    // Exercises collection rules
+    match /exercises/{exerciseId} {
+      allow read: if true;
+      allow create, update, delete: if isAuthenticated() && isAdmin();
+    }
+
+    // Workout Days
+    match /categories/{categoryId}/workouts/{workoutId}/days/{dayId} {
+      allow read: if true;
+      allow create: if isAuthenticated() && isAdmin();
+      allow update: if isAuthenticated() && isAdmin() && (
+        // Allow updating only specific fields
+        request.resource.data.diff(resource.data).affectedKeys()
+          .hasOnly(['exercises']) || isAdmin()
+      );
+      allow delete: if isAuthenticated() && isAdmin();
+      
+      match /exercises/{exerciseId} {
+        allow read: if true;
+        allow write: if isAuthenticated() && isAdmin();
+      }
     }
 
     // Exercises collection
@@ -618,65 +662,29 @@ service cloud.firestore {
       allow read: if request.auth != null && request.auth.uid == userId;
       allow write: if request.auth != null && request.auth.uid == userId;
     }
-
-    // Social Media Collections
-    match /posts/{postId} {
+    
+    // Exercises collection rules
+    match /exercises/{exerciseId} {
       allow read: if true;
-      allow create: if isAuthenticated() && 
-        request.resource.data.userId == request.auth.uid &&
-        request.resource.data.content is string &&
-        request.resource.data.mediaUrls is list &&
-        request.resource.data.visibility in ['public', 'private', 'friends'] &&
-        request.resource.data.tags is list &&
-        request.resource.data.likes is number &&
-        request.resource.data.commentsCount is number &&
-        request.resource.data.shares is number &&
-        request.resource.data.createdAt is timestamp &&
-        request.resource.data.updatedAt is timestamp;
-      allow update: if isAuthenticated() && (
-        request.auth.uid == resource.data.userId || isAdmin()
-      );
-      allow delete: if isAuthenticated() && (
-        request.auth.uid == resource.data.userId || isAdmin()
-      );
+      allow create, update, delete: if isAuthenticated() && isAdmin();
     }
 
-    match /comments/{commentId} {
+    // Exercise Categories Rules
+    match /exerciseCategories/{categoryId} {
       allow read: if true;
-      allow create: if isAuthenticated() && 
-        request.resource.data.userId == request.auth.uid &&
-        request.resource.data.postId is string &&
-        request.resource.data.content is string &&
-        request.resource.data.likes is number &&
-        request.resource.data.createdAt is timestamp;
-      allow update: if isAuthenticated() && (
-        request.auth.uid == resource.data.userId || isAdmin()
-      );
-      allow delete: if isAuthenticated() && (
-        request.auth.uid == resource.data.userId || isAdmin()
-      );
+      allow create, update, delete: if isAuthenticated() && isAdmin();
     }
 
-    match /likes/{likeId} {
+    // Individual Exercise Documents
+    match /exercises/{exerciseId} {
       allow read: if true;
-      allow create: if isAuthenticated() && 
-        request.resource.data.userId == request.auth.uid &&
-        request.resource.data.postId is string &&
-        request.resource.data.createdAt is timestamp;
-      allow delete: if isAuthenticated() && (
-        request.auth.uid == resource.data.userId || isAdmin()
-      );
-    }
+      allow create, update, delete: if isAuthenticated() && isAdmin();
 
-    match /shares/{shareId} {
-      allow read: if true;
-      allow create: if isAuthenticated() && 
-        request.resource.data.userId == request.auth.uid &&
-        request.resource.data.postId is string &&
-        request.resource.data.createdAt is timestamp;
-      allow delete: if isAuthenticated() && (
-        request.auth.uid == resource.data.userId || isAdmin()
-      );
+      // Exercise Details
+      match /details/{detailId} {
+        allow read: if true;
+        allow write: if isAuthenticated() && isAdmin();
+      }
     }
   }
 }

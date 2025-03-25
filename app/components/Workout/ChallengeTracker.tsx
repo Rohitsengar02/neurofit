@@ -31,6 +31,7 @@ interface ChallengeTrackerProps {
   category?: string;
   workout: Workout;
   activeWorkout?: ActiveWorkout;
+  workoutId: string;
 }
 
 export default function ChallengeTracker({
@@ -43,7 +44,8 @@ export default function ChallengeTracker({
   userId = '',
   category,
   workout,
-  activeWorkout
+  activeWorkout,
+  workoutId = ''
 }: ChallengeTrackerProps) {
   const [currentMonthIndex, setCurrentMonthIndex] = useState(0);
   const [selectedDay, setSelectedDay] = useState<number | null>(null);
@@ -120,14 +122,30 @@ export default function ChallengeTracker({
     return new Date(0, month).toLocaleString('default', { month: 'long' });
   };
 
+  const renderSelectedDayWorkout = () => {
+    if (!workout || !selectedDay) return null;
+
+    return (
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        exit={{ opacity: 0, y: -20 }}
+        className="mt-8"
+      >
+        <CurrentDayWorkout
+          dayNumber={selectedDay}
+          userId={userId || ''}
+          category={workout.categoryId}
+          workoutId={workout.id}
+        />
+      </motion.div>
+    );
+  };
+
   return (
     <div className="flex flex-col min-h-screen bg-gray-50 dark:bg-gray-900">
       {selectedDay ? (
-        <CurrentDayWorkout 
-          dayNumber={selectedDay} 
-          userId={effectiveUserId} 
-          category={effectiveCategory} 
-        />
+        renderSelectedDayWorkout()
       ) : (
         <div className="p-6 space-y-6">
           {/* Challenge Header with Parallax Effect */}

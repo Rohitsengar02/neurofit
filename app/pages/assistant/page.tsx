@@ -19,6 +19,7 @@ import gsap from 'gsap';
 import { ScrollTrigger } from 'gsap/ScrollTrigger';
 import { FaMicrophone, FaMicrophoneSlash } from 'react-icons/fa';
 import { IoSend } from 'react-icons/io5';
+import { MdVolumeOff, MdVolumeUp } from 'react-icons/md';
 import { useRouter } from 'next/navigation';
 
 interface Message extends DocumentData {
@@ -62,6 +63,7 @@ const VoiceAssistant = () => {
   const { user, loading } = useAuth();
   const [messages, setMessages] = useState<Message[]>([]);
   const [isListening, setIsListening] = useState(false);
+  const [isSpeaking, setIsSpeaking] = useState(false);
   const [inputText, setInputText] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const chatContainerRef = useRef<HTMLDivElement>(null);
@@ -97,6 +99,39 @@ const VoiceAssistant = () => {
       window.speechSynthesis.speak(utterance);
     }
   }, []);
+
+  // Stop voice function
+  const toggleVoice = () => {
+    if (window.speechSynthesis) {
+      if (isSpeaking) {
+        window.speechSynthesis.cancel();
+        setIsSpeaking(false);
+      } else {
+        // If there's a last message from assistant, speak it
+        const lastAssistantMessage = messages
+          .filter(m => m.sender === 'assistant')
+          .pop();
+        if (lastAssistantMessage) {
+          speakText(lastAssistantMessage.text);
+        }
+      }
+    }
+  };
+
+  // Handle speech synthesis
+  const speakText = (text: string) => {
+    if (window.speechSynthesis) {
+      // Cancel any ongoing speech
+      window.speechSynthesis.cancel();
+      
+      const utterance = new SpeechSynthesisUtterance(text);
+      utterance.lang = 'hi-IN';
+      utterance.onstart = () => setIsSpeaking(true);
+      utterance.onend = () => setIsSpeaking(false);
+      utterance.onerror = () => setIsSpeaking(false);
+      window.speechSynthesis.speak(utterance);
+    }
+  };
 
   // Firebase message listener
   useEffect(() => {
@@ -251,11 +286,7 @@ const VoiceAssistant = () => {
       });
 
       // Speak the response
-      if (window.speechSynthesis) {
-        const utterance = new SpeechSynthesisUtterance(data.response);
-        utterance.lang = 'hi-IN';
-        window.speechSynthesis.speak(utterance);
-      }
+      speakText(data.response);
 
     } catch (error) {
       console.error('Error:', error);
@@ -295,12 +326,15 @@ const VoiceAssistant = () => {
       >
         <div className="max-w-4xl mx-auto flex items-center justify-between">
           <h1 className="text-2xl font-bold">Rudra AI Assistant</h1>
-          <button
-            onClick={endConversation}
-            className="px-4 py-2 bg-red-500 hover:bg-red-600 text-white rounded-lg transition-colors"
-          >
-            End Chat
-          </button>
+          <div className="flex items-center gap-4">
+            
+            <button
+              onClick={endConversation}
+              className="px-4 py-2 bg-red-500 hover:bg-red-600 text-white rounded-lg transition-colors"
+            >
+              End Chat
+            </button>
+          </div>
         </div>
       </motion.div>
 
@@ -342,16 +376,7 @@ const VoiceAssistant = () => {
         className="fixed bottom-0 left-0 right-0 bg-white/50 dark:bg-black/50 backdrop-blur-lg p-4 mb-16 md:mb-0"
       >
         <div className="max-w-4xl mx-auto flex items-center gap-4">
-          <button
-            onClick={() => setIsListening(!isListening)}
-            className={`p-4 rounded-full ${
-              isListening 
-                ? 'bg-red-500 hover:bg-red-600' 
-                : 'bg-blue-500 hover:bg-blue-600'
-            } text-white transition-colors`}
-          >
-            {isListening ? <FaMicrophoneSlash size={20} /> : <FaMicrophone size={20} />}
-          </button>
+          
           <input
             type="text"
             value={inputText}

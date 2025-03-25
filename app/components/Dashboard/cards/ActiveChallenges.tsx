@@ -47,7 +47,7 @@ const ActiveChallenges = () => {
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.5 }}
-      className="relative overflow-hidden bg-gradient-to-br from-amber-500 to-orange-600 dark:from-amber-600 dark:to-orange-800 rounded-2xl p-6 text-white"
+      className="relative overflow-hidden bg-gradient-to-br from-green-500 to-green-600 dark:from-green-600 dark:to-green-800 rounded-2xl p-6 text-white"
     >
       {/* Animated background elements */}
       <div className="absolute inset-0">

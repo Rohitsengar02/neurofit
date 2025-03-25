@@ -7,10 +7,10 @@ import {
   FaHome, FaWalking, FaUtensils, FaUser, FaCog, 
   FaAppleAlt, FaChartLine, FaDumbbell, FaBrain,
   FaStore, FaUserFriends, FaSpa, FaHeart,
-  FaYinYang, FaLeaf
+  FaYinYang, FaLeaf, FaRunning
 } from 'react-icons/fa';
 import { BsGrid3X3GapFill, BsRobot } from 'react-icons/bs';
-import { GiMuscleUp } from 'react-icons/gi';
+import { GiMuscleUp, GiWeightLiftingUp } from 'react-icons/gi';
 import { MdRestaurant } from 'react-icons/md';
 
 interface Tab {
@@ -23,6 +23,8 @@ interface Tab {
 
 const moreMenuItems: Tab[] = [
   { id: 'physical', label: 'Physical', icon: FaDumbbell, color: 'from-blue-400 to-blue-600', href: '/' },
+  { id: 'exercises', label: 'Exercises', icon: FaRunning, color: 'from-indigo-400 to-indigo-600', href: '/exercises' },
+  { id: 'customWorkout', label: 'Custom Workout', icon: GiWeightLiftingUp, color: 'from-cyan-400 to-cyan-600', href: '/workout-planner' },
   { id: 'mental', label: 'Mental', icon: FaBrain, color: 'from-purple-400 to-purple-600', href: '/pages/mental' },
   { id: 'nutrition', label: 'Nutrition', icon: FaAppleAlt, color: 'from-green-400 to-green-600', href: '/nutrition' },
   { id: 'relax', label: 'Relax', icon: FaSpa, color: 'from-pink-400 to-pink-600', href: '/pages/relax' },
