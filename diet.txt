@@ -1,0 +1,187 @@
+Firebase Diet Categories and Recipes Structure:
+
+1. Main Collection: 'dietCategories'
+   Document: {auto-generated-id}
+   Fields:
+     - name: string
+     - description: string
+     - image: string (URL)
+     - type: string (e.g., "veg", "non-veg", "vegan")
+     - tags: string[]
+     - createdAt: timestamp
+     - updatedAt: timestamp
+     - order: number (for sorting)
+     - isActive: boolean
+
+2. Sub-Collection: 'dietCategories/{categoryId}/diets'
+   Document: {auto-generated-id}
+   Fields:
+     - name: string
+     - description: string
+     - duration: string (e.g., "7 days", "30 days")
+     - difficulty: string (e.g., "beginner", "intermediate", "advanced")
+     - targetGroup: string[] (e.g., ["weight loss", "muscle gain"])
+     - calories: {
+         min: number,
+         max: number
+       }
+     - schedule: {
+         mealsPerDay: number,
+         timings: string[]
+       }
+     - restrictions: string[]
+     - benefits: string[]
+     - image: string (URL)
+     - createdAt: timestamp
+     - updatedAt: timestamp
+     - isActive: boolean
+
+3. Sub-Collection: 'dietCategories/{categoryId}/diets/{dietId}/recipes'
+   Document: {auto-generated-id}
+   Fields:
+     - name: string
+     - description: string
+     - type: string (e.g., "breakfast", "lunch", "dinner", "snack")
+     - prepTime: number (in minutes)
+     - cookTime: number (in minutes)
+     - servings: number
+     - difficulty: string
+     - calories: number
+     - nutrients: {
+         protein: number,
+         carbs: number,
+         fat: number,
+         fiber: number
+       }
+     - ingredients: [
+         {
+           name: string,
+           quantity: number,
+           unit: string,
+           notes: string
+         }
+       ]
+     - instructions: [
+         {
+           step: number,
+           description: string,
+           image: string (optional)
+         }
+       ]
+     - images: string[] (URLs)
+     - tips: string[]
+     - tags: string[]
+     - createdAt: timestamp
+     - updatedAt: timestamp
+     - isActive: boolean
+
+Example Document Structure:
+
+1. Diet Category Example:
+{
+  "id": "low-carb-diets",
+  "name": "Low Carb Diets",
+  "description": "Diet plans focused on reducing carbohydrate intake...",
+  "image": "https://cloudinary.com/low-carb-diets.jpg",
+  "type": "all",
+  "tags": ["low-carb", "keto", "weight-loss"],
+  "order": 1,
+  "isActive": true,
+  "createdAt": "2024-03-27T07:35:24.000Z",
+  "updatedAt": "2024-03-27T07:35:24.000Z"
+}
+
+2. Diet Plan Example:
+{
+  "id": "keto-30-day",
+  "name": "30-Day Keto Challenge",
+  "description": "A comprehensive 30-day ketogenic diet plan...",
+  "duration": "30 days",
+  "difficulty": "intermediate",
+  "targetGroup": ["weight loss", "fat burning"],
+  "calories": {
+    "min": 1500,
+    "max": 1800
+  },
+  "schedule": {
+    "mealsPerDay": 4,
+    "timings": ["8:00 AM", "12:00 PM", "4:00 PM", "7:00 PM"]
+  },
+  "restrictions": ["high-carb foods", "sugary drinks"],
+  "benefits": ["weight loss", "mental clarity", "stable energy"],
+  "image": "https://cloudinary.com/keto-diet.jpg",
+  "isActive": true,
+  "createdAt": "2024-03-27T07:35:24.000Z",
+  "updatedAt": "2024-03-27T07:35:24.000Z"
+}
+
+3. Recipe Example:
+{
+  "id": "keto-breakfast-bowl",
+  "name": "Keto Breakfast Bowl",
+  "description": "A nutrient-rich breakfast bowl perfect for keto diet...",
+  "type": "breakfast",
+  "prepTime": 15,
+  "cookTime": 10,
+  "servings": 1,
+  "difficulty": "easy",
+  "calories": 450,
+  "nutrients": {
+    "protein": 25,
+    "carbs": 8,
+    "fat": 35,
+    "fiber": 5
+  },
+  "ingredients": [
+    {
+      "name": "avocado",
+      "quantity": 1,
+      "unit": "medium",
+      "notes": "ripe"
+    },
+    {
+      "name": "eggs",
+      "quantity": 2,
+      "unit": "large",
+      "notes": "free-range"
+    }
+  ],
+  "instructions": [
+    {
+      "step": 1,
+      "description": "Slice the avocado and set aside",
+      "image": "https://cloudinary.com/step1.jpg"
+    },
+    {
+      "step": 2,
+      "description": "Fry the eggs sunny side up",
+      "image": "https://cloudinary.com/step2.jpg"
+    }
+  ],
+  "images": [
+    "https://cloudinary.com/main-image.jpg",
+    "https://cloudinary.com/plated-image.jpg"
+  ],
+  "tips": ["Use fresh avocados", "Don't overcook the eggs"],
+  "tags": ["keto", "breakfast", "high-fat", "low-carb"],
+  "isActive": true,
+  "createdAt": "2024-03-27T07:35:24.000Z",
+  "updatedAt": "2024-03-27T07:35:24.000Z"
+}
+
+Common Queries:
+
+1. Get all active diet categories:
+   collection('dietCategories').where('isActive', '==', true).orderBy('order').get()
+
+2. Get all diets in a category:
+   collection('dietCategories').doc(categoryId).collection('diets').where('isActive', '==', true).get()
+
+3. Get recipes for a specific diet:
+   collection('dietCategories').doc(categoryId).collection('diets').doc(dietId).collection('recipes').where('isActive', '==', true).get()
+
+4. Get recipes by type:
+   collection('dietCategories').doc(categoryId).collection('diets').doc(dietId).collection('recipes').where('type', '==', 'breakfast').get()
+
+5. Get low-calorie recipes:
+   collection('dietCategories').doc(categoryId).collection('diets').doc(dietId).collection('recipes').where('calories', '<=', 500).get()

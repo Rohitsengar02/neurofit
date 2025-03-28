@@ -1,122 +1,212 @@
-import { motion } from 'framer-motion';
-import { FaFire, FaWeight, FaCarrot } from 'react-icons/fa';
-import { MdFiberManualRecord } from 'react-icons/md';
-import { Recipe } from '@/app/data/predefinedDiets';
-import { Tab } from '@headlessui/react';
+import React from 'react';
+import Image from 'next/image';
+import { motion, AnimatePresence } from 'framer-motion';
+import { FaClock, FaFire, FaUtensils, FaTimes } from 'react-icons/fa';
 
-interface RecipeModalProps {
+interface Nutrient {
+  protein: number;
+  carbs: number;
+  fat: number;
+  fiber: number;
+}
+
+interface Ingredient {
+  name: string;
+  quantity: number;
+  unit: string;
+  notes?: string;
+}
+
+interface Instruction {
+  step: number;
+  description: string;
+  image?: string;
+}
+
+interface Recipe {
+  id: string;
+  name: string;
+  description: string;
+  type: string;
+  prepTime: number;
+  cookTime: number;
+  servings: number;
+  difficulty: string;
+  calories: number;
+  nutrients: Nutrient;
+  ingredients: Ingredient[];
+  instructions: Instruction[];
+  images: string[];
+  tips: string[];
+}
+
+interface Props {
   recipe: Recipe;
   onClose: () => void;
 }
 
-const RecipeModal: React.FC<RecipeModalProps> = ({ recipe, onClose }) => {
-  const renderNutritionalInfo = () => (
-    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-      <div className="flex items-center space-x-2">
-        <FaFire className="text-orange-500" />
-        <span>{recipe.nutritionalValues.calories} cal</span>
-      </div>
-      <div className="flex items-center space-x-2">
-        <FaWeight className="text-blue-500" />
-        <span>{recipe.nutritionalValues.protein}g protein</span>
-      </div>
-      <div className="flex items-center space-x-2">
-        <FaCarrot className="text-green-500" />
-        <span>{recipe.nutritionalValues.carbs}g carbs</span>
-      </div>
-      <div className="flex items-center space-x-2">
-        <MdFiberManualRecord className="text-purple-500" />
-        <span>{recipe.nutritionalValues.fiber}g fiber</span>
-      </div>
-    </div>
-  );
-
+const RecipeModal: React.FC<Props> = ({ recipe, onClose }) => {
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-      <motion.div
-        initial={{ scale: 0.9, opacity: 0 }}
-        animate={{ scale: 1, opacity: 1 }}
-        exit={{ scale: 0.9, opacity: 0 }}
-        className="bg-white dark:bg-gray-800 rounded-lg p-6 max-w-2xl w-full max-h-[90vh] overflow-y-auto relative"
-      >
-        <button
-          className="absolute top-4 right-4 text-gray-500 hover:text-gray-700 dark:hover:text-gray-300"
-          onClick={onClose}
+    <AnimatePresence>
+      <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+        <motion.div
+          initial={{ opacity: 0, scale: 0.9 }}
+          animate={{ opacity: 1, scale: 1 }}
+          exit={{ opacity: 0, scale: 0.9 }}
+          className="bg-white dark:bg-gray-800 rounded-3xl max-w-4xl w-full max-h-[90vh] overflow-y-auto"
         >
-          ✕
-        </button>
+          {/* Close Button */}
+          <button
+            onClick={onClose}
+            className="absolute top-4 right-4 p-2 rounded-full bg-white/10 hover:bg-white/20 
+                     transition-colors"
+          >
+            <FaTimes className="w-6 h-6 text-white" />
+          </button>
 
-        <h2 className="text-2xl font-bold mb-4">{recipe.name}</h2>
-        <p className="text-gray-600 dark:text-gray-300 mb-6">{recipe.description}</p>
+          {/* Recipe Header */}
+          <div className="relative h-72">
+            <Image
+              src={recipe.images[0]}
+              alt={recipe.name}
+              fill
+              className="object-cover rounded-t-3xl"
+            />
+            <div className="absolute inset-0 bg-gradient-to-t from-black/70 to-transparent 
+                          rounded-t-3xl" />
+            <div className="absolute bottom-6 left-6 right-6">
+              <span className="px-3 py-1 rounded-full text-sm font-medium bg-blue-500 text-white mb-4 
+                           inline-block">
+                {recipe.type}
+              </span>
+              <h2 className="text-3xl font-bold text-white mb-2">{recipe.name}</h2>
+              <p className="text-white/90">{recipe.description}</p>
+            </div>
+          </div>
 
-        <Tab.Group>
-          <Tab.List className="flex space-x-4 border-b border-gray-200 dark:border-gray-700 mb-6">
-            <Tab className={({ selected }) =>
-              `px-4 py-2 focus:outline-none ${
-                selected
-                  ? 'border-b-2 border-blue-500 text-blue-500'
-                  : 'text-gray-500 hover:text-gray-700 dark:hover:text-gray-300'
-              }`
-            }>
-              Ingredients
-            </Tab>
-            <Tab className={({ selected }) =>
-              `px-4 py-2 focus:outline-none ${
-                selected
-                  ? 'border-b-2 border-blue-500 text-blue-500'
-                  : 'text-gray-500 hover:text-gray-700 dark:hover:text-gray-300'
-              }`
-            }>
-              Instructions
-            </Tab>
-            <Tab className={({ selected }) =>
-              `px-4 py-2 focus:outline-none ${
-                selected
-                  ? 'border-b-2 border-blue-500 text-blue-500'
-                  : 'text-gray-500 hover:text-gray-700 dark:hover:text-gray-300'
-              }`
-            }>
-              Nutrition
-            </Tab>
-          </Tab.List>
+          <div className="p-8">
+            {/* Recipe Info */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-6 mb-8">
+              <div className="text-center">
+                <FaClock className="w-6 h-6 mx-auto mb-2 text-blue-500" />
+                <p className="text-sm text-gray-600 dark:text-gray-400">Prep Time</p>
+                <p className="font-semibold text-gray-900 dark:text-white">{recipe.prepTime} min</p>
+              </div>
+              <div className="text-center">
+                <FaClock className="w-6 h-6 mx-auto mb-2 text-blue-500" />
+                <p className="text-sm text-gray-600 dark:text-gray-400">Cook Time</p>
+                <p className="font-semibold text-gray-900 dark:text-white">{recipe.cookTime} min</p>
+              </div>
+              <div className="text-center">
+                <FaUtensils className="w-6 h-6 mx-auto mb-2 text-blue-500" />
+                <p className="text-sm text-gray-600 dark:text-gray-400">Servings</p>
+                <p className="font-semibold text-gray-900 dark:text-white">{recipe.servings}</p>
+              </div>
+              <div className="text-center">
+                <FaFire className="w-6 h-6 mx-auto mb-2 text-blue-500" />
+                <p className="text-sm text-gray-600 dark:text-gray-400">Calories</p>
+                <p className="font-semibold text-gray-900 dark:text-white">{recipe.calories}</p>
+              </div>
+            </div>
 
-          <Tab.Panels>
-            <Tab.Panel>
-              <ul className="list-disc pl-6 space-y-2">
+            {/* Nutrients */}
+            <div className="mb-8">
+              <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-4">
+                Nutrition Facts
+              </h3>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                {Object.entries(recipe.nutrients).map(([nutrient, value]) => (
+                  <div
+                    key={nutrient}
+                    className="bg-gray-50 dark:bg-gray-700 rounded-xl p-4 text-center"
+                  >
+                    <p className="text-sm text-gray-600 dark:text-gray-400 capitalize">{nutrient}</p>
+                    <p className="font-semibold text-gray-900 dark:text-white">{value}g</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Ingredients */}
+            <div className="mb-8">
+              <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-4">
+                Ingredients
+              </h3>
+              <ul className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {recipe.ingredients.map((ingredient, index) => (
-                  <li key={index} className="text-gray-700 dark:text-gray-300">
-                    {ingredient}
+                  <li
+                    key={index}
+                    className="flex items-center gap-4 bg-gray-50 dark:bg-gray-700 rounded-xl p-4"
+                  >
+                    <div className="w-2 h-2 rounded-full bg-blue-500" />
+                    <div>
+                      <p className="text-gray-900 dark:text-white">
+                        {ingredient.quantity} {ingredient.unit} {ingredient.name}
+                      </p>
+                      {ingredient.notes && (
+                        <p className="text-sm text-gray-600 dark:text-gray-400">{ingredient.notes}</p>
+                      )}
+                    </div>
                   </li>
                 ))}
               </ul>
-            </Tab.Panel>
+            </div>
 
-            <Tab.Panel>
-              <ol className="list-decimal pl-6 space-y-4">
-                {recipe.instructions.map((instruction, index) => (
-                  <li key={index} className="text-gray-700 dark:text-gray-300">
-                    {instruction}
-                  </li>
+            {/* Instructions */}
+            <div className="mb-8">
+              <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-4">
+                Instructions
+              </h3>
+              <div className="space-y-6">
+                {recipe.instructions.map((instruction) => (
+                  <div key={instruction.step} className="flex gap-6">
+                    <div className="flex-shrink-0 w-8 h-8 rounded-full bg-blue-500 text-white 
+                                  flex items-center justify-center font-semibold">
+                      {instruction.step}
+                    </div>
+                    <div className="flex-1">
+                      <p className="text-gray-900 dark:text-white mb-4">
+                        {instruction.description}
+                      </p>
+                      {instruction.image && (
+                        <div className="relative h-48 rounded-xl overflow-hidden">
+                          <Image
+                            src={instruction.image}
+                            alt={`Step ${instruction.step}`}
+                            fill
+                            className="object-cover"
+                          />
+                        </div>
+                      )}
+                    </div>
+                  </div>
                 ))}
-              </ol>
-            </Tab.Panel>
-
-            <Tab.Panel>
-              <div className="p-4 bg-gray-50 dark:bg-gray-700 rounded-lg">
-                {renderNutritionalInfo()}
               </div>
-            </Tab.Panel>
-          </Tab.Panels>
-        </Tab.Group>
+            </div>
 
-        <div className="mt-6 pt-6 border-t border-gray-200 dark:border-gray-700">
-          <div className="flex justify-between text-sm text-gray-500 dark:text-gray-400">
-            <span>Estimated Time: {recipe.estimatedTime}</span>
-            <span>Serving Size: {recipe.servingSize}</span>
+            {/* Tips */}
+            {recipe.tips.length > 0 && (
+              <div>
+                <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-4">
+                  Tips & Notes
+                </h3>
+                <ul className="space-y-3">
+                  {recipe.tips.map((tip, index) => (
+                    <li
+                      key={index}
+                      className="flex items-start gap-3 text-gray-700 dark:text-gray-300"
+                    >
+                      <span className="w-1.5 h-1.5 rounded-full bg-blue-500 mt-2" />
+                      {tip}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
           </div>
-        </div>
-      </motion.div>
-    </div>
+        </motion.div>
+      </div>
+    </AnimatePresence>
   );
 };
 

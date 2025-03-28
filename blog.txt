@@ -1,0 +1,74 @@
+Firebase Blogs Collection Structure:
+
+Collection: 'blogs'
+  Document: {auto-generated-id}
+    Fields:
+      - title: string
+      - summary: string
+      - content: {
+          introduction: string
+          sections: [
+            {
+              type: "heading" | "paragraph"
+              content: string
+            }
+          ]
+          conclusion: string
+        }
+      - image: string (URL)
+      - category: string
+      - tags: string[]
+      - createdAt: timestamp
+      - updatedAt: timestamp
+
+Example Blog Document:
+{
+  "id": "abc123def456",
+  "title": "How to Stay Fit at Home",
+  "summary": "A comprehensive guide to maintaining fitness without gym equipment.",
+  "content": {
+    "introduction": "Staying fit at home has become more important than ever...",
+    "sections": [
+      {
+        "type": "heading",
+        "content": "Body Weight Exercises"
+      },
+      {
+        "type": "paragraph",
+        "content": "Push-ups, squats, and planks are excellent exercises that require no equipment..."
+      },
+      {
+        "type": "heading",
+        "content": "Creating a Routine"
+      },
+      {
+        "type": "paragraph",
+        "content": "Start with 3 workouts per week, focusing on different muscle groups..."
+      }
+    ],
+    "conclusion": "Remember, consistency is key when working out at home..."
+  },
+  "image": "https://cloudinary.com/your-image-url.jpg",
+  "category": "Fitness",
+  "tags": ["workout", "home fitness", "no equipment"],
+  "createdAt": "2024-03-27T07:35:24.000Z",
+  "updatedAt": "2024-03-27T07:35:24.000Z"
+}
+
+Query Examples:
+1. Get all blogs:
+   - collection('blogs').get()
+
+2. Get blog by ID:
+   - collection('blogs').doc('abc123def456').get()
+
+3. Get blogs by category:
+   - collection('blogs').where('category', '==', 'Fitness').get()
+
+4. Get latest blogs:
+   - collection('blogs').orderBy('createdAt', 'desc').limit(10).get()
+
+5. Get blogs with specific tag:
+   - collection('blogs').where('tags', 'array-contains', 'workout').get()
+
+Note: All content fields (introduction, sections content, conclusion) are stored as plain text without HTML tags.

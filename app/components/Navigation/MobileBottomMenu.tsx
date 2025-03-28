@@ -7,7 +7,7 @@ import {
   FaHome, FaWalking, FaUtensils, FaUser, FaCog, 
   FaAppleAlt, FaChartLine, FaDumbbell, FaBrain,
   FaStore, FaUserFriends, FaSpa, FaHeart,
-  FaYinYang, FaLeaf, FaRunning
+  FaYinYang, FaLeaf, FaRunning, FaNewspaper
 } from 'react-icons/fa';
 import { BsGrid3X3GapFill, BsRobot } from 'react-icons/bs';
 import { GiMuscleUp, GiWeightLiftingUp } from 'react-icons/gi';
@@ -31,6 +31,7 @@ const moreMenuItems: Tab[] = [
   { id: 'wellness', label: 'Wellness', icon: FaHeart, color: 'from-red-400 to-red-600', href: '/wellness' },
   { id: 'mindful', label: 'Mindful', icon: FaYinYang, color: 'from-yellow-400 to-yellow-600', href: '/mindful' },
   { id: 'nature', label: 'Nature', icon: FaLeaf, color: 'from-emerald-400 to-emerald-600', href: '/nature' },
+  { id: 'blog', label: 'Blog', icon: FaNewspaper, color: 'from-teal-400 to-teal-600', href: '/blog' },
   { id: 'diet', label: 'Diet', icon: MdRestaurant, color: 'from-orange-400 to-orange-600', href: '/diet' },
   { id: 'steps', label: 'Steps', icon: FaWalking, color: 'from-blue-400 to-blue-600', href: '/pages/steps' }
 ];
