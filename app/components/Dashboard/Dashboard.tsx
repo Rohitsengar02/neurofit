@@ -216,7 +216,7 @@ function Dashboard() {
                 <ActiveChallenges />
                 <ActivityStats />
                 <AiRecommendations />
-                <HydrationTracker />
+               
                 <WeightProgress />
 
 
