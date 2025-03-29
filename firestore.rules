@@ -879,5 +879,214 @@ service cloud.firestore {
       allow read: if true;  // Allow public read access
       allow write: if isAdmin();  // Only admin can modify blog data
     }
+
+    // Recipe collection
+    match /recipes/{recipeId} {
+      allow read: if true;
+      allow create: if isAuthenticated() && 
+                      isOwner(request.resource.data.userId) &&
+                      isValidMeal();
+      allow update, delete: if isAuthenticated() && 
+                             isOwner(resource.data.userId);
+    }
+
+    // Diet collection
+    match /diets/{dietId} {
+      allow read: if true;
+      allow create: if isAuthenticated() && 
+                      isOwner(request.resource.data.userId) &&
+                      isValidMeal();
+      allow update, delete: if isAuthenticated() && 
+                             isOwner(resource.data.userId);
+    }
+
+    // Basic validation functions
+    function hasValidFields(requiredFields) {
+      return request.resource.data.keys().hasAll(requiredFields);
+    }
+
+    function isValidString(field) {
+      return request.resource.data[field] is string && 
+             request.resource.data[field].size() > 0;
+    }
+
+    function isValidNumber(field) {
+      return request.resource.data[field] is number && 
+             request.resource.data[field] >= 0;
+    }
+
+    function isValidArray(field) {
+      return request.resource.data[field] is list;
+    }
+
+    // Meal validation
+    function isValidMeal() {
+      let requiredFields = [
+        'name', 'description', 'ingredients', 'userId', 
+        'userName', 'createdAt', 'updatedAt', 'nutrition'
+      ];
+      
+      let validBasicFields = hasValidFields(requiredFields) &&
+                            isValidString('name') &&
+                            isValidString('description') &&
+                            isValidArray('ingredients');
+      
+      let validNutrition = request.resource.data.nutrition is map &&
+                          request.resource.data.nutrition.calories is number &&
+                          request.resource.data.nutrition.protein is number &&
+                          request.resource.data.nutrition.carbs is number &&
+                          request.resource.data.nutrition.fat is number;
+      
+      return validBasicFields && validNutrition;
+    }
+
+    // Recipes collection
+    match /recipes/{recipeId} {
+      allow read: if true;
+      allow create: if isAuthenticated() && 
+                      isOwner(request.resource.data.userId) &&
+                      isValidMeal();
+      allow update, delete: if isAuthenticated() && 
+                             isOwner(resource.data.userId);
+    }
+
+    // Diets collection
+    match /diets/{dietId} {
+      allow read: if true;
+      allow create: if isAuthenticated() && 
+                      isOwner(request.resource.data.userId) &&
+                      isValidMeal();
+      allow update, delete: if isAuthenticated() && 
+                             isOwner(resource.data.userId);
+    }
+
+    // Meals collection rules
+    match /meals/{mealId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated() && request.resource.data.userId == request.auth.uid;
+      allow update, delete: if isAuthenticated() && resource.data.userId == request.auth.uid;
+    }
+
+    // Public read access for users
+    match /users/{userId} {
+      allow read: if true;  // Allow reading user profiles
+      allow write: if request.auth != null && request.auth.uid == userId;
+    }
+
+    // Public read access for recipes and diets
+    match /recipes/{recipeId} {
+      allow read: if true;  // Anyone can read recipes
+      allow write: if request.auth != null;  // Only authenticated users can write
+    }
+
+    match /diets/{dietId} {
+      allow read: if true;  // Anyone can read diets
+      allow write: if request.auth != null;  // Only authenticated users can write
+    }
+
+    // User Stats Rules
+    match /userStats/{userId} {
+      // Allow users to read their own stats and admins to read all stats
+      allow read: if isOwner(userId) || isAdmin();
+      
+      // Allow creation only by the owner with valid data
+      allow create: if isOwner(userId) && validateUserStats();
+      
+      // Allow updates only by the owner and validate the update
+      allow update: if isOwner(userId) && validateUserStatsUpdate();
+    }
+
+    // Helper functions for user stats validation
+    function validateUserStats() {
+      let stats = request.resource.data;
+      return stats.keys().hasAll([
+        'userId', 'userName', 'userImage', 'likedMeals', 
+        'savedMeals', 'comments', 'sharedMeals', 
+        'totalLikes', 'totalComments', 'totalShares',
+        'createdAt', 'updatedAt'
+      ]) &&
+      stats.userId == request.auth.uid &&
+      stats.likedMeals is list &&
+      stats.savedMeals is list &&
+      stats.comments is list &&
+      stats.sharedMeals is list &&
+      stats.totalLikes is number && stats.totalLikes >= 0 &&
+      stats.totalComments is number && stats.totalComments >= 0 &&
+      stats.totalShares is number && stats.totalShares >= 0 &&
+      stats.createdAt is timestamp &&
+      stats.updatedAt is timestamp;
+    }
+
+    function validateUserStatsUpdate() {
+      let stats = request.resource.data;
+      let oldStats = resource.data;
+      
+      // Ensure userId cannot be changed
+      return stats.userId == oldStats.userId &&
+      
+      // Validate all fields
+      validateUserStats() &&
+      
+      // Additional update-specific validations
+      stats.createdAt == oldStats.createdAt &&
+      stats.updatedAt > oldStats.updatedAt;
+    }
+
+    // Update meal rules to allow social interactions
+    match /meals/{mealId} {
+      // Allow authenticated users to read meals
+      allow read: if true;
+      
+      // Allow creation by authenticated users
+      allow create: if isAuthenticated();
+      
+      // Allow updates for social interactions
+      allow update: if isAuthenticated() && (
+        // Allow owner to update everything
+        resource.data.userId == request.auth.uid ||
+        
+        // Allow social interactions for other users
+        (
+          // Only allow updating social fields
+          request.resource.data.diff(resource.data).affectedKeys()
+            .hasOnly(['likes', 'comments', 'shares']) &&
+          
+          // Ensure non-social fields remain unchanged
+          request.resource.data.userId == resource.data.userId &&
+          request.resource.data.name == resource.data.name &&
+          request.resource.data.description == resource.data.description &&
+          
+          // Validate likes array
+          (!('likes' in request.resource.data.diff(resource.data)) ||
+            request.resource.data.likes is list) &&
+          
+          // Validate comments array
+          (!('comments' in request.resource.data.diff(resource.data)) ||
+            (request.resource.data.comments is list &&
+             validateComments(request.resource.data.comments))) &&
+          
+          // Validate shares count
+          (!('shares' in request.resource.data.diff(resource.data)) ||
+            (request.resource.data.shares is number &&
+             request.resource.data.shares >= resource.data.shares))
+        )
+      );
+    }
+
+    // Helper function to validate comments
+    function validateComments(comments) {
+      return comments.size() > 0 &&
+      comments[-1].keys().hasAll([
+        'id', 'userId', 'userName', 'userImage',
+        'content', 'createdAt', 'likes'
+      ]) &&
+      comments[-1].userId == request.auth.uid &&
+      comments[-1].content is string &&
+      comments[-1].content.size() > 0 &&
+      comments[-1].content.size() <= 1000 && // Limit comment length
+      comments[-1].createdAt is timestamp &&
+      comments[-1].likes is number &&
+      comments[-1].likes >= 0;
+    }
   }
 }
