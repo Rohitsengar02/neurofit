@@ -140,7 +140,7 @@ const Navbar: React.FC<NavbarProps> = ({ setIsMobileOpen }) => {
             whileTap={{ scale: 0.95 }}
           >
             <Image
-              src={userData.photoURL || '/default-avatar.png'}
+              src={userData.photoURL || 'https://img.freepik.com/premium-vector/person-with-blue-shirt-that-says-name-person_1029948-7040.jpg'}
               alt="Profile"
               width={36}
               height={36}

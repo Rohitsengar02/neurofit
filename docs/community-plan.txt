@@ -1,0 +1,202 @@
+# NeuroFit Community Feature Plan
+
+## 1. Pages Structure
+- /community
+  - Main feed with all posts
+  - Trending posts section
+  - Following feed tab
+- /community/post/[postId]
+  - Detailed post view
+  - Comments section
+- /community/profile/[userId]
+  - User profile with their posts
+  - Followers/Following lists
+  - User stats
+
+## 2. Components
+1. PostCard
+   - User info (avatar, name, timestamp)
+   - Post content
+   - Action buttons (like, comment, save)
+   - Like count and comment count
+   - Animations for interactions
+
+2. CommentSection
+   - Comment input
+   - Comment list
+   - Reply functionality
+   - Like comments
+
+3. UserProfileCard
+   - Profile picture
+   - User stats (posts, followers, following)
+   - Follow/Unfollow button
+   - Bio section
+
+4. CreatePostModal
+   - Text input with formatting
+   - Preview section
+   - Post button with animation
+
+5. FeedFilters
+   - Latest/Trending toggle
+   - Following/All posts toggle
+   - Category filters
+
+## 3. Firebase Schema
+
+### Collections:
+
+1. posts
+   ```typescript
+   {
+     id: string;
+     userId: string;
+     content: string;
+     createdAt: timestamp;
+     updatedAt: timestamp;
+     likes: number;
+     commentsCount: number;
+     savedBy: string[];
+     tags: string[];
+   }
+   ```
+
+2. comments
+   ```typescript
+   {
+     id: string;
+     postId: string;
+     userId: string;
+     content: string;
+     createdAt: timestamp;
+     likes: number;
+     parentCommentId?: string; // for replies
+   }
+   ```
+
+3. users/{userId}/followers
+   ```typescript
+   {
+     id: string;
+     userId: string;
+     followedAt: timestamp;
+     userInfo: {
+       name: string;
+       photoURL: string;
+     }
+   }
+   ```
+
+4. users/{userId}/following
+   ```typescript
+   {
+     id: string;
+     userId: string;
+     followedAt: timestamp;
+     userInfo: {
+       name: string;
+       photoURL: string;
+     }
+   }
+   ```
+
+5. users/{userId}/savedPosts
+   ```typescript
+   {
+     postId: string;
+     savedAt: timestamp;
+   }
+   ```
+
+## 4. Features & Functionality
+
+### Post Management
+- Create text posts
+- Edit own posts
+- Delete own posts
+- Like/unlike posts
+- Save posts for later
+- Share posts
+
+### Comments
+- Add comments
+- Reply to comments
+- Like comments
+- Delete own comments
+- Nested comment threads
+
+### User Interactions
+- Follow/Unfollow users
+- View follower/following lists
+- Block users
+- Report inappropriate content
+
+### Feed Features
+- Infinite scroll
+- Pull to refresh
+- Real-time updates
+- Post sorting options
+- Filter by following
+
+## 5. UI/UX Elements
+
+### Animations
+- Like button animation
+- Save button animation
+- Follow button transition
+- Post loading skeleton
+- Smooth transitions between pages
+- Pull-to-refresh animation
+- Infinite scroll loading
+
+### Design Elements
+- Modern card design
+- Clean typography
+- Consistent spacing
+- Dark mode support
+- Mobile-first responsive design
+- Floating action buttons
+- Toast notifications
+
+## 6. Performance Considerations
+- Pagination for posts and comments
+- Lazy loading for images
+- Optimistic UI updates
+- Caching strategies
+- Real-time updates optimization
+
+## 7. Security Rules
+- User authentication required
+- Post ownership validation
+- Comment ownership validation
+- Rate limiting for actions
+- Content moderation system
+- Report handling
+
+## 8. Implementation Phases
+
+### Phase 1: Core Features
+1. Basic post creation and viewing
+2. Like functionality
+3. Simple comments
+4. User profiles
+
+### Phase 2: Social Features
+1. Follow system
+2. Enhanced comments with replies
+3. Save posts functionality
+4. Feed filtering
+
+### Phase 3: Enhancement
+1. Advanced animations
+2. Real-time updates
+3. Performance optimization
+4. Moderation tools
+
+## 9. Testing Strategy
+- Unit tests for components
+- Integration tests for Firebase
+- Performance testing
+- Mobile responsiveness testing
+- Security testing

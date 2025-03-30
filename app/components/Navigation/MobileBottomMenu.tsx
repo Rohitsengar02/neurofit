@@ -7,7 +7,7 @@ import {
   FaHome, FaWalking, FaUtensils, FaUser, FaCog, 
   FaAppleAlt, FaChartLine, FaDumbbell, FaBrain,
   FaStore, FaUserFriends, FaSpa, FaHeart,
-  FaYinYang, FaLeaf, FaRunning, FaNewspaper
+  FaYinYang, FaLeaf, FaRunning, FaNewspaper, FaUsers
 } from 'react-icons/fa';
 import { BsGrid3X3GapFill, BsRobot } from 'react-icons/bs';
 import { GiMuscleUp, GiWeightLiftingUp } from 'react-icons/gi';
@@ -28,8 +28,7 @@ const moreMenuItems: Tab[] = [
   { id: 'mental', label: 'Mental', icon: FaBrain, color: 'from-purple-400 to-purple-600', href: '/pages/mental' },
   { id: 'nutrition', label: 'Nutrition', icon: FaAppleAlt, color: 'from-green-400 to-green-600', href: '/nutrition' },
   { id: 'relax', label: 'Relax', icon: FaSpa, color: 'from-pink-400 to-pink-600', href: '/pages/relax' },
-  
- 
+  { id: 'community', label: 'Community', icon: FaUsers, color: 'from-green-500 to-green-700', href: '/pages/community' },
   { id: 'blog', label: 'Blog', icon: FaNewspaper, color: 'from-teal-400 to-teal-600', href: '/blog' },
   { id: 'diet', label: 'Diet', icon: MdRestaurant, color: 'from-orange-400 to-orange-600', href: '/diet' },
   { id: 'steps', label: 'Steps', icon: FaWalking, color: 'from-blue-400 to-blue-600', href: '/pages/steps' },
@@ -39,6 +38,7 @@ const moreMenuItems: Tab[] = [
 const bottomTabs: Tab[] = [
   { id: 'home', label: 'Home', icon: FaHome, color: 'from-blue-500 to-blue-700', href: '/' },
   { id: 'workouts', label: 'Workouts', icon: GiMuscleUp, color: 'from-purple-500 to-purple-700', href: '/pages/workout' },
+ 
   { id: 'shop', label: 'Shop', icon: FaStore, color: 'from-orange-400 to-orange-600', href: '/pages/shop' },
   { id: 'assistant', label: 'Assistant', icon: BsRobot, color: 'from-cyan-500 to-cyan-700', href: '/assistant' },
   { id: 'more', label: 'More', icon: BsGrid3X3GapFill, color: 'from-gray-500 to-gray-700' },

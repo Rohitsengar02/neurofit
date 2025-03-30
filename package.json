@@ -38,6 +38,7 @@
     "canvas-confetti": "^1.9.3",
     "chart.js": "^4.4.7",
     "chartjs-plugin-datalabels": "^2.2.0",
+    "cheerio": "^1.0.0",
     "clsx": "^2.1.1",
     "date-fns": "^4.1.0",
     "eslint": "8.49.0",
