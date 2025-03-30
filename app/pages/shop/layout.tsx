@@ -3,6 +3,7 @@
 import React from 'react';
 import SearchBar from './components/SearchBar';
 import MobileBottomMenu from '@/app/components/Navigation/MobileBottomMenu';
+import FloatingMenu from '@/app/components/shop/FloatingMenu';
 
 export default function ShopLayout({
   children,
@@ -13,6 +14,7 @@ export default function ShopLayout({
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
       <SearchBar />
       <main>{children}</main>
+      <FloatingMenu />
       <MobileBottomMenu />
     </div>
   );

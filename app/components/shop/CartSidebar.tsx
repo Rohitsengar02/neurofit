@@ -31,10 +31,20 @@ export default function CartSidebar({
   onRemoveItem 
 }: CartSidebarProps) {
   const router = useRouter();
-  const totalAmount = cartItems.reduce((sum, item) => sum + item.discountedPrice * item.quantity, 0);
-  const totalSavings = cartItems.reduce((sum, item) => 
-    sum + (item.price - item.discountedPrice) * item.quantity, 0
+  
+  // Calculate total amount using discounted price or regular price
+  const totalAmount = cartItems.reduce((sum, item) => 
+    sum + (item.discountedPrice || item.price) * item.quantity, 
+    0
   );
+
+  // Calculate savings only when there's a discount
+  const totalSavings = cartItems.reduce((sum, item) => {
+    const discount = item.discountedPrice && item.discountedPrice < item.price 
+      ? (item.price - item.discountedPrice) * item.quantity
+      : 0;
+    return sum + discount;
+  }, 0);
 
   return (
     <AnimatePresence>
@@ -100,9 +110,9 @@ export default function CartSidebar({
                         <h3 className="text-sm font-medium text-gray-900 dark:text-white">{item.name}</h3>
                         <div className="mt-1 flex items-center gap-2">
                           <span className="text-sm font-semibold text-gray-900 dark:text-white">
-                            ₹{item.discountedPrice.toLocaleString()}
+                            ₹{(item.discountedPrice || item.price).toLocaleString()}
                           </span>
-                          {item.price > item.discountedPrice && (
+                          {item.price > (item.discountedPrice || item.price) && (
                             <span className="text-xs text-gray-500 dark:text-gray-400 line-through">
                               ₹{item.price.toLocaleString()}
                             </span>

@@ -49,7 +49,7 @@ const CheckoutPage = () => {
   const [step, setStep] = useState<'cart' | 'address' | 'payment'>('cart');
   const [cartItems, setCartItems] = useState<CartItem[]>([]);
   const [addresses, setAddresses] = useState<Address[]>([]);
-  const [selectedAddress, setSelectedAddress] = useState<string>('');
+  const [selectedAddress, setSelectedAddress] = useState<Address | null>(null);
   const [couponCode, setCouponCode] = useState('');
   const [appliedCoupon, setAppliedCoupon] = useState<Coupon | null>(null);
   const [paymentMethod, setPaymentMethod] = useState<string>('');
@@ -66,7 +66,7 @@ const CheckoutPage = () => {
     // Set default address if available
     const defaultAddress = addresses.find(addr => addr.isDefault);
     if (defaultAddress) {
-      setSelectedAddress(defaultAddress.id);
+      setSelectedAddress(defaultAddress);
     }
   }, [addresses]);
 
@@ -158,7 +158,7 @@ const CheckoutPage = () => {
 
     try {
       setLoading(true);
-      const selectedAddr = addresses.find(addr => addr.id === selectedAddress);
+      const selectedAddr = addresses.find(addr => addr.id === selectedAddress?.id);
 
       // Get user details
       const userDoc = await getDoc(doc(db, 'users', user.uid));
@@ -257,6 +257,26 @@ const CheckoutPage = () => {
     }
   };
 
+  // Handle quantity update
+  const handleUpdateQuantity = async (itemId: string, newQuantity: number) => {
+    if (newQuantity < 1) return;
+    try {
+      const updatedItems = cartItems.map(item =>
+        item.id === itemId ? { ...item, quantity: newQuantity } : item
+      );
+      setCartItems(updatedItems);
+      
+      // Update in Firestore
+      if (user) {
+        const cartRef = doc(db, 'users', user.uid, 'cart', itemId);
+        await updateDoc(cartRef, { quantity: newQuantity });
+      }
+    } catch (error) {
+      console.error('Error updating quantity:', error);
+      toast.error('Failed to update quantity');
+    }
+  };
+
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900 pb-20">
       {/* Progress Steps */}
@@ -327,58 +347,63 @@ const CheckoutPage = () => {
                         key={item.id}
                         initial={{ opacity: 0, y: 20 }}
                         animate={{ opacity: 1, y: 0 }}
-                        className="flex flex-col sm:flex-row items-start sm:items-center gap-4 p-4 bg-gray-50 dark:bg-gray-700/50 rounded-xl hover:bg-purple-50 dark:hover:bg-purple-900/20 transition-all duration-200"
+                        className="flex items-center gap-4 p-4 bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 hover:border-purple-200 dark:hover:border-purple-700 transition-all duration-200"
                       >
                         {/* Product Image */}
-                        <div className="relative w-full sm:w-24 h-32 sm:h-24 rounded-lg overflow-hidden bg-white dark:bg-gray-800">
+                        <div className="relative w-16 h-16 rounded-lg overflow-hidden bg-white dark:bg-gray-800 flex-shrink-0">
                           {item.mainImage ? (
                             <Image
                               src={item.mainImage}
                               alt={item.name}
                               fill
                               className="object-cover transition-opacity duration-200"
-                              sizes="(max-width: 640px) 100vw, 96px"
+                              sizes="64px"
                             />
                           ) : (
                             <div className="absolute inset-0 flex items-center justify-center bg-gray-100 dark:bg-gray-700">
-                              <FiShoppingBag className="w-8 h-8 text-gray-400 dark:text-gray-500" />
+                              <FiShoppingBag className="w-6 h-6 text-gray-400 dark:text-gray-500" />
                             </div>
                           )}
                         </div>
 
                         {/* Product Details */}
                         <div className="flex-1 min-w-0">
-                          <h3 className="text-lg font-medium text-gray-900 dark:text-white truncate transition-colors duration-200">
+                          <h3 className="text-base font-medium text-gray-900 dark:text-white truncate">
                             {item.name}
                           </h3>
-                          <div className="mt-1 flex flex-wrap items-center gap-2">
-                            <span className="text-sm text-gray-600 dark:text-gray-300 transition-colors duration-200">
-                              Quantity: {item.quantity}
+                          <div className="mt-1 flex items-center gap-3">
+                            <span className="text-sm font-medium text-gray-900 dark:text-white">
+                              ₹{(item.discountedPrice || item.price).toLocaleString()}
                             </span>
-                            <span className="inline-block w-1 h-1 bg-gray-300 dark:bg-gray-600 rounded-full transition-colors duration-200" />
-                            <span className="text-sm text-gray-600 dark:text-gray-300 transition-colors duration-200">
-                              ₹{item.discountedPrice} per item
-                            </span>
-                            {item.price > item.discountedPrice && (
-                              <span className="text-xs text-gray-500 dark:text-gray-400 line-through">
-                                ₹{item.price}
-                              </span>
-                            )}
                           </div>
                         </div>
 
-                        {/* Price */}
-                        <div className="w-full sm:w-auto flex items-center justify-between sm:block text-right">
-                          <span className="text-lg font-semibold text-gray-900 dark:text-white transition-colors duration-200">
-                            ₹{item.discountedPrice * item.quantity}
-                          </span>
-                          <motion.div
-                            initial={{ scale: 0 }}
-                            animate={{ scale: 1 }}
-                            className="px-3 py-1 text-xs bg-purple-100 dark:bg-purple-900/40 text-purple-700 dark:text-purple-300 rounded-full transition-colors duration-200"
+                        {/* Quantity Controls */}
+                        <div className="flex items-center gap-1">
+                          <motion.button
+                            whileTap={{ scale: 0.95 }}
+                            onClick={() => handleUpdateQuantity(item.id, item.quantity - 1)}
+                            disabled={item.quantity <= 1}
+                            className="w-6 h-6 flex items-center justify-center text-gray-500 dark:text-gray-400 hover:text-purple-600 dark:hover:text-purple-400 disabled:opacity-50 disabled:cursor-not-allowed bg-gray-100 dark:bg-gray-700 rounded transition-colors"
                           >
-                            {item.quantity > 1 ? `${item.quantity} items` : '1 item'}
-                          </motion.div>
+                            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M20 12H4" />
+                            </svg>
+                          </motion.button>
+                          
+                          <span className="w-6 text-center text-sm font-medium text-gray-900 dark:text-white">
+                            {item.quantity}
+                          </span>
+                          
+                          <motion.button
+                            whileTap={{ scale: 0.95 }}
+                            onClick={() => handleUpdateQuantity(item.id, item.quantity + 1)}
+                            className="w-6 h-6 flex items-center justify-center text-gray-500 dark:text-gray-400 hover:text-purple-600 dark:hover:text-purple-400 bg-gray-100 dark:bg-gray-700 rounded transition-colors"
+                          >
+                            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v16m8-8H4" />
+                            </svg>
+                          </motion.button>
                         </div>
                       </motion.div>
                     ))}
@@ -500,49 +525,69 @@ const CheckoutPage = () => {
               className="space-y-6"
             >
               <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6">
-                <h2 className="text-xl font-semibold mb-4">Select Delivery Address</h2>
-                <div className="space-y-4">
+                <div className="flex justify-between items-center mb-6">
+                  <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
+                    Select Delivery Address
+                  </h2>
+                  <motion.button
+                    whileTap={{ scale: 0.95 }}
+                    onClick={() => router.push('/pages/shop/address')}
+                    className="flex items-center gap-2 px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white font-medium rounded-lg transition-colors"
+                  >
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v16m8-8H4" />
+                    </svg>
+                    Add Address
+                  </motion.button>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   {addresses.map((address) => (
                     <motion.div
                       key={address.id}
-                      whileHover={{ scale: 1.02 }}
-                      className={`p-4 rounded-lg border-2 cursor-pointer ${
-                        selectedAddress === address.id
-                          ? 'border-purple-600 bg-purple-50 dark:bg-purple-900/20'
-                          : 'border-gray-200 dark:border-gray-700'
+                      initial={{ opacity: 0, y: 20 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      className={`p-4 rounded-xl border-2 transition-all cursor-pointer ${
+                        selectedAddress?.id === address.id
+                          ? 'border-purple-500 bg-purple-50 dark:bg-purple-900/20'
+                          : 'border-gray-200 dark:border-gray-700 hover:border-purple-200 dark:hover:border-purple-700'
                       }`}
-                      onClick={() => setSelectedAddress(address.id)}
+                      onClick={() => setSelectedAddress(address)}
                     >
                       <div className="flex items-start justify-between">
                         <div>
-                          <h3 className="font-medium capitalize">{address.type} Address</h3>
-                          <p className="text-gray-600 dark:text-gray-400">{address.name}</p>
-                          <p className="text-gray-600 dark:text-gray-400">{address.phoneNumber}</p>
-                          <p className="text-gray-600 dark:text-gray-400">
+                          <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+                            {address.name}
+                          </h3>
+                          <p className="mt-1 text-sm text-gray-600 dark:text-gray-300">
                             {address.addressLine1}
                             {address.addressLine2 && `, ${address.addressLine2}`}
                           </p>
-                          <p className="text-gray-600 dark:text-gray-400">
+                          <p className="mt-1 text-sm text-gray-600 dark:text-gray-300">
                             {address.city}, {address.state} - {address.pincode}
                           </p>
+                          <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">
+                            {address.phoneNumber}
+                          </p>
                         </div>
-                        {selectedAddress === address.id && (
-                          <FiCheck className="text-purple-600 w-6 h-6" />
-                        )}
+                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium capitalize bg-gray-100 dark:bg-gray-800 text-gray-800 dark:text-gray-200">
+                          {address.type}
+                        </span>
                       </div>
                     </motion.div>
                   ))}
                 </div>
-                <motion.button
-                  whileHover={{ scale: 1.02 }}
-                  whileTap={{ scale: 0.98 }}
-                  onClick={handleProceedToPayment}
-                  className="w-full mt-6 bg-purple-600 text-white py-3 rounded-lg flex items-center justify-center space-x-2"
-                >
-                  <span>Proceed to Payment</span>
-                  <FiChevronRight />
-                </motion.button>
               </div>
+
+              <motion.button
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
+                onClick={handleProceedToPayment}
+                className="w-full mt-6 bg-purple-600 text-white py-3 rounded-lg flex items-center justify-center space-x-2"
+              >
+                <span>Proceed to Payment</span>
+                <FiChevronRight />
+              </motion.button>
             </motion.div>
           )}
 
@@ -567,7 +612,7 @@ const CheckoutPage = () => {
                       className={`p-4 rounded-lg border-2 transition-all cursor-pointer ${
                         paymentMethod === 'Cash on Delivery'
                           ? 'border-purple-500 bg-purple-50 dark:bg-purple-900/20'
-                          : 'border-gray-200 dark:border-gray-700 hover:border-purple-500 dark:hover:border-purple-500'
+                          : 'border-gray-200 dark:border-gray-700 hover:border-purple-200 dark:hover:border-purple-700'
                       }`}
                       onClick={() => setPaymentMethod('Cash on Delivery')}
                     >

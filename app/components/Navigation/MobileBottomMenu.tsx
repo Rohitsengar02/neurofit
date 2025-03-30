@@ -11,7 +11,7 @@ import {
 } from 'react-icons/fa';
 import { BsGrid3X3GapFill, BsRobot } from 'react-icons/bs';
 import { GiMuscleUp, GiWeightLiftingUp } from 'react-icons/gi';
-import { MdRestaurant } from 'react-icons/md';
+import { MdRestaurant, MdFeedback } from 'react-icons/md';
 
 interface Tab {
   id: string;
@@ -28,12 +28,12 @@ const moreMenuItems: Tab[] = [
   { id: 'mental', label: 'Mental', icon: FaBrain, color: 'from-purple-400 to-purple-600', href: '/pages/mental' },
   { id: 'nutrition', label: 'Nutrition', icon: FaAppleAlt, color: 'from-green-400 to-green-600', href: '/nutrition' },
   { id: 'relax', label: 'Relax', icon: FaSpa, color: 'from-pink-400 to-pink-600', href: '/pages/relax' },
-  { id: 'wellness', label: 'Wellness', icon: FaHeart, color: 'from-red-400 to-red-600', href: '/wellness' },
-  { id: 'mindful', label: 'Mindful', icon: FaYinYang, color: 'from-yellow-400 to-yellow-600', href: '/mindful' },
-  { id: 'nature', label: 'Nature', icon: FaLeaf, color: 'from-emerald-400 to-emerald-600', href: '/nature' },
+  
+ 
   { id: 'blog', label: 'Blog', icon: FaNewspaper, color: 'from-teal-400 to-teal-600', href: '/blog' },
   { id: 'diet', label: 'Diet', icon: MdRestaurant, color: 'from-orange-400 to-orange-600', href: '/diet' },
-  { id: 'steps', label: 'Steps', icon: FaWalking, color: 'from-blue-400 to-blue-600', href: '/pages/steps' }
+  { id: 'steps', label: 'Steps', icon: FaWalking, color: 'from-blue-400 to-blue-600', href: '/pages/steps' },
+  { id: 'suggestion', label: 'Suggestion', icon: MdFeedback, color: 'from-violet-400 to-violet-600', href: '/pages/contact' }
 ];
 
 const bottomTabs: Tab[] = [

@@ -130,13 +130,7 @@ export default function ActiveWorkouts() {
         <FaDumbbell className="text-4xl text-gray-600 mx-auto mb-4" />
         <h3 className="text-xl font-semibold text-gray-300 mb-2">No Active Workouts</h3>
         <p className="text-gray-400 mb-6">Start a new workout program to begin your fitness journey!</p>
-        <Link 
-          href="/workouts"
-          className="inline-flex items-center gap-2 px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors"
-        >
-          <FaDumbbell className="text-lg" />
-          Browse Workouts
-        </Link>
+       
       </div>
     );
   }

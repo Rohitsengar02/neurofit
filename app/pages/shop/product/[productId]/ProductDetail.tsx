@@ -2,7 +2,7 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import { motion } from 'framer-motion';
 import Image from 'next/image';
-import { doc, getDoc, collection, query, where, getDocs, limit } from 'firebase/firestore';
+import { doc, getDoc, collection, query, where, getDocs, limit, setDoc, deleteDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '@/app/firebase/config';
 import { IoStar, IoStarHalf } from 'react-icons/io5';
 import { HiOutlineShoppingCart, HiCheck } from 'react-icons/hi';
@@ -14,6 +14,8 @@ import { cartService } from '@/app/services/cartService';
 import { auth } from '@/app/firebase/config';
 import { useAuthState } from 'react-firebase-hooks/auth';
 import { toast } from 'react-hot-toast';
+import { FiShoppingBag } from 'react-icons/fi';
+import ReviewSection from '@/app/components/shop/ReviewSection';
 
 interface Product {
   id: string;
@@ -41,11 +43,68 @@ export default function ProductDetail({ productId }: { productId: string }) {
   const [isCartOpen, setIsCartOpen] = useState(false);
   const [cartItems, setCartItems] = useState<CartItem[]>([]);
   const [user] = useAuthState(auth);
+  const [isInCart, setIsInCart] = useState(false);
+  const [isInWishlist, setIsInWishlist] = useState(false);
+  const [avgRating, setAvgRating] = useState(0);
+  const [totalReviews, setTotalReviews] = useState(0);
 
-  // Check if product is in cart
-  const isInCart = useMemo(() => {
-    return cartItems.some(item => item.id === productId);
+  useEffect(() => {
+    const isProductInCart = cartItems.some(item => item.id === productId);
+    setIsInCart(isProductInCart);
   }, [cartItems, productId]);
+
+  useEffect(() => {
+    if (user && product) {
+      checkWishlistStatus();
+    }
+  }, [user, product]);
+
+  const checkWishlistStatus = async () => {
+    if (!user || !product) return;
+    try {
+      const wishlistRef = doc(db, 'users', user.uid, 'wishlist', product.id);
+      const wishlistDoc = await getDoc(wishlistRef);
+      setIsInWishlist(wishlistDoc.exists());
+    } catch (error) {
+      console.error('Error checking wishlist status:', error);
+    }
+  };
+
+  const handleWishlistClick = async () => {
+    if (!user) {
+      toast.error('Please sign in to add to wishlist');
+      return;
+    }
+
+    if (!product) {
+      toast.error('Product not found');
+      return;
+    }
+
+    try {
+      const wishlistRef = doc(db, 'users', user.uid, 'wishlist', product.id);
+      
+      if (isInWishlist) {
+        await deleteDoc(wishlistRef);
+        setIsInWishlist(false);
+        toast.success('Removed from wishlist');
+      } else {
+        await setDoc(wishlistRef, {
+          productId: product.id,
+          name: product.name,
+          mainImage: product.mainImage,
+          price: product.price,
+          discountedPrice: product.discountedPrice,
+          addedAt: serverTimestamp()
+        });
+        setIsInWishlist(true);
+        toast.success('Added to wishlist');
+      }
+    } catch (error) {
+      console.error('Error updating wishlist:', error);
+      toast.error('Failed to update wishlist');
+    }
+  };
 
   useEffect(() => {
     const fetchProduct = () => {
@@ -89,7 +148,6 @@ export default function ProductDetail({ productId }: { productId: string }) {
     return () => unsubscribe();
   }, [user]);
 
-  // Add to cart function
   const handleAddToCart = () => {
     if (!user) {
       toast.error('Please sign in to add items to cart');
@@ -126,10 +184,14 @@ export default function ProductDetail({ productId }: { productId: string }) {
     }
   };
 
-  // Handle cart icon click
   const handleCartIconClick = () => {
+    if (!user) {
+      toast.error('Please sign in to add to cart');
+      return;
+    }
+
     if (!product) {
-      toast.error('Please wait for product to load');
+      toast.error('Product not found');
       return;
     }
 
@@ -181,7 +243,6 @@ export default function ProductDetail({ productId }: { productId: string }) {
       });
   }, [user]);
 
-  // Remove from cart function
   const removeFromCart = (productId: string) => {
     if (!user) return;
 
@@ -195,7 +256,6 @@ export default function ProductDetail({ productId }: { productId: string }) {
       });
   };
 
-  // Toggle cart item
   const toggleCartItem = (product: Product) => {
     if (isInCart) {
       removeFromCart(product.id);
@@ -219,8 +279,7 @@ export default function ProductDetail({ productId }: { productId: string }) {
       });
   };
 
-  // Buy now function
-  const handleBuyNow = () => {
+  const handleBuyNow = async () => {
     if (!user) {
       toast.error('Please sign in to purchase');
       return;
@@ -232,23 +291,22 @@ export default function ProductDetail({ productId }: { productId: string }) {
     }
 
     try {
-      const buyNowItem = {
+      const cartItem: CartItem = {
         id: product.id,
         name: product.name,
         mainImage: product.mainImage,
         price: product.price,
-        discountedPrice: product.discountedPrice,
+        discountedPrice: product.discountedPrice || product.price, // Use price if no discount
         quantity: 1
       };
 
-      // Store the buy now item in localStorage
-      localStorage.setItem('buyNowItem', JSON.stringify(buyNowItem));
+      await cartService.addToCart(user.uid, cartItem);
+
+      window.location.href = '/pages/shop/checkout';
       
-      // Redirect to checkout
-      window.location.href = '/pages/shop/checkout?mode=buynow';
     } catch (error) {
-      console.error('Error processing buy now:', error);
-      toast.error('Failed to process purchase');
+      console.error('Error in buy now:', error);
+      toast.error('Failed to process. Please try again.');
     }
   };
 
@@ -285,18 +343,32 @@ export default function ProductDetail({ productId }: { productId: string }) {
             {/* Image Gallery Section */}
             <div className="space-y-4">
               <motion.div 
-                className="relative aspect-square rounded-xl overflow-hidden"
+                className="relative aspect-square w-full overflow-hidden rounded-2xl bg-gray-100 dark:bg-gray-800"
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 transition={{ duration: 0.5 }}
               >
-                <Image
-                  src={selectedImage === 0 ? product.mainImage : product.imageGallery[selectedImage - 1]}
-                  alt={product.name}
-                  fill
-                  className="object-cover"
-                  sizes="(max-width: 768px) 100vw, 50vw"
-                />
+                {product.mainImage ? (
+                  <>
+                    <Image
+                      src={product.mainImage}
+                      alt={product.name}
+                      fill
+                      className="object-cover"
+                      priority
+                    />
+                    {/* Discount Badge */}
+                    {product.price > product.discountedPrice && (
+                      <div className="absolute top-4 left-4 px-2 py-1 bg-green-500 text-white text-sm font-medium rounded-lg shadow-lg">
+                        {Math.round(((product.price - product.discountedPrice) / product.price) * 100)}% OFF
+                      </div>
+                    )}
+                  </>
+                ) : (
+                  <div className="absolute inset-0 flex items-center justify-center">
+                    <FiShoppingBag className="w-16 h-16 text-gray-400" />
+                  </div>
+                )}
               </motion.div>
               
               {/* Thumbnail Gallery */}
@@ -344,29 +416,30 @@ export default function ProductDetail({ productId }: { productId: string }) {
                   <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
                     {product.name}
                   </h1>
+                  <div className="flex items-center gap-4 mb-4">
+                    <span className="text-2xl font-bold text-green-600 dark:text-green-500">
+                      ₹{product.discountedPrice.toLocaleString()}
+                    </span>
+                  </div>
                   <div className="flex items-center gap-1">
                     {[...Array(5)].map((_, i) => (
                       <FaStar
                         key={i}
                         className={`w-4 h-4 ${
-                          i < (product.rating || 0)
+                          i < Math.floor(avgRating)
                             ? 'text-yellow-400'
+                            : i < avgRating
+                            ? 'text-yellow-300' // For partial stars
                             : 'text-gray-300 dark:text-gray-600'
                         }`}
                       />
                     ))}
-                    <span className="text-sm text-gray-600 dark:text-gray-400 ml-2">
-                      ({product.rating || 0})
+                    <span className="ml-2 text-sm text-gray-600 dark:text-gray-400">
+                      {avgRating.toFixed(1)} ({totalReviews} {totalReviews === 1 ? 'review' : 'reviews'})
                     </span>
                   </div>
                 </div>
-                <motion.button
-                  className="p-3 bg-gray-100 dark:bg-gray-800 rounded-full text-gray-600 dark:text-gray-300 hover:text-red-500 dark:hover:text-red-400"
-                  whileHover={{ scale: 1.1 }}
-                  whileTap={{ scale: 0.95 }}
-                >
-                  <MdFavoriteBorder className="w-6 h-6" />
-                </motion.button>
+               
               </div>
 
               <div className="space-y-4">
@@ -415,6 +488,17 @@ export default function ProductDetail({ productId }: { productId: string }) {
               ))}
             </div>
           </div>
+
+          {/* Reviews Section */}
+          {product && (
+            <ReviewSection 
+              productId={product.id} 
+              onRatingUpdate={(rating, reviews) => {
+                setAvgRating(rating);
+                setTotalReviews(reviews);
+              }}
+            />
+          )}
         </motion.div>
       </div>
 
@@ -449,11 +533,6 @@ export default function ProductDetail({ productId }: { productId: string }) {
                     <span className="text-sm font-semibold text-gray-900 dark:text-white">
                       ₹{relatedProduct.discountedPrice.toLocaleString()}
                     </span>
-                    {relatedProduct.price > relatedProduct.discountedPrice && (
-                      <span className="text-xs text-gray-500 dark:text-gray-400 line-through">
-                        ₹{relatedProduct.price.toLocaleString()}
-                      </span>
-                    )}
                   </div>
                 </div>
               </Link>
@@ -466,73 +545,65 @@ export default function ProductDetail({ productId }: { productId: string }) {
       <motion.div 
         initial={{ y: 100 }}
         animate={{ y: 0 }}
-        className="fixed bottom-20 left-0 right-0 bg-white/90 dark:bg-gray-900/90 backdrop-blur-lg border-t border-gray-200 dark:border-gray-800 px-4 py-2.5 shadow-[0_-4px_20px_rgba(0,0,0,0.1)] dark:shadow-[0_-4px_20px_rgba(0,0,0,0.3)] z-40"
+        className="fixed bottom-16 left-0 right-0 bg-white/95 dark:bg-gray-900/95 backdrop-blur-lg border-t border-gray-200 dark:border-gray-800 px-4 py-3 shadow-[0_-4px_20px_rgba(0,0,0,0.1)] dark:shadow-[0_-4px_20px_rgba(0,0,0,0.3)] z-40"
       >
-        <div className="max-w-6xl mx-auto flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <span className="text-lg font-bold text-gray-900 dark:text-white">
-              ₹{product.discountedPrice.toLocaleString()}
-            </span>
-            {product.price > product.discountedPrice && (
+        <div className="max-w-6xl mx-auto flex items-center justify-between gap-4">
+          <motion.button
+            onClick={handleCartIconClick}
+            whileTap={{ scale: 0.95 }}
+            className={`flex-1 flex items-center justify-center gap-2 px-6 py-3 ${
+              isInCart 
+                ? 'bg-green-500 hover:bg-green-600 text-white' 
+                : 'bg-gray-100 hover:bg-gray-200 dark:bg-gray-800 dark:hover:bg-gray-700 text-gray-900 dark:text-white'
+            } font-medium rounded-xl transition-colors duration-200`}
+          >
+            {isInCart ? (
               <>
-                <span className="text-sm text-gray-500 dark:text-gray-400 line-through">
-                  ₹{product.price.toLocaleString()}
-                </span>
+                <HiCheck className="w-5 h-5" />
+                <span className="hidden sm:inline">Added to Cart</span>
+                <span className="sm:hidden">Added</span>
+              </>
+            ) : (
+              <>
+                <HiOutlineShoppingCart className="w-5 h-5" />
+                <span className="hidden sm:inline">Add to Cart</span>
+                <span className="sm:hidden">Cart</span>
               </>
             )}
-          </div>
+          </motion.button>
 
-          <div className="flex gap-2">
-            <button
-              onClick={handleBuyNow}
-              className="w-full sm:w-auto px-6 py-3 bg-red-600 text-white font-medium rounded-lg hover:bg-red-700 transition-colors"
+          <motion.button
+            onClick={handleBuyNow}
+            whileTap={{ scale: 0.95 }}
+            className="flex-1 px-6 py-3 bg-green-600 hover:bg-green-700 text-white font-medium rounded-xl transition-colors duration-200"
+          >
+            <span className="hidden sm:inline">Buy Now</span>
+            <span className="sm:hidden">Buy</span>
+          </motion.button>
+
+          <motion.button
+            onClick={handleWishlistClick}
+            whileTap={{ scale: 0.95 }}
+            className={`w-12 h-12 flex items-center justify-center ${
+              isInWishlist
+                ? 'text-red-500 dark:text-red-400'
+                : 'text-gray-500 hover:text-red-500 dark:text-gray-400 dark:hover:text-red-400'
+            } bg-gray-100 dark:bg-gray-800 rounded-xl transition-colors duration-200`}
+          >
+            <svg 
+              className="w-6 h-6" 
+              fill={isInWishlist ? "currentColor" : "none"} 
+              stroke="currentColor" 
+              viewBox="0 0 24 24"
             >
-              Buy Now
-            </button>
-            <motion.button
-              className={`relative ${
-                isInCart 
-                  ? 'bg-green-500 text-white' 
-                  : 'bg-gray-100 dark:bg-gray-800 text-gray-900 dark:text-white'
-              } h-10 w-10 rounded-full flex items-center justify-center overflow-hidden group`}
-              whileHover={{ scale: 1.05 }}
-              whileTap={{ scale: 0.95 }}
-              onClick={handleCartIconClick}
-              disabled={!product || loading}
-            >
-              <motion.div
-                className={`absolute inset-0 ${
-                  isInCart
-                    ? 'bg-gradient-to-tr from-green-600/50 to-transparent'
-                    : 'bg-gradient-to-tr from-gray-200/50 to-transparent dark:from-gray-700/50 dark:to-transparent'
-                }`}
-                animate={{
-                  rotate: [0, 360],
-                }}
-                transition={{
-                  duration: 8,
-                  repeat: Infinity,
-                  ease: "linear"
-                }}
+              <path 
+                strokeLinecap="round" 
+                strokeLinejoin="round" 
+                strokeWidth="2" 
+                d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" 
               />
-              <motion.div
-                initial={false}
-                animate={{ scale: isInCart ? 1 : 0, opacity: isInCart ? 1 : 0 }}
-                className="absolute"
-              >
-                <HiCheck className="w-5 h-5 relative z-10" />
-              </motion.div>
-              <motion.div
-                initial={false}
-                animate={{ scale: isInCart ? 0 : 1, opacity: isInCart ? 0 : 1 }}
-                className="absolute"
-              >
-                <HiOutlineShoppingCart className="w-5 h-5 relative z-10" />
-              </motion.div>
-            </motion.button>
-
-           
-          </div>
+            </svg>
+          </motion.button>
         </div>
       </motion.div>
 
