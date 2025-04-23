@@ -1,204 +1,161 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
-import { FaPlay, FaPause, FaRedo, FaTimes, FaDumbbell } from 'react-icons/fa';
+import React, { useState } from 'react';
+import { motion } from 'framer-motion';
+import { FaCheck, FaTimes, FaEdit, FaSave } from 'react-icons/fa';
 
-interface ExerciseSetProps {
-  setNumber: number;
+interface Set {
+  id: string;
   reps: number;
   weight: number;
   isCompleted: boolean;
-  restTime: number;
-  onUpdateSet: (updates: { reps?: number; weight?: number }) => void;
+}
+
+interface ExerciseSetProps {
+  set?: Set;
+  index?: number;
+  setNumber?: number;
+  reps?: number;
+  weight?: number;
+  isCompleted?: boolean;
+  restTime?: number;
+  onUpdateSet: (updates: { reps?: number; weight?: number; isCompleted?: boolean }) => void;
   onComplete: () => void;
   onRemove: () => void;
 }
 
-export default function ExerciseSet({
+const ExerciseSet: React.FC<ExerciseSetProps> = ({
+  set,
+  index,
   setNumber,
-  reps,
-  weight,
-  isCompleted,
+  reps: propReps,
+  weight: propWeight,
+  isCompleted: propIsCompleted,
   restTime,
-  onUpdateSet,
   onComplete,
-  onRemove
-}: ExerciseSetProps) {
-  const [showTimer, setShowTimer] = useState(false);
-  const [timeLeft, setTimeLeft] = useState(restTime);
-  const [isTimerRunning, setIsTimerRunning] = useState(false);
+  onUpdateSet,
+  onRemove,
+}) => {
+  // Use either the direct props or the values from the set object
+  const initialReps = propReps ?? set?.reps ?? 10;
+  const initialWeight = propWeight ?? set?.weight ?? 0;
+  const initialIsCompleted = propIsCompleted ?? set?.isCompleted ?? false;
+  
+  const [isEditing, setIsEditing] = useState(false);
+  const [reps, setReps] = useState(initialReps);
+  const [weight, setWeight] = useState(initialWeight);
 
-  useEffect(() => {
-    let timer: NodeJS.Timeout;
-    if (isTimerRunning && timeLeft > 0) {
-      timer = setInterval(() => {
-        setTimeLeft(prev => {
-          if (prev <= 1) {
-            setIsTimerRunning(false);
-            setShowTimer(false);
-            return 0;
-          }
-          return prev - 1;
-        });
-      }, 1000);
-    }
-    return () => clearInterval(timer);
-  }, [isTimerRunning, timeLeft]);
-
-  const startTimer = () => {
-    setTimeLeft(restTime);
-    setShowTimer(true);
-    setIsTimerRunning(true);
+  const handleComplete = () => {
+    onComplete();
   };
 
-  const formatTime = (seconds: number) => {
-    const mins = Math.floor(seconds / 60);
-    const secs = seconds % 60;
-    return `${mins}:${secs.toString().padStart(2, '0')}`;
+  const handleEdit = () => {
+    setIsEditing(true);
+  };
+
+  const handleSave = () => {
+    onUpdateSet({ reps, weight });
+    setIsEditing(false);
+  };
+
+  const handleCancel = () => {
+    setReps(initialReps);
+    setWeight(initialWeight);
+    setIsEditing(false);
   };
 
   return (
-    <>
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        className={`relative flex flex-col sm:flex-row items-stretch sm:items-center gap-4 p-4 rounded-xl border ${
-          isCompleted ? 'bg-green-50 border-green-200' : 'bg-white border-gray-200'
-        } transition-colors duration-300 hover:shadow-md`}
-      >
-        {/* Set Number */}
-        <div className="flex items-center justify-between sm:justify-start sm:w-20">
-          <span className="text-lg font-bold text-gray-700">
-            Set {setNumber}
-          </span>
-          <button
-            onClick={onRemove}
-            className="text-red-500 hover:text-red-600 p-2 hover:bg-red-50 rounded-lg transition-colors sm:hidden"
-          >
-            <FaTimes />
-          </button>
-        </div>
+    <motion.div
+      initial={{ opacity: 0, y: 10 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ delay: (index ?? 0) * 0.05 }}
+      className={`flex items-center p-3 rounded-lg mb-2 ${
+        initialIsCompleted
+          ? 'bg-green-100 dark:bg-green-900/20'
+          : 'bg-gray-100 dark:bg-gray-800'
+      }`}
+    >
+      <div className="mr-3 font-medium text-gray-500 dark:text-gray-400 w-8">
+        #{setNumber ?? (index !== undefined ? index + 1 : 1)}
+      </div>
 
-        {/* Weight and Reps */}
-        <div className="flex flex-1 items-center gap-4 sm:gap-6">
-          <div className="flex-1 flex items-center gap-2">
-            <div className="relative flex-1">
+      {isEditing ? (
+        <>
+          <div className="flex-1 flex items-center space-x-2">
+            <div className="flex flex-col">
+              <label className="text-xs text-gray-500 dark:text-gray-400">Reps</label>
               <input
                 type="number"
-                value={weight || ''}
-                onChange={(e) => onUpdateSet({ weight: e.target.value ? parseInt(e.target.value) : 0 })}
-                className="w-full px-3 py-2 border rounded-xl text-center focus:ring-2 focus:ring-blue-200 focus:border-blue-500 transition-all"
-                min="0"
-                placeholder="kg"
-                disabled={isCompleted}
-              />
-              <span className="absolute right-3 top-1/2 -translate-y-1/2 text-sm text-gray-500">kg</span>
-            </div>
-          </div>
-
-          <div className="flex-1 flex items-center gap-2">
-            <div className="relative flex-1">
-              <input
-                type="number"
-                value={reps || ''}
-                onChange={(e) => onUpdateSet({ reps: e.target.value ? parseInt(e.target.value) : 0 })}
-                className="w-full px-3 py-2 border rounded-xl text-center focus:ring-2 focus:ring-blue-200 focus:border-blue-500 transition-all"
+                value={reps}
+                onChange={(e) => setReps(Number(e.target.value))}
+                className="w-16 p-1 border rounded dark:bg-gray-700 dark:border-gray-600"
                 min="1"
-                placeholder="reps"
-                disabled={isCompleted}
               />
-              <span className="absolute right-3 top-1/2 -translate-y-1/2 text-sm text-gray-500">reps</span>
+            </div>
+            <div className="flex flex-col">
+              <label className="text-xs text-gray-500 dark:text-gray-400">Weight (kg)</label>
+              <input
+                type="number"
+                value={weight}
+                onChange={(e) => setWeight(Number(e.target.value))}
+                className="w-16 p-1 border rounded dark:bg-gray-700 dark:border-gray-600"
+                min="0"
+                step="0.5"
+              />
             </div>
           </div>
-        </div>
 
-        {/* Complete Button and Status */}
-        <div className="flex items-center justify-between sm:justify-end gap-4">
-          {!isCompleted ? (
+          <div className="flex space-x-2">
             <button
-              onClick={onComplete}
-              className="flex-1 sm:flex-none px-6 py-2 bg-gradient-to-r from-green-500 to-emerald-500 text-white rounded-xl hover:from-green-600 hover:to-emerald-600 transition-all duration-300 font-medium shadow-sm hover:shadow"
+              onClick={handleSave}
+              className="p-2 text-blue-500 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300"
             >
-              Complete
+              <FaSave />
             </button>
-          ) : (
             <button
-              onClick={startTimer}
-              className="flex-1 sm:flex-none px-6 py-2 bg-gradient-to-r from-blue-500 to-purple-500 text-white rounded-xl hover:from-blue-600 hover:to-purple-600 transition-all duration-300 font-medium shadow-sm hover:shadow flex items-center justify-center gap-2"
+              onClick={handleCancel}
+              className="p-2 text-red-500 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300"
             >
-              <FaPlay className="text-sm" />
-              Rest
+              <FaTimes />
             </button>
-          )}
-          <button
-            onClick={onRemove}
-            className="hidden sm:block text-red-500 hover:text-red-600 p-2 hover:bg-red-50 rounded-lg transition-colors"
-          >
-            <FaTimes />
-          </button>
-        </div>
-      </motion.div>
+            <button
+              onClick={onRemove}
+              className="p-2 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300"
+            >
+              <FaTimes className="text-red-500" />
+            </button>
+          </div>
+        </>
+      ) : (
+        <>
+          <div className="flex-1">
+            <div className="font-medium">
+              {initialReps} reps × {initialWeight} kg
+            </div>
+          </div>
 
-      <AnimatePresence>
-        {showTimer && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black bg-opacity-50 backdrop-blur-sm flex items-center justify-center p-4 z-50"
-          >
-            <motion.div
-              className="bg-white rounded-2xl p-8 w-full max-w-sm mx-4"
-              initial={{ scale: 0.95, y: 20 }}
-              animate={{ scale: 1, y: 0 }}
-              exit={{ scale: 0.95, y: 20 }}
+          <div className="flex space-x-2">
+            <button
+              onClick={handleEdit}
+              className="p-2 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300"
             >
-              <div className="flex items-center justify-center mb-6">
-                <FaDumbbell className="text-4xl text-blue-500 animate-pulse" />
-              </div>
-              <h3 className="text-2xl font-bold text-center bg-clip-text text-transparent bg-gradient-to-r from-blue-600 to-purple-600 mb-6">
-                Rest Timer
-              </h3>
-              <div className="text-6xl font-bold text-center bg-clip-text text-transparent bg-gradient-to-r from-blue-500 to-purple-500 mb-8 font-mono">
-                {formatTime(timeLeft)}
-              </div>
-              <div className="flex justify-center gap-4">
-                {isTimerRunning ? (
-                  <button
-                    onClick={() => setIsTimerRunning(false)}
-                    className="p-4 bg-gradient-to-r from-yellow-500 to-orange-500 text-white rounded-full hover:from-yellow-600 hover:to-orange-600 transition-all duration-300 shadow-lg hover:shadow-xl"
-                  >
-                    <FaPause />
-                  </button>
-                ) : (
-                  <button
-                    onClick={() => setIsTimerRunning(true)}
-                    className="p-4 bg-gradient-to-r from-blue-500 to-purple-500 text-white rounded-full hover:from-blue-600 hover:to-purple-600 transition-all duration-300 shadow-lg hover:shadow-xl"
-                  >
-                    <FaPlay />
-                  </button>
-                )}
-                <button
-                  onClick={() => {
-                    setTimeLeft(restTime);
-                    setIsTimerRunning(false);
-                  }}
-                  className="p-4 bg-gradient-to-r from-gray-500 to-gray-600 text-white rounded-full hover:from-gray-600 hover:to-gray-700 transition-all duration-300 shadow-lg hover:shadow-xl"
-                >
-                  <FaRedo />
-                </button>
-              </div>
-              <button
-                onClick={() => setShowTimer(false)}
-                className="mt-8 w-full px-4 py-2 text-gray-500 hover:text-gray-700 rounded-xl hover:bg-gray-100 transition-colors text-sm font-medium"
-              >
-                Skip Rest
-              </button>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-    </>
+              <FaEdit />
+            </button>
+            <button
+              onClick={handleComplete}
+              className={`p-2 rounded-full ${
+                initialIsCompleted
+                  ? 'text-green-500 hover:text-green-700 dark:text-green-400 dark:hover:text-green-300'
+                  : 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300'
+              }`}
+            >
+              {initialIsCompleted ? <FaCheck /> : <FaCheck className="opacity-50" />}
+            </button>
+          </div>
+        </>
+      )}
+    </motion.div>
   );
-}
+};
+
+export default ExerciseSet;

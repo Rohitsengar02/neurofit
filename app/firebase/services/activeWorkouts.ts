@@ -23,9 +23,9 @@ export const addActiveWorkout = async (userId: string, workout: ActiveWorkout) =
     }
 
     const activeWorkoutsRef = collection(db, 'users', userId, 'activeWorkouts');
-    await addDoc(activeWorkoutsRef, workoutData);
+    const docRef = await addDoc(activeWorkoutsRef, workoutData);
 
-    return { success: true };
+    return { success: true, id: docRef.id };
   } catch (error) {
     console.error('Error adding active workout:', error);
     return { success: false, error };

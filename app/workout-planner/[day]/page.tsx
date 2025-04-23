@@ -7,8 +7,11 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { FaDumbbell, FaPlus, FaClock, FaTimes, FaArrowLeft, FaPlay, FaPause, FaFire, FaTrophy, FaCheck } from 'react-icons/fa';
 import Image from 'next/image';
 import { useRouter, useParams } from 'next/navigation';
+// Import the ExerciseSet component with correct case sensitivity
 import ExerciseSet from '@/app/components/Workout/ExerciseSet';
 import { useAuth } from '@/app/hooks/useAuth';
+
+
 
 interface Set {
   id: string;
@@ -299,7 +302,7 @@ export default function DayWorkoutPage() {
     saveData(updatedExercises);
   };
 
-  const handleUpdateSet = (exerciseId: string, setId: string, updates: Partial<Set>) => {
+  const handleUpdateSet = (exerciseId: string, setId: string, updates: { reps?: number; weight?: number; isCompleted?: boolean }) => {
     setExercises(prevExercises => {
       const newExercises = [...prevExercises];
       const exerciseIndex = newExercises.findIndex(e => e.id === exerciseId);
@@ -529,7 +532,7 @@ export default function DayWorkoutPage() {
                       weight={set.weight}
                       isCompleted={set.isCompleted}
                       restTime={exercise.restTime}
-                      onUpdateSet={(updates) => handleUpdateSet(exercise.id, set.id, updates)}
+                      onUpdateSet={(updates: { reps?: number; weight?: number; isCompleted?: boolean }) => handleUpdateSet(exercise.id, set.id, updates)}
                       onComplete={() => handleUpdateSet(exercise.id, set.id, { isCompleted: true })}
                       onRemove={() => handleRemoveSet(exercise.id, set.id)}
                     />

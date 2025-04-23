@@ -1,80 +1,161 @@
-import React from 'react';
+'use client';
+
+import React, { useState, useEffect, useRef } from 'react';
 import { motion } from 'framer-motion';
-import { FaPlay, FaExpand } from 'react-icons/fa';
-import { YouTubeVideo } from '../services/youtube';
+import { FaPlay, FaPause, FaExpand, FaCompress, FaVolumeUp, FaVolumeMute } from 'react-icons/fa';
 
 interface VideoPlayerProps {
-  video: YouTubeVideo;
-  onPlay: (videoId: string) => void;
+  videoId: string;
+  title?: string;
+  autoplay?: boolean;
+  loop?: boolean;
+  controls?: boolean;
+  className?: string;
 }
 
-const formatDuration = (duration: string) => {
-  const match = duration.match(/PT(\d+H)?(\d+M)?(\d+S)?/);
-  if (!match) return '00:00';
+const VideoPlayer: React.FC<VideoPlayerProps> = ({
+  videoId,
+  title,
+  autoplay = false,
+  loop = true,
+  controls = true,
+  className = '',
+}) => {
+  const [isPlaying, setIsPlaying] = useState(autoplay);
+  const [isMuted, setIsMuted] = useState(true);
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  const [progress, setProgress] = useState(0);
+  const [duration, setDuration] = useState(0);
+  const [currentTime, setCurrentTime] = useState(0);
+  
+  const videoRef = useRef<HTMLIFrameElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const progressInterval = useRef<NodeJS.Timeout | null>(null);
 
-  const hours = (match[1] || '').replace('H', '');
-  const minutes = (match[2] || '').replace('M', '');
-  const seconds = (match[3] || '').replace('S', '');
+  useEffect(() => {
+    // Clean up interval on unmount
+    return () => {
+      if (progressInterval.current) {
+        clearInterval(progressInterval.current);
+      }
+    };
+  }, []);
 
-  const parts = [];
-  if (hours) parts.push(hours.padStart(2, '0'));
-  parts.push((minutes || '0').padStart(2, '0'));
-  parts.push((seconds || '0').padStart(2, '0'));
+  // Handle play/pause
+  const togglePlay = () => {
+    setIsPlaying(!isPlaying);
+    
+    if (videoRef.current && videoRef.current.contentWindow) {
+      const message = !isPlaying 
+        ? JSON.stringify({ event: 'command', func: 'playVideo' })
+        : JSON.stringify({ event: 'command', func: 'pauseVideo' });
+      
+      videoRef.current.contentWindow.postMessage(message, '*');
+    }
+  };
 
-  return parts.join(':');
-};
+  // Handle mute/unmute
+  const toggleMute = () => {
+    setIsMuted(!isMuted);
+    
+    if (videoRef.current && videoRef.current.contentWindow) {
+      const message = isMuted
+        ? JSON.stringify({ event: 'command', func: 'unMute' })
+        : JSON.stringify({ event: 'command', func: 'mute' });
+      
+      videoRef.current.contentWindow.postMessage(message, '*');
+    }
+  };
 
-const formatViews = (views: string) => {
-  const num = parseInt(views);
-  if (num >= 1000000) {
-    return `${(num / 1000000).toFixed(1)}M views`;
-  }
-  if (num >= 1000) {
-    return `${(num / 1000).toFixed(1)}K views`;
-  }
-  return `${num} views`;
-};
+  // Handle fullscreen
+  const toggleFullscreen = () => {
+    if (!containerRef.current) return;
+    
+    if (!document.fullscreenElement) {
+      containerRef.current.requestFullscreen().catch(err => {
+        console.error(`Error attempting to enable fullscreen: ${err.message}`);
+      });
+      setIsFullscreen(true);
+    } else {
+      document.exitFullscreen();
+      setIsFullscreen(false);
+    }
+  };
 
-export default function VideoPlayer({ video, onPlay }: VideoPlayerProps) {
+  // Format time (seconds to MM:SS)
+  const formatTime = (seconds: number) => {
+    const mins = Math.floor(seconds / 60);
+    const secs = Math.floor(seconds % 60);
+    return `${mins}:${secs < 10 ? '0' + secs : secs}`;
+  };
+
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0, y: -20 }}
-      className="bg-white dark:bg-gray-800 rounded-xl overflow-hidden shadow-lg"
+    <motion.div 
+      ref={containerRef}
+      className={`relative overflow-hidden rounded-xl ${className}`}
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      transition={{ duration: 0.5 }}
     >
-      <div className="relative group">
-        <div className="aspect-video relative overflow-hidden">
-          <img
-            src={video.thumbnail}
-            alt={video.title}
-            className="w-full h-full object-cover transform group-hover:scale-105 transition-transform duration-300"
-          />
-          <div className="absolute inset-0 bg-black/30 group-hover:bg-black/40 transition-colors flex items-center justify-center">
-            <motion.button
-              whileHover={{ scale: 1.1 }}
-              whileTap={{ scale: 0.9 }}
-              onClick={() => onPlay(video.id)}
-              className="w-16 h-16 rounded-full bg-white/20 backdrop-blur-sm flex items-center justify-center"
+      {/* YouTube iframe */}
+      <iframe
+        ref={videoRef}
+        className="w-full aspect-video"
+        src={`https://www.youtube.com/embed/${videoId}?enablejsapi=1&autoplay=${autoplay ? 1 : 0}&loop=${loop ? 1 : 0}&controls=0&modestbranding=1&rel=0&showinfo=0&mute=${isMuted ? 1 : 0}`}
+        title={title || "YouTube video player"}
+        frameBorder="0"
+        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+        allowFullScreen
+      ></iframe>
+      
+      {/* Custom controls overlay */}
+      {controls && (
+        <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/70 to-transparent p-3 flex flex-col opacity-0 hover:opacity-100 transition-opacity">
+          {/* Progress bar */}
+          <div className="w-full h-1 bg-gray-600 rounded-full mb-2 cursor-pointer">
+            <div 
+              className="h-full bg-blue-500 rounded-full"
+              style={{ width: `${progress}%` }}
+            ></div>
+          </div>
+          
+          {/* Controls */}
+          <div className="flex items-center justify-between">
+            <div className="flex items-center space-x-3">
+              {/* Play/Pause button */}
+              <button 
+                onClick={togglePlay}
+                className="text-white hover:text-blue-400 transition"
+              >
+                {isPlaying ? <FaPause /> : <FaPlay />}
+              </button>
+              
+              {/* Mute/Unmute button */}
+              <button 
+                onClick={toggleMute}
+                className="text-white hover:text-blue-400 transition"
+              >
+                {isMuted ? <FaVolumeMute /> : <FaVolumeUp />}
+              </button>
+              
+              {/* Time display */}
+              <div className="text-white text-xs">
+                {formatTime(currentTime)} / {formatTime(duration)}
+              </div>
+            </div>
+            
+            {/* Fullscreen button */}
+            <button 
+              onClick={toggleFullscreen}
+              className="text-white hover:text-blue-400 transition"
             >
-              <FaPlay className="w-6 h-6 text-white ml-1" />
-            </motion.button>
-          </div>
-          <div className="absolute bottom-2 right-2 px-2 py-1 bg-black/70 rounded text-white text-sm">
-            {formatDuration(video.duration)}
+              {isFullscreen ? <FaCompress /> : <FaExpand />}
+            </button>
           </div>
         </div>
-        
-        <div className="p-4">
-          <h3 className="text-lg font-semibold text-gray-900 dark:text-white line-clamp-2 mb-2">
-            {video.title}
-          </h3>
-          <div className="flex items-center justify-between text-sm text-gray-600 dark:text-gray-400">
-            <span>{video.channelTitle}</span>
-            <span>{formatViews(video.viewCount)}</span>
-          </div>
-        </div>
-      </div>
+      )}
     </motion.div>
   );
-}
+};
+
+export default VideoPlayer;

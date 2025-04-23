@@ -1184,5 +1184,41 @@ service cloud.firestore {
       allow read: if isAuthenticated() && userId == request.auth.uid;
       allow write: if isAuthenticated() && userId == request.auth.uid;
     }
+    
+    // Workout stats collection rules
+    match /users/{userId}/workoutStats/{statId} {
+      allow read: if isAuthenticated() && userId == request.auth.uid;
+      allow create: if isAuthenticated() && userId == request.auth.uid && validateWorkoutStats();
+      allow update: if isAuthenticated() && userId == request.auth.uid;
+      allow delete: if isAuthenticated() && userId == request.auth.uid;
+    }
+    
+    // Validate workout stats data structure
+    function validateWorkoutStats() {
+      let stats = request.resource.data;
+      return 
+        // Required fields
+        stats.date is timestamp &&
+        stats.totalTime is number && stats.totalTime >= 0 &&
+        stats.caloriesBurned is number && stats.caloriesBurned >= 0 &&
+        stats.exercisesCompleted is number && stats.exercisesCompleted >= 0 &&
+        stats.setsCompleted is number && stats.setsCompleted >= 0 &&
+        stats.totalReps is number && stats.totalReps >= 0 &&
+        stats.dayNumber is number && stats.dayNumber >= 0 &&
+        stats.workoutId is string &&
+        
+        // Optional fields
+        (!('notes' in stats) || stats.notes is string) &&
+        (!('rating' in stats) || (stats.rating is number && stats.rating >= 1 && stats.rating <= 5)) &&
+        (!('exerciseDetails' in stats) || stats.exerciseDetails is list);
+    }
+
+    // Activity feed collection rules
+    match /users/{userId}/activityFeed/{activityId} {
+      allow read: if isAuthenticated() && userId == request.auth.uid;
+      allow create: if isAuthenticated() && userId == request.auth.uid;
+      allow update: if isAuthenticated() && userId == request.auth.uid;
+      allow delete: if isAuthenticated() && userId == request.auth.uid;
+    }
   }
 }

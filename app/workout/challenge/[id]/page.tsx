@@ -2,13 +2,11 @@
 
 import { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
-import { workoutCategories } from '@/app/data/workouts';
-import { motion } from 'framer-motion';
-import { doc, getDoc, setDoc, updateDoc } from 'firebase/firestore';
+import { doc, getDoc, updateDoc } from 'firebase/firestore';
 import { db } from '@/app/firebase/config';
 import { useAuth } from '@/app/hooks/useAuth';
-import ChallengeTracker from '@/app/components/Workout/ChallengeTracker';
 import { ChallengeWorkout } from '@/app/types/workout';
+import ChallengeTracker from '@/app/components/Workout/ChallengeTracker';
 
 export default function ChallengePage() {
   const { id } = useParams();
@@ -142,7 +140,6 @@ export default function ChallengePage() {
             imageUrl: workout?.image || '',
             level: workout?.level || 'beginner',
             days: workout?.duration || 30,
-            caloriesPerDay: 500, // Default value
             exercises: workout?.levels?.[0]?.exercises.map(e => ({
               name: e.name,
               sets: e.sets,

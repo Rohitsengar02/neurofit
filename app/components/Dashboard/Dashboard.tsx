@@ -41,6 +41,7 @@ import ActivityStats from './cards/ActivityStats';
 
 import CardModal from './components/CardModal';
 import CardPreview from './components/CardPreview';
+import TodayWorkout from './cards/TodayWorkout';
 
 interface DashboardProps {}
 
@@ -121,6 +122,16 @@ function Dashboard() {
     {
       id: 'weeklyFitness',
       title: 'Weekly Fitness',
+      icon: FaDumbbell,
+      color: 'bg-gradient-to-br from-blue-500 to-blue-600',
+      stats: [
+        { label: 'Calories', value: '2,450' },
+        { label: 'Activities', value: '12' },
+      ],
+    },
+    {
+      id: 'todayWorkout',
+      title: 'Today Workout',
       icon: FaDumbbell,
       color: 'bg-gradient-to-br from-blue-500 to-blue-600',
       stats: [
@@ -214,6 +225,7 @@ function Dashboard() {
 
                 <NutritionScore />
                 <ActiveChallenges />
+                <TodayWorkout />
                 <ActivityStats />
                 <AiRecommendations />
                
