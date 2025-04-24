@@ -507,6 +507,33 @@ service cloud.firestore {
         allow read: if isOwner(userId);
         allow write: if isOwner(userId) && validateWaterHistory();
       }
+      
+      // Water Tracker Rules - New path as requested by user
+      match /watertracker/{document=**} {
+        allow read: if isOwner(userId);
+        allow write: if isOwner(userId);
+      }
+      
+      // Water Tracker Preferences
+      match /watertracker/preferences {
+        allow read: if isOwner(userId);
+        allow write: if isOwner(userId) && 
+          request.resource.data.keys().hasAll(['goal']) &&
+          request.resource.data.goal is number && 
+          request.resource.data.goal > 0;
+      }
+      
+      // Water Tracker Daily Logs
+      match /watertracker/{date} {
+        allow read: if isOwner(userId);
+        allow write: if isOwner(userId) && 
+          request.resource.data.keys().hasAll(['amount', 'goal', 'logs']) &&
+          request.resource.data.amount is number && 
+          request.resource.data.amount >= 0 &&
+          request.resource.data.goal is number && 
+          request.resource.data.goal > 0 &&
+          request.resource.data.logs is list;
+      }
 
       // Weight Rules
       match /userData/weight/{entryId} {
@@ -1219,6 +1246,140 @@ service cloud.firestore {
       allow create: if isAuthenticated() && userId == request.auth.uid;
       allow update: if isAuthenticated() && userId == request.auth.uid;
       allow delete: if isAuthenticated() && userId == request.auth.uid;
+    }
+    
+    // Mental Health collection rules
+    match /users/{userId}/mentalHealth/{documentId} {
+      allow read: if isAuthenticated() && userId == request.auth.uid;
+      allow create: if isAuthenticated() && userId == request.auth.uid;
+      allow update: if isAuthenticated() && userId == request.auth.uid;
+      allow delete: if isAuthenticated() && userId == request.auth.uid;
+      
+      // Meditation sessions subcollection
+      match /meditation/sessions/{sessionId} {
+        allow read: if isAuthenticated() && userId == request.auth.uid;
+        allow create: if isAuthenticated() && userId == request.auth.uid;
+        allow update: if isAuthenticated() && userId == request.auth.uid;
+        allow delete: if isAuthenticated() && userId == request.auth.uid;
+        
+        function isValidMeditationSession() {
+          let session = request.resource.data;
+          return 
+            session.date is string &&
+            session.minutes is number && session.minutes > 0 &&
+            session.type is string &&
+            session.completed is bool &&
+            session.timestamp is timestamp;
+        }
+        
+        allow create: if isAuthenticated() && userId == request.auth.uid && isValidMeditationSession();
+        allow update: if isAuthenticated() && userId == request.auth.uid && isValidMeditationSession();
+      }
+      
+      // Gratitude entries subcollection
+      match /gratitude/entries/{entryId} {
+        allow read: if isAuthenticated() && userId == request.auth.uid;
+        allow create: if isAuthenticated() && userId == request.auth.uid;
+        allow update: if isAuthenticated() && userId == request.auth.uid;
+        allow delete: if isAuthenticated() && userId == request.auth.uid;
+        
+        function isValidGratitudeEntry() {
+          let entry = request.resource.data;
+          return 
+            entry.content is string && entry.content.size() > 0 &&
+            entry.date is string &&
+            entry.timestamp is timestamp;
+        }
+        
+        allow create: if isAuthenticated() && userId == request.auth.uid && isValidGratitudeEntry();
+        allow update: if isAuthenticated() && userId == request.auth.uid && isValidGratitudeEntry();
+      }
+      
+      // Breathing exercises sessions subcollection
+      match /breathing/sessions/{sessionId} {
+        allow read: if isAuthenticated() && userId == request.auth.uid;
+        allow create: if isAuthenticated() && userId == request.auth.uid;
+        allow update: if isAuthenticated() && userId == request.auth.uid;
+        allow delete: if isAuthenticated() && userId == request.auth.uid;
+        
+        function isValidBreathingSession() {
+          let session = request.resource.data;
+          return 
+            session.date is string &&
+            session.technique is string &&
+            session.duration is number && session.duration > 0 &&
+            session.completed is bool &&
+            session.timestamp is timestamp;
+        }
+        
+        allow create: if isAuthenticated() && userId == request.auth.uid && isValidBreathingSession();
+        allow update: if isAuthenticated() && userId == request.auth.uid && isValidBreathingSession();
+      }
+      
+      // Stress management entries subcollection
+      match /stress/entries/{entryId} {
+        allow read: if isAuthenticated() && userId == request.auth.uid;
+        allow create: if isAuthenticated() && userId == request.auth.uid;
+        allow update: if isAuthenticated() && userId == request.auth.uid;
+        allow delete: if isAuthenticated() && userId == request.auth.uid;
+        
+        function isValidStressEntry() {
+          let entry = request.resource.data;
+          return 
+            entry.level is number && entry.level >= 1 && entry.level <= 10 &&
+            entry.date is string &&
+            (!('triggers' in entry) || entry.triggers is list) &&
+            (!('notes' in entry) || entry.notes is string) &&
+            entry.timestamp is timestamp;
+        }
+        
+        allow create: if isAuthenticated() && userId == request.auth.uid && isValidStressEntry();
+        allow update: if isAuthenticated() && userId == request.auth.uid && isValidStressEntry();
+      }
+      
+      // Sleep quality entries subcollection
+      match /sleep/entries/{entryId} {
+        allow read: if isAuthenticated() && userId == request.auth.uid;
+        allow create: if isAuthenticated() && userId == request.auth.uid;
+        allow update: if isAuthenticated() && userId == request.auth.uid;
+        allow delete: if isAuthenticated() && userId == request.auth.uid;
+        
+        function isValidSleepEntry() {
+          let entry = request.resource.data;
+          return 
+            entry.date is string &&
+            entry.hoursSlept is number && entry.hoursSlept >= 0 && entry.hoursSlept <= 24 &&
+            entry.quality is number && entry.quality >= 1 && entry.quality <= 10 &&
+            (!('deepSleepPercentage' in entry) || (entry.deepSleepPercentage is number && entry.deepSleepPercentage >= 0 && entry.deepSleepPercentage <= 100)) &&
+            (!('remSleepPercentage' in entry) || (entry.remSleepPercentage is number && entry.remSleepPercentage >= 0 && entry.remSleepPercentage <= 100)) &&
+            (!('lightSleepPercentage' in entry) || (entry.lightSleepPercentage is number && entry.lightSleepPercentage >= 0 && entry.lightSleepPercentage <= 100)) &&
+            entry.timestamp is timestamp;
+        }
+        
+        allow create: if isAuthenticated() && userId == request.auth.uid && isValidSleepEntry();
+        allow update: if isAuthenticated() && userId == request.auth.uid && isValidSleepEntry();
+      }
+      
+      // Cognitive training sessions subcollection
+      match /cognitive/sessions/{sessionId} {
+        allow read: if isAuthenticated() && userId == request.auth.uid;
+        allow create: if isAuthenticated() && userId == request.auth.uid;
+        allow update: if isAuthenticated() && userId == request.auth.uid;
+        allow delete: if isAuthenticated() && userId == request.auth.uid;
+        
+        function isValidCognitiveSession() {
+          let session = request.resource.data;
+          return 
+            session.date is string &&
+            session.gameType is string &&
+            session.score is number && session.score >= 0 &&
+            session.duration is number && session.duration > 0 &&
+            session.timestamp is timestamp;
+        }
+        
+        allow create: if isAuthenticated() && userId == request.auth.uid && isValidCognitiveSession();
+        allow update: if isAuthenticated() && userId == request.auth.uid && isValidCognitiveSession();
+      }
     }
   }
 }

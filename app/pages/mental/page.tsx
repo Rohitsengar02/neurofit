@@ -4,6 +4,12 @@ import React from 'react';
 import { motion } from 'framer-motion';
 import MindfulnessTracker from '@/app/components/Dashboard/cards/MindfulnessTracker';
 import MoodTracker from '@/app/components/Dashboard/cards/MoodTracker';
+import SleepQualityInsights from '@/app/components/Dashboard/cards/SleepQualityInsights';
+import MeditationTracker from '@/app/components/Dashboard/cards/MeditationTracker';
+import GratitudeJournal from '@/app/components/Dashboard/cards/GratitudeJournal';
+import BreathingExercises from '@/app/components/Dashboard/cards/BreathingExercises';
+import StressManagement from '@/app/components/Dashboard/cards/StressManagement';
+import CognitiveTraining from '@/app/components/Dashboard/cards/CognitiveTraining';
 
 export default function MentalHealthPage() {
   return (
@@ -24,6 +30,55 @@ export default function MentalHealthPage() {
             transition={{ delay: 0.1 }}
           >
             <MindfulnessTracker />
+          </motion.div>
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.1 }}
+          >
+            <SleepQualityInsights />
+          </motion.div>
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.1 }}
+          >
+            <MeditationTracker />
+          </motion.div>
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.1 }}
+          >
+            <GratitudeJournal />
+          </motion.div>
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.1 }}
+          >
+            <BreathingExercises />
+          </motion.div>
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.1 }}
+          >
+             <StressManagement />
+          </motion.div>
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.1 }}
+          >
+            <SleepQualityInsights />
+          </motion.div>
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.1 }}
+          >
+            <CognitiveTraining />
           </motion.div>
           
           <motion.div

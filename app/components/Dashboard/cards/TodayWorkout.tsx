@@ -1,9 +1,8 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
 import { useTheme } from 'next-themes';
-import { FaDumbbell, FaFire, FaCheck, FaArrowRight, FaCalendarAlt } from 'react-icons/fa';
+import { FaDumbbell, FaFire, FaCheck, FaArrowRight, FaCalendarAlt, FaHistory } from 'react-icons/fa';
 import { IoMdTime } from 'react-icons/io';
 import { collection, query, where, getDocs, orderBy, limit } from 'firebase/firestore';
 import { db } from '@/app/firebase/config';
@@ -268,15 +267,25 @@ const TodayWorkout = () => {
             </div>
           </div>
           
-          {/* View Details Button */}
-          <Link 
-            href={`/workout/days/${todayStats.workoutId}`}
-            className={`w-full py-2 rounded-lg text-center text-sm font-medium mt-2 flex items-center justify-center ${
-              theme === 'dark' ? 'bg-gray-700 hover:bg-gray-600 text-white' : 'bg-gray-200 hover:bg-gray-300 text-gray-800'
-            }`}
-          >
-            View Workout Plan <FaArrowRight className="ml-2" />
-          </Link>
+          {/* Action Buttons */}
+          <div className="grid grid-cols-2 gap-2 mt-2">
+            <Link 
+              href={`/workout/days/${todayStats.workoutId}`}
+              className={`py-2 rounded-lg text-center text-sm font-medium flex items-center justify-center ${
+                theme === 'dark' ? 'bg-gray-700 hover:bg-gray-600 text-white' : 'bg-gray-200 hover:bg-gray-300 text-gray-800'
+              }`}
+            >
+              <FaDumbbell className="mr-2" /> Workout Plan
+            </Link>
+            <Link 
+              href="/pages/workout-history"
+              className={`py-2 rounded-lg text-center text-sm font-medium flex items-center justify-center ${
+                theme === 'dark' ? 'bg-blue-600 hover:bg-blue-700 text-white' : 'bg-blue-500 hover:bg-blue-600 text-white'
+              }`}
+            >
+              <FaHistory className="mr-2" /> History
+            </Link>
+          </div>
         </div>
       </div>
     );
@@ -317,27 +326,22 @@ const TodayWorkout = () => {
             <div className="mb-4">
               <div className="text-xs text-gray-500 mb-1">Today's Exercises</div>
               <div className="max-h-48 overflow-y-auto pr-2">
-                <AnimatePresence>
-                  {currentDayExercises.map((exercise, index) => (
-                    <motion.div 
-                      key={`exercise-${index}`}
-                      initial={{ opacity: 0, y: 10 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      transition={{ delay: index * 0.1 }}
-                      className={`p-3 rounded-lg mb-2 flex items-center ${theme === 'dark' ? 'bg-gray-700' : 'bg-gray-100'}`}
-                    >
-                      <div className="w-8 h-8 rounded-full bg-blue-500/20 flex items-center justify-center mr-3">
-                        <FaDumbbell className="text-blue-500" />
+                {currentDayExercises.map((exercise, index) => (
+                  <div 
+                    key={`exercise-${index}`}
+                    className={`p-3 rounded-lg mb-2 flex items-center ${theme === 'dark' ? 'bg-gray-700' : 'bg-gray-100'}`}
+                  >
+                    <div className="w-8 h-8 rounded-full bg-blue-500/20 flex items-center justify-center mr-3">
+                      <FaDumbbell className="text-blue-500" />
+                    </div>
+                    <div className="flex-1">
+                      <div className="font-medium">{exercise.name}</div>
+                      <div className="text-xs text-gray-500 mt-1">
+                        {exercise.sets} sets • {exercise.reps} reps
                       </div>
-                      <div className="flex-1">
-                        <div className="font-medium">{exercise.name}</div>
-                        <div className="text-xs text-gray-500 mt-1">
-                          {exercise.sets} sets • {exercise.reps} reps
-                        </div>
-                      </div>
-                    </motion.div>
-                  ))}
-                </AnimatePresence>
+                    </div>
+                  </div>
+                ))}
                 
                 {currentDayExercises.length === 0 && (
                   <div className={`text-center py-4 ${theme === 'dark' ? 'text-gray-400' : 'text-gray-500'}`}>
@@ -347,17 +351,27 @@ const TodayWorkout = () => {
               </div>
             </div>
             
-            {/* Start Workout Button */}
-            {currentDayExercises.length > 0 && (
+            {/* Action Buttons */}
+            <div className="grid grid-cols-1 gap-2">
+              {currentDayExercises.length > 0 && (
+                <Link 
+                  href={`/workout/execute/${activeWorkout.workoutId}/${activeWorkout.currentDay}`}
+                  className={`py-3 rounded-lg text-center font-medium flex items-center justify-center ${
+                    theme === 'dark' ? 'bg-blue-600 hover:bg-blue-700 text-white' : 'bg-blue-600 hover:bg-blue-700 text-white'
+                  }`}
+                >
+                  Start Today's Workout <FaArrowRight className="ml-2" />
+                </Link>
+              )}
               <Link 
-                href={`/workout/execute/${activeWorkout.workoutId}/${activeWorkout.currentDay}`}
-                className={`w-full py-3 rounded-lg text-center font-medium flex items-center justify-center ${
-                  theme === 'dark' ? 'bg-blue-600 hover:bg-blue-700 text-white' : 'bg-blue-600 hover:bg-blue-700 text-white'
+                href="/pages/workout-history"
+                className={`py-2 rounded-lg text-center text-sm font-medium flex items-center justify-center ${
+                  theme === 'dark' ? 'bg-gray-700 hover:bg-gray-600 text-white' : 'bg-gray-200 hover:bg-gray-300 text-gray-800'
                 }`}
               >
-                Start Today's Workout <FaArrowRight className="ml-2" />
+                <FaHistory className="mr-2" /> View Workout History
               </Link>
-            )}
+            </div>
           </>
         ) : (
           <div className="text-center py-6">
@@ -376,7 +390,7 @@ const TodayWorkout = () => {
                 theme === 'dark' ? 'bg-blue-600 hover:bg-blue-700 text-white' : 'bg-blue-600 hover:bg-blue-700 text-white'
               }`}
             >
-              Browse Workouts
+              <FaDumbbell className="mr-2" /> Browse Workouts
             </Link>
           </div>
         )}

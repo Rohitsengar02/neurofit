@@ -42,6 +42,13 @@ import ActivityStats from './cards/ActivityStats';
 import CardModal from './components/CardModal';
 import CardPreview from './components/CardPreview';
 import TodayWorkout from './cards/TodayWorkout';
+import WaterTracker from './cards/WaterTracker';
+import MeditationTracker from './cards/MeditationTracker';
+import GratitudeJournal from './cards/GratitudeJournal';
+import BreathingExercises from './cards/BreathingExercises';
+import StressManagement from './cards/StressManagement';
+import SleepQualityInsights from './cards/SleepQualityInsights';
+import CognitiveTraining from './cards/CognitiveTraining';
 
 interface DashboardProps {}
 
@@ -227,25 +234,16 @@ function Dashboard() {
                 <ActiveChallenges />
                 <TodayWorkout />
                 <ActivityStats />
-                <AiRecommendations />
-               
-                <WeightProgress />
-
-
-                <StepsTracker />
                 <WorkoutStreak />
-                
+                <WaterTracker />
+                <AiRecommendations />
+                <WeightProgress />
+                <StepsTracker />
                 <FitnessGoals />
                 <WorkoutPlan />
-                
                 <WeeklyFitness />
-                
                 <SleepQuality />
                 <HeartRate />
-                
-               
-                
-                
               </motion.div>
             )}
 
@@ -257,7 +255,13 @@ function Dashboard() {
                 exit={{ opacity: 0, y: -20 }}
                 className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4"
               >
+                <StressManagement />
                 <MindfulnessTracker />
+                <MeditationTracker />
+                <CognitiveTraining />
+                <BreathingExercises />
+                <GratitudeJournal />
+                <SleepQualityInsights />
                 <MoodTracker />
                 <div className="text-center text-gray-600 dark:text-gray-300 py-12 col-span-full">
                   More mental health features coming soon...
