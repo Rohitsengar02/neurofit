@@ -1,8 +1,8 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { FaMoon, FaPlus } from 'react-icons/fa';
+import { FaMoon, FaPlus, FaBed, FaChartLine, FaCalendarAlt, FaChevronLeft, FaChevronRight } from 'react-icons/fa';
 import { collection, doc, getDoc, setDoc, updateDoc, serverTimestamp, onSnapshot, query, orderBy, limit, getDocs } from 'firebase/firestore';
 import { db } from '@/app/firebase/config';
 import { useAuth } from '@/app/hooks/useAuth';
@@ -43,6 +43,11 @@ const SleepQualityInsights = () => {
   const [hoursSlept, setHoursSlept] = useState(7.5);
   const [quality, setQuality] = useState(7);
   const [showAnimation, setShowAnimation] = useState(false);
+  const [showSleepAnalysis, setShowSleepAnalysis] = useState(false);
+  const [selectedDate, setSelectedDate] = useState<string>(format(new Date(), 'yyyy-MM-dd'));
+  const [selectedEntries, setSelectedEntries] = useState<SleepEntry[]>([]);
+  const [loadingEntries, setLoadingEntries] = useState(false);
+  const calendarRef = useRef<HTMLDivElement>(null);
 
   // Generate animated stars for background
   const generateStars = (count: number) => {
@@ -58,6 +63,103 @@ const SleepQualityInsights = () => {
   };
   
   const stars = generateStars(30);
+
+  // Fetch sleep entries for a specific date
+  const fetchSleepEntriesForDate = async (date: string) => {
+    if (!user) return;
+    
+    setLoadingEntries(true);
+    try {
+      // Use the correct path that matches our Firestore rules
+      const entriesCollectionRef = collection(db, `users/${user.uid}/mentalHealth/sleep/entries`);
+      const entriesQuery = query(entriesCollectionRef, orderBy('timestamp', 'desc'));
+      
+      try {
+        const entriesSnapshot = await getDocs(entriesQuery);
+        
+        const allEntries: SleepEntry[] = [];
+        entriesSnapshot.forEach(doc => {
+          const data = doc.data();
+          allEntries.push({
+            id: doc.id,
+            date: data.date,
+            hoursSlept: data.hoursSlept,
+            quality: data.quality,
+            deepSleepPercentage: data.deepSleepPercentage || 25,
+            remSleepPercentage: data.remSleepPercentage || 25,
+            lightSleepPercentage: data.lightSleepPercentage || 50,
+            timestamp: data.timestamp.toDate()
+          });
+        });
+        
+        // Filter entries for the selected date
+        const entriesForDate = allEntries.filter(entry => entry.date === date);
+        setSelectedEntries(entriesForDate);
+      } catch (error) {
+        console.error('Error accessing sleep entries:', error);
+      }
+    } catch (err) {
+      console.error('Error fetching sleep entries for date:', err);
+    } finally {
+      setLoadingEntries(false);
+    }
+  };
+  
+  // Generate calendar dates
+  const generateCalendarDates = () => {
+    const dates = [];
+    const today = new Date();
+    const seenDates = new Set(); // Track dates we've already added
+    
+    // Generate dates for the last 30 days
+    for (let i = 30; i >= 0; i--) {
+      const date = new Date();
+      date.setDate(today.getDate() - i);
+      const dateStr = format(date, 'yyyy-MM-dd');
+      
+      // Only add the date if we haven't seen it before
+      if (!seenDates.has(dateStr)) {
+        seenDates.add(dateStr);
+        dates.push(date);
+      }
+    }
+    
+    return dates;
+  };
+  
+  // Format date for display
+  const formatDateForDisplay = (date: Date) => {
+    return format(date, 'EEE, MMM d');
+  };
+  
+  // Check if date is today
+  const isToday = (date: Date) => {
+    const today = new Date();
+    return date.getDate() === today.getDate() && 
+           date.getMonth() === today.getMonth() && 
+           date.getFullYear() === today.getFullYear();
+  };
+  
+  // Scroll calendar left
+  const scrollLeft = () => {
+    if (calendarRef.current) {
+      calendarRef.current.scrollBy({ left: -300, behavior: 'smooth' });
+    }
+  };
+  
+  // Scroll calendar right
+  const scrollRight = () => {
+    if (calendarRef.current) {
+      calendarRef.current.scrollBy({ left: 300, behavior: 'smooth' });
+    }
+  };
+  
+  // Handle date selection
+  const handleDateSelect = (date: Date) => {
+    const formattedDate = format(date, 'yyyy-MM-dd');
+    setSelectedDate(formattedDate);
+    fetchSleepEntriesForDate(formattedDate);
+  };
 
   useEffect(() => {
     const fetchSleepData = async () => {
@@ -228,23 +330,40 @@ const SleepQualityInsights = () => {
       const remSleep = Math.floor(15 + Math.random() * 15); // 15-30%
       const lightSleep = 100 - deepSleep - remSleep; // Remaining percentage
       
-      // Add a new entry
-      const entryId = `entry_${Date.now()}`;
-      await setDoc(doc(entriesCollectionRef, entryId), {
-        date: today,
-        hoursSlept: hoursSlept,
-        quality: quality,
-        deepSleepPercentage: deepSleep,
-        remSleepPercentage: remSleep,
-        lightSleepPercentage: lightSleep,
-        timestamp: serverTimestamp()
-      });
+      // First, check if the sleep document exists and create it if it doesn't
+      const timestamp = Date.now();
+      const entryId = `entry_${timestamp}`;
       
-      // Update the main document
-      await updateDoc(sleepDocRef, {
-        lastEntry: new Date(),
-        lastUpdated: serverTimestamp()
-      });
+      try {
+        const sleepDoc = await getDoc(sleepDocRef);
+        if (!sleepDoc.exists()) {
+          // Create the sleep document if it doesn't exist
+          await setDoc(sleepDocRef, {
+            lastUpdated: serverTimestamp()
+          });
+        }
+        
+        // Add a new entry with a unique timestamp to prevent duplicate keys
+        await setDoc(doc(entriesCollectionRef, entryId), {
+          id: entryId, // Include ID in the document data
+          date: today,
+          hoursSlept: hoursSlept,
+          quality: quality,
+          deepSleepPercentage: deepSleep,
+          remSleepPercentage: remSleep,
+          lightSleepPercentage: lightSleep,
+          timestamp: serverTimestamp()
+        });
+        
+        // Update the main document
+        await updateDoc(sleepDocRef, {
+          lastEntry: new Date(),
+          lastUpdated: serverTimestamp()
+        });
+      } catch (error) {
+        console.error('Error saving sleep data:', error);
+        throw error;
+      }
 
       // Update local state
       const newEntry: SleepEntry = {
@@ -310,7 +429,8 @@ const SleepQualityInsights = () => {
   }
 
   return (
-    <div className="rounded-xl shadow-md overflow-hidden h-full relative bg-gradient-to-br from-indigo-600 to-purple-700">
+    <>
+      <div className="rounded-xl shadow-md overflow-hidden h-full relative bg-gradient-to-br from-indigo-600 to-purple-700">
       {/* Animated Stars Background */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
         {stars.map((star) => (
@@ -544,17 +664,366 @@ const SleepQualityInsights = () => {
             whileHover={{ scale: 1.02 }}
             whileTap={{ scale: 0.98 }}
           >
-            <Link 
-              href="/pages/mental-health/sleep"
+            <button 
+              onClick={() => {
+                setShowSleepAnalysis(true);
+                fetchSleepEntriesForDate(selectedDate);
+              }}
               className="block w-full py-2 bg-white/20 hover:bg-white/30 text-white rounded-lg text-center text-sm font-medium"
             >
               View Sleep Analysis
-            </Link>
+            </button>
           </motion.div>
         )}
       </div>
-    </div>
+      </div>
+
+      {/* Sleep Analysis Modal */}
+      <AnimatePresence>
+        {showSleepAnalysis && (
+          <>
+            {/* Backdrop */}
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 0.5 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 bg-black z-40"
+              onClick={() => setShowSleepAnalysis(false)}
+            />
+
+            {/* Modal */}
+            <motion.div
+              initial={{ y: '100%', opacity: 0 }}
+              animate={{ y: 0, opacity: 1 }}
+              exit={{ y: '100%', opacity: 0 }}
+              className="fixed bottom-12 left-0 right-0 bg-white dark:bg-gray-800 rounded-t-3xl p-6 shadow-xl max-h-[90vh] overflow-y-auto z-50"
+            >
+              <div className="space-y-6">
+                <div className="flex justify-between items-center">
+                  <h3 className="text-2xl font-bold text-gray-900 dark:text-white">
+                    Sleep Analysis
+                  </h3>
+                  <button
+                    onClick={() => setShowSleepAnalysis(false)}
+                    className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
+                  >
+                    ✕
+                  </button>
+                </div>
+
+                {/* Calendar */}
+                <div className="relative">
+                  <div className="flex justify-between items-center mb-3">
+                    <h4 className="font-semibold text-gray-900 dark:text-white">
+                      Select Date
+                    </h4>
+                    <div className="flex gap-2">
+                      <button 
+                        onClick={scrollLeft}
+                        className="p-2 rounded-full bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
+                      >
+                        <FaChevronLeft className="w-4 h-4" />
+                      </button>
+                      <button 
+                        onClick={scrollRight}
+                        className="p-2 rounded-full bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
+                      >
+                        <FaChevronRight className="w-4 h-4" />
+                      </button>
+                    </div>
+                  </div>
+                  
+                  <div 
+                    ref={calendarRef}
+                    className="flex overflow-x-auto pb-4 hide-scrollbar gap-2 snap-x snap-mandatory"
+                  >
+                    {generateCalendarDates().map((date, index) => {
+                      const dateStr = format(date, 'yyyy-MM-dd');
+                      const isSelected = dateStr === selectedDate;
+                      return (
+                        <motion.div
+                          key={`date-${dateStr}-${index}`}
+                          initial={{ opacity: 0, scale: 0.9 }}
+                          animate={{ opacity: 1, scale: 1 }}
+                          transition={{ delay: index * 0.01 }}
+                          onClick={() => handleDateSelect(date)}
+                          className={`
+                            flex-shrink-0 snap-start w-20 h-20 rounded-lg flex flex-col items-center justify-center cursor-pointer
+                            ${isSelected 
+                              ? 'bg-indigo-100 dark:bg-indigo-900/30 border-2 border-indigo-500' 
+                              : isToday(date)
+                                ? 'bg-blue-50 dark:bg-blue-900/20 border border-blue-300 dark:border-blue-700'
+                                : 'bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600'}
+                          `}
+                        >
+                          <span className={`text-xs ${isSelected ? 'text-indigo-700 dark:text-indigo-300' : 'text-gray-500 dark:text-gray-400'}`}>
+                            {format(date, 'EEE')}
+                          </span>
+                          <span className={`text-lg font-bold ${isSelected ? 'text-indigo-700 dark:text-indigo-300' : 'text-gray-900 dark:text-white'}`}>
+                            {date.getDate()}
+                          </span>
+                          <span className={`text-xs ${isSelected ? 'text-indigo-700 dark:text-indigo-300' : 'text-gray-500 dark:text-gray-400'}`}>
+                            {format(date, 'MMM')}
+                          </span>
+                        </motion.div>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Sleep data for selected date */}
+                <div>
+                  <h4 className="font-semibold text-gray-900 dark:text-white mb-3">
+                    Sleep Data for {formatDateForDisplay(new Date(selectedDate))}
+                  </h4>
+                  
+                  {loadingEntries ? (
+                    <div className="flex justify-center py-8">
+                      <div className="w-8 h-8 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin" />
+                    </div>
+                  ) : selectedEntries.length > 0 ? (
+                    <div className="space-y-4">
+                      {/* Sleep Summary */}
+                      <div className="bg-indigo-50 dark:bg-indigo-900/20 rounded-xl p-4">
+                        <h5 className="font-semibold text-indigo-900 dark:text-indigo-100 mb-2">
+                          Sleep Summary
+                        </h5>
+                        <div className="grid grid-cols-3 gap-4">
+                          <div>
+                            <p className="text-sm text-gray-500 dark:text-gray-400">Hours Slept</p>
+                            <p className="font-semibold text-gray-900 dark:text-white">
+                              {selectedEntries[0].hoursSlept.toFixed(1)} hrs
+                            </p>
+                          </div>
+                          <div>
+                            <p className="text-sm text-gray-500 dark:text-gray-400">Quality</p>
+                            <p className="font-semibold text-gray-900 dark:text-white">
+                              {selectedEntries[0].quality}/10
+                            </p>
+                          </div>
+                          <div>
+                            <p className="text-sm text-gray-500 dark:text-gray-400">Recorded</p>
+                            <p className="font-semibold text-gray-900 dark:text-white">
+                              {format(selectedEntries[0].timestamp, 'h:mm a')}
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Sleep Cycles */}
+                      <div className="bg-white dark:bg-gray-700 rounded-xl p-4 shadow-sm">
+                        <h5 className="font-semibold text-gray-900 dark:text-white mb-3">
+                          Sleep Cycles
+                        </h5>
+                        <div className="space-y-3">
+                          <div>
+                            <div className="flex justify-between items-center mb-1">
+                              <span className="text-sm text-gray-600 dark:text-gray-300">Deep Sleep</span>
+                              <span className="text-sm font-medium text-gray-900 dark:text-white">
+                                {selectedEntries[0].deepSleepPercentage}%
+                              </span>
+                            </div>
+                            <div className="w-full h-2 bg-gray-200 dark:bg-gray-600 rounded-full overflow-hidden">
+                              <motion.div 
+                                className="h-full bg-indigo-600"
+                                initial={{ width: 0 }}
+                                animate={{ width: `${selectedEntries[0].deepSleepPercentage}%` }}
+                                transition={{ duration: 1 }}
+                              />
+                            </div>
+                          </div>
+                          
+                          <div>
+                            <div className="flex justify-between items-center mb-1">
+                              <span className="text-sm text-gray-600 dark:text-gray-300">REM Sleep</span>
+                              <span className="text-sm font-medium text-gray-900 dark:text-white">
+                                {selectedEntries[0].remSleepPercentage}%
+                              </span>
+                            </div>
+                            <div className="w-full h-2 bg-gray-200 dark:bg-gray-600 rounded-full overflow-hidden">
+                              <motion.div 
+                                className="h-full bg-purple-600"
+                                initial={{ width: 0 }}
+                                animate={{ width: `${selectedEntries[0].remSleepPercentage}%` }}
+                                transition={{ duration: 1, delay: 0.2 }}
+                              />
+                            </div>
+                          </div>
+                          
+                          <div>
+                            <div className="flex justify-between items-center mb-1">
+                              <span className="text-sm text-gray-600 dark:text-gray-300">Light Sleep</span>
+                              <span className="text-sm font-medium text-gray-900 dark:text-white">
+                                {selectedEntries[0].lightSleepPercentage}%
+                              </span>
+                            </div>
+                            <div className="w-full h-2 bg-gray-200 dark:bg-gray-600 rounded-full overflow-hidden">
+                              <motion.div 
+                                className="h-full bg-blue-500"
+                                initial={{ width: 0 }}
+                                animate={{ width: `${selectedEntries[0].lightSleepPercentage}%` }}
+                                transition={{ duration: 1, delay: 0.4 }}
+                              />
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Sleep Quality Analysis */}
+                      <div className="bg-white dark:bg-gray-700 rounded-xl p-4 shadow-sm">
+                        <h5 className="font-semibold text-gray-900 dark:text-white mb-2">
+                          Sleep Quality Analysis
+                        </h5>
+                        <div className="space-y-2">
+                          <div className="flex items-center gap-2">
+                            <div className={`w-3 h-3 rounded-full ${selectedEntries[0].quality >= 8 ? 'bg-green-500' : selectedEntries[0].quality >= 6 ? 'bg-yellow-500' : 'bg-red-500'}`}></div>
+                            <p className="text-sm text-gray-700 dark:text-gray-300">
+                              {selectedEntries[0].quality >= 8 ? 'Excellent sleep quality' : 
+                               selectedEntries[0].quality >= 6 ? 'Good sleep quality' : 
+                               'Poor sleep quality'}
+                            </p>
+                          </div>
+                          <p className="text-sm text-gray-600 dark:text-gray-400">
+                            {selectedEntries[0].hoursSlept >= 7 ? 
+                              'You got sufficient sleep hours for optimal health.' : 
+                              'You may need more sleep hours for optimal health.'}
+                          </p>
+                          <p className="text-sm text-gray-600 dark:text-gray-400">
+                            {selectedEntries[0].deepSleepPercentage >= 25 ? 
+                              'Your deep sleep percentage is good, supporting physical recovery.' : 
+                              'Your deep sleep percentage is lower than ideal for optimal physical recovery.'}
+                          </p>
+                          <p className="text-sm text-gray-600 dark:text-gray-400">
+                            {selectedEntries[0].remSleepPercentage >= 20 ? 
+                              'Your REM sleep percentage is good, supporting cognitive function.' : 
+                              'Your REM sleep percentage is lower than ideal for optimal cognitive function.'}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="text-center py-12 bg-gray-50 dark:bg-gray-700/50 rounded-xl">
+                      <FaBed className="text-3xl text-gray-400 dark:text-gray-500 mx-auto mb-3" />
+                      <p className="text-gray-600 dark:text-gray-400 mb-2">No sleep data recorded for this date</p>
+                      <button 
+                        onClick={() => {
+                          setShowSleepAnalysis(false);
+                          setShowAddForm(true);
+                        }}
+                        className="text-sm text-indigo-600 dark:text-indigo-400 hover:text-indigo-700 dark:hover:text-indigo-300"
+                      >
+                        Add sleep data
+                      </button>
+                    </div>
+                  )}
+                </div>
+
+                {/* Weekly Trends */}
+                {sleepData.recentEntries.length > 0 && (
+                  <div className="bg-white dark:bg-gray-700 rounded-xl p-4 shadow-sm">
+                    <h5 className="font-semibold text-gray-900 dark:text-white mb-3">
+                      Weekly Trends
+                    </h5>
+                    <div className="space-y-4">
+                      <div>
+                        <div className="flex justify-between items-center mb-1">
+                          <span className="text-sm text-gray-600 dark:text-gray-300">Average Hours</span>
+                          <span className="text-sm font-medium text-gray-900 dark:text-white">
+                            {sleepData.weeklyAverage.toFixed(1)} hrs
+                          </span>
+                        </div>
+                        <div className="w-full h-2 bg-gray-200 dark:bg-gray-600 rounded-full overflow-hidden">
+                          <motion.div 
+                            className={`h-full ${sleepData.weeklyAverage >= 7 ? 'bg-green-500' : sleepData.weeklyAverage >= 6 ? 'bg-yellow-500' : 'bg-red-500'}`}
+                            initial={{ width: 0 }}
+                            animate={{ width: `${Math.min(100, (sleepData.weeklyAverage / 10) * 100)}%` }}
+                            transition={{ duration: 1 }}
+                          />
+                        </div>
+                      </div>
+                      
+                      <div>
+                        <div className="flex justify-between items-center mb-1">
+                          <span className="text-sm text-gray-600 dark:text-gray-300">Average Quality</span>
+                          <span className="text-sm font-medium text-gray-900 dark:text-white">
+                            {sleepData.qualityAverage.toFixed(1)}/10
+                          </span>
+                        </div>
+                        <div className="w-full h-2 bg-gray-200 dark:bg-gray-600 rounded-full overflow-hidden">
+                          <motion.div 
+                            className={`h-full ${sleepData.qualityAverage >= 8 ? 'bg-green-500' : sleepData.qualityAverage >= 6 ? 'bg-yellow-500' : 'bg-red-500'}`}
+                            initial={{ width: 0 }}
+                            animate={{ width: `${(sleepData.qualityAverage / 10) * 100}%` }}
+                            transition={{ duration: 1, delay: 0.2 }}
+                          />
+                        </div>
+                      </div>
+                      
+                      <div className="flex items-center gap-2">
+                        <div className={`w-3 h-3 rounded-full ${sleepData.trend === 'improving' ? 'bg-green-500' : sleepData.trend === 'worsening' ? 'bg-red-500' : 'bg-yellow-500'}`}></div>
+                        <p className="text-sm text-gray-700 dark:text-gray-300">
+                          {sleepData.trend === 'improving' ? 'Your sleep quality is improving' : 
+                           sleepData.trend === 'worsening' ? 'Your sleep quality is declining' : 
+                           'Your sleep quality is stable'}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Sleep Tips */}
+                <div className="bg-indigo-50 dark:bg-indigo-900/20 rounded-xl p-4">
+                  <h5 className="font-semibold text-indigo-900 dark:text-indigo-100 mb-2">
+                    Sleep Improvement Tips
+                  </h5>
+                  <ul className="space-y-2 text-sm text-gray-700 dark:text-gray-300">
+                    <li className="flex items-start gap-2">
+                      <span className="text-indigo-500 mt-0.5">•</span>
+                      <span>Maintain a consistent sleep schedule, even on weekends</span>
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <span className="text-indigo-500 mt-0.5">•</span>
+                      <span>Avoid caffeine and alcohol close to bedtime</span>
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <span className="text-indigo-500 mt-0.5">•</span>
+                      <span>Create a relaxing bedtime routine</span>
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <span className="text-indigo-500 mt-0.5">•</span>
+                      <span>Keep your bedroom cool, dark, and quiet</span>
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <span className="text-indigo-500 mt-0.5">•</span>
+                      <span>Limit screen time at least 1 hour before bed</span>
+                    </li>
+                  </ul>
+                </div>
+              </div>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
+    </>
   );
 };
+
+// Add custom CSS for hiding scrollbar while preserving functionality
+const styles = `
+.hide-scrollbar {
+  -ms-overflow-style: none;  /* IE and Edge */
+  scrollbar-width: none;  /* Firefox */
+}
+.hide-scrollbar::-webkit-scrollbar {
+  display: none;  /* Chrome, Safari and Opera */
+}
+`;
+
+// Add style to document head
+if (typeof document !== 'undefined') {
+  const styleElement = document.createElement('style');
+  styleElement.innerHTML = styles;
+  document.head.appendChild(styleElement);
+}
 
 export default SleepQualityInsights;

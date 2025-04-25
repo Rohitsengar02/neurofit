@@ -1254,91 +1254,26 @@ service cloud.firestore {
       allow create: if isAuthenticated() && userId == request.auth.uid;
       allow update: if isAuthenticated() && userId == request.auth.uid;
       allow delete: if isAuthenticated() && userId == request.auth.uid;
-      
-      // Meditation sessions subcollection
-      match /meditation/sessions/{sessionId} {
-        allow read: if isAuthenticated() && userId == request.auth.uid;
-        allow create: if isAuthenticated() && userId == request.auth.uid;
-        allow update: if isAuthenticated() && userId == request.auth.uid;
-        allow delete: if isAuthenticated() && userId == request.auth.uid;
-        
-        function isValidMeditationSession() {
-          let session = request.resource.data;
-          return 
-            session.date is string &&
-            session.minutes is number && session.minutes > 0 &&
-            session.type is string &&
-            session.completed is bool &&
-            session.timestamp is timestamp;
-        }
-        
-        allow create: if isAuthenticated() && userId == request.auth.uid && isValidMeditationSession();
-        allow update: if isAuthenticated() && userId == request.auth.uid && isValidMeditationSession();
-      }
-      
-      // Gratitude entries subcollection
-      match /gratitude/entries/{entryId} {
-        allow read: if isAuthenticated() && userId == request.auth.uid;
-        allow create: if isAuthenticated() && userId == request.auth.uid;
-        allow update: if isAuthenticated() && userId == request.auth.uid;
-        allow delete: if isAuthenticated() && userId == request.auth.uid;
-        
-        function isValidGratitudeEntry() {
-          let entry = request.resource.data;
-          return 
-            entry.content is string && entry.content.size() > 0 &&
-            entry.date is string &&
-            entry.timestamp is timestamp;
-        }
-        
-        allow create: if isAuthenticated() && userId == request.auth.uid && isValidGratitudeEntry();
-        allow update: if isAuthenticated() && userId == request.auth.uid && isValidGratitudeEntry();
-      }
-      
-      // Breathing exercises sessions subcollection
-      match /breathing/sessions/{sessionId} {
-        allow read: if isAuthenticated() && userId == request.auth.uid;
-        allow create: if isAuthenticated() && userId == request.auth.uid;
-        allow update: if isAuthenticated() && userId == request.auth.uid;
-        allow delete: if isAuthenticated() && userId == request.auth.uid;
-        
-        function isValidBreathingSession() {
-          let session = request.resource.data;
-          return 
-            session.date is string &&
-            session.technique is string &&
-            session.duration is number && session.duration > 0 &&
-            session.completed is bool &&
-            session.timestamp is timestamp;
-        }
-        
-        allow create: if isAuthenticated() && userId == request.auth.uid && isValidBreathingSession();
-        allow update: if isAuthenticated() && userId == request.auth.uid && isValidBreathingSession();
-      }
-      
-      // Stress management entries subcollection
-      match /stress/entries/{entryId} {
-        allow read: if isAuthenticated() && userId == request.auth.uid;
-        allow create: if isAuthenticated() && userId == request.auth.uid;
-        allow update: if isAuthenticated() && userId == request.auth.uid;
-        allow delete: if isAuthenticated() && userId == request.auth.uid;
-        
-        function isValidStressEntry() {
-          let entry = request.resource.data;
-          return 
-            entry.level is number && entry.level >= 1 && entry.level <= 10 &&
-            entry.date is string &&
-            (!('triggers' in entry) || entry.triggers is list) &&
-            (!('notes' in entry) || entry.notes is string) &&
-            entry.timestamp is timestamp;
-        }
-        
-        allow create: if isAuthenticated() && userId == request.auth.uid && isValidStressEntry();
-        allow update: if isAuthenticated() && userId == request.auth.uid && isValidStressEntry();
-      }
+    }
+    
+    // Direct access to sleep document
+    match /users/{userId}/mentalHealth/sleep {
+      allow read: if isAuthenticated() && userId == request.auth.uid;
+      allow create: if isAuthenticated() && userId == request.auth.uid;
+      allow update: if isAuthenticated() && userId == request.auth.uid;
+      allow delete: if isAuthenticated() && userId == request.auth.uid;
+    }
+    
+    // Direct access to meditation document
+    match /users/{userId}/mentalHealth/meditation {
+      allow read: if isAuthenticated() && userId == request.auth.uid;
+      allow create: if isAuthenticated() && userId == request.auth.uid;
+      allow update: if isAuthenticated() && userId == request.auth.uid;
+      allow delete: if isAuthenticated() && userId == request.auth.uid;
+    }
       
       // Sleep quality entries subcollection
-      match /sleep/entries/{entryId} {
+      match /users/{userId}/mentalHealth/sleep/entries/{entryId} {
         allow read: if isAuthenticated() && userId == request.auth.uid;
         allow create: if isAuthenticated() && userId == request.auth.uid;
         allow update: if isAuthenticated() && userId == request.auth.uid;
@@ -1360,26 +1295,50 @@ service cloud.firestore {
         allow update: if isAuthenticated() && userId == request.auth.uid && isValidSleepEntry();
       }
       
-      // Cognitive training sessions subcollection
-      match /cognitive/sessions/{sessionId} {
+      // Meditation sessions subcollection
+      match /users/{userId}/mentalHealth/meditation/sessions/{sessionId} {
         allow read: if isAuthenticated() && userId == request.auth.uid;
         allow create: if isAuthenticated() && userId == request.auth.uid;
         allow update: if isAuthenticated() && userId == request.auth.uid;
         allow delete: if isAuthenticated() && userId == request.auth.uid;
         
-        function isValidCognitiveSession() {
+        function isValidMeditationSession() {
           let session = request.resource.data;
           return 
             session.date is string &&
-            session.gameType is string &&
-            session.score is number && session.score >= 0 &&
-            session.duration is number && session.duration > 0 &&
+            session.minutes is number && session.minutes > 0 &&
+            session.type is string &&
+            session.completed is bool &&
             session.timestamp is timestamp;
         }
         
-        allow create: if isAuthenticated() && userId == request.auth.uid && isValidCognitiveSession();
-        allow update: if isAuthenticated() && userId == request.auth.uid && isValidCognitiveSession();
+        allow create: if isAuthenticated() && userId == request.auth.uid && isValidMeditationSession();
+        allow update: if isAuthenticated() && userId == request.auth.uid && isValidMeditationSession();
+      }
+      
+      // Direct access to gratitude document
+      match /users/{userId}/mentalHealth/gratitude {
+        allow read: if isAuthenticated() && userId == request.auth.uid;
+        allow create: if isAuthenticated() && userId == request.auth.uid;
+        allow update: if isAuthenticated() && userId == request.auth.uid;
+        allow delete: if isAuthenticated() && userId == request.auth.uid;
+      }
+      
+      // Gratitude entries subcollection
+      match /users/{userId}/mentalHealth/gratitude/entries/{entryId} {
+        function isValidGratitudeEntry() {
+          let entry = request.resource.data;
+          return 
+            entry.content is string && entry.content.size() > 0 &&
+            entry.date is string &&
+            (entry.timestamp is timestamp || entry.timestamp == null);
+        }
+        
+        allow read: if isAuthenticated() && userId == request.auth.uid;
+        allow create: if isAuthenticated() && userId == request.auth.uid && isValidGratitudeEntry();
+        allow update: if isAuthenticated() && userId == request.auth.uid && isValidGratitudeEntry();
+        allow delete: if isAuthenticated() && userId == request.auth.uid;
       }
     }
   }
-}
+
