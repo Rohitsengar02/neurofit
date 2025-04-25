@@ -22,7 +22,7 @@ export interface WorkoutCategory {
   name: string;
   description: string;
   imageUrl: string;
-  iconUrl: string;
+  secure_url: string;
   backgroundColor: string;
 }
 
