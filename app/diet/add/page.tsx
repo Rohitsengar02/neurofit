@@ -14,23 +14,35 @@ import { toast } from 'react-hot-toast';
 
 const generateImageFromPrompt = async (prompt: string): Promise<string | null> => {
   try {
+    // Add a cache-busting parameter to prevent caching issues in production
     const response = await fetch('/api/generate-image', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
+        'Cache-Control': 'no-cache, no-store, must-revalidate',
+        'Pragma': 'no-cache'
       },
-      body: JSON.stringify({ prompt }),
+      body: JSON.stringify({ 
+        prompt,
+        timestamp: Date.now() // Add timestamp to prevent caching
+      }),
     });
 
     if (!response.ok) {
-      throw new Error('Failed to generate image');
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.error || 'Failed to generate image');
     }
 
     const data = await response.json();
+    if (!data.imageUrl) {
+      throw new Error('No image URL returned from API');
+    }
+    
     return data.imageUrl;
   } catch (error) {
     console.error('Error generating image:', error);
-    return null;
+    // Return a placeholder image as fallback in production
+    return `https://picsum.photos/seed/${encodeURIComponent(prompt)}/600/400?random=${Date.now()}`;
   }
 };
 
