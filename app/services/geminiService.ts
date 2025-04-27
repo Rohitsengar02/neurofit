@@ -58,6 +58,7 @@ interface DietPlanData {
   goals: string[];
   servings: number;
   mealPlan: MealPlan;
+  imagePrompt?: string; // Added for diet plan image generation
 }
 
 function extractJsonFromText(text: string): any {
@@ -121,6 +122,7 @@ export async function generateDietPlan(prompt: string): Promise<{ success: boole
       "restrictions": ["restriction1", "restriction2"],
       "goals": ["goal1", "goal2"],
       "servings": 1,
+      "imagePrompt": "A detailed prompt for generating an appetizing, professional food photo that represents this diet plan - make it descriptive for AI image generation",
       "mealPlan": {
         "breakfast": {
           "options": [
@@ -134,19 +136,19 @@ export async function generateDietPlan(prompt: string): Promise<{ success: boole
               "name": "Breakfast option 2",
               "description": "Description of breakfast 2",
               "ingredients": ["ingredient1", "ingredient2"],
-              "calories": 300
+              "calories": 350
             },
             {
               "name": "Breakfast option 3",
               "description": "Description of breakfast 3",
               "ingredients": ["ingredient1", "ingredient2"],
-              "calories": 300
+              "calories": 250
             },
             {
               "name": "Breakfast option 4",
               "description": "Description of breakfast 4",
               "ingredients": ["ingredient1", "ingredient2"],
-              "calories": 300
+              "calories": 400
             }
           ]
         },
@@ -162,19 +164,19 @@ export async function generateDietPlan(prompt: string): Promise<{ success: boole
               "name": "Lunch option 2",
               "description": "Description of lunch 2",
               "ingredients": ["ingredient1", "ingredient2"],
-              "calories": 500
+              "calories": 450
             },
             {
               "name": "Lunch option 3",
               "description": "Description of lunch 3",
               "ingredients": ["ingredient1", "ingredient2"],
-              "calories": 500
+              "calories": 550
             },
             {
               "name": "Lunch option 4",
               "description": "Description of lunch 4",
               "ingredients": ["ingredient1", "ingredient2"],
-              "calories": 500
+              "calories": 480
             }
           ]
         },
@@ -184,25 +186,25 @@ export async function generateDietPlan(prompt: string): Promise<{ success: boole
               "name": "Dinner option 1",
               "description": "Description of dinner 1",
               "ingredients": ["ingredient1", "ingredient2"],
-              "calories": 400
+              "calories": 600
             },
             {
               "name": "Dinner option 2",
               "description": "Description of dinner 2",
               "ingredients": ["ingredient1", "ingredient2"],
-              "calories": 400
+              "calories": 550
             },
             {
               "name": "Dinner option 3",
               "description": "Description of dinner 3",
               "ingredients": ["ingredient1", "ingredient2"],
-              "calories": 400
+              "calories": 650
             },
             {
               "name": "Dinner option 4",
               "description": "Description of dinner 4",
               "ingredients": ["ingredient1", "ingredient2"],
-              "calories": 400
+              "calories": 580
             }
           ]
         },
@@ -218,13 +220,13 @@ export async function generateDietPlan(prompt: string): Promise<{ success: boole
               "name": "Snack option 2",
               "description": "Description of snack 2",
               "ingredients": ["ingredient1", "ingredient2"],
-              "calories": 150
+              "calories": 100
             },
             {
               "name": "Snack option 3",
               "description": "Description of snack 3",
               "ingredients": ["ingredient1", "ingredient2"],
-              "calories": 150
+              "calories": 120
             },
             {
               "name": "Snack option 4",
@@ -244,6 +246,11 @@ export async function generateDietPlan(prompt: string): Promise<{ success: boole
     // Validate the data structure
     if (!data.name || !data.mealPlan) {
       throw new Error('Invalid diet plan data structure');
+    }
+    
+    // Add a default image prompt if none was generated
+    if (!data.imagePrompt) {
+      data.imagePrompt = `A beautiful and appetizing collection of healthy meals for a ${data.name} diet plan featuring ${data.goals?.join(', ') || 'balanced nutrition'}`;
     }
 
     return { success: true, data };
