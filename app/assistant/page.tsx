@@ -56,6 +56,7 @@ const VoiceAssistant = () => {
   const [inputText, setInputText] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [isListening, setIsListening] = useState(false);
+  const [isSpeaking, setIsSpeaking] = useState(false);
   const chatContainerRef = useRef<HTMLDivElement>(null);
   const [autoListen, setAutoListen] = useState(false);
   const [recognition, setRecognition] = useState<any>(null);
@@ -494,25 +495,38 @@ const VoiceAssistant = () => {
             window.speechSynthesis.onvoiceschanged = loadVoices;
           }
 
+          // Set speaking state to true when speech starts
+          utterance.onstart = () => {
+            setIsSpeaking(true);
+          };
+
           // Handle end of sentence
           utterance.onend = () => {
             currentIndex++;
             speakNextSentence();
           };
 
-          // Handle errors
-          utterance.onerror = (event) => {
-            console.error('Speech synthesis error:', event);
-            currentIndex++;
-            speakNextSentence();
+          // Handle speech errors
+          utterance.onerror = () => {
+            console.error('Speech synthesis error');
+            setIsSpeaking(false);
           };
 
           window.speechSynthesis.speak(utterance);
+        } else {
+          // All sentences have been spoken
+          setIsSpeaking(false);
         }
       };
 
-      // Start speaking
       speakNextSentence();
+    }
+  };
+
+  const stopSpeech = () => {
+    if ('speechSynthesis' in window) {
+      window.speechSynthesis.cancel();
+      setIsSpeaking(false);
     }
   };
 
@@ -540,11 +554,11 @@ const VoiceAssistant = () => {
   };
 
   return (
-    <div className="flex flex-col h-screen bg-gray-50 dark:bg-gray-900 pt-[80px]">
+    <div className="flex flex-col h-screen bg-gray-50 dark:bg-gray-900 pt-[15px]">
       {/* Chat Container with margins for navbar and bottom menu */}
       <div 
         ref={chatContainerRef}
-        className="flex-1 overflow-y-auto px-4 py-2 space-y-4 mb-[180px]"
+        className="flex-1 overflow-y-auto px-4 py-2 space-y-4 mb-[50px]"
         style={{
           height: 'calc(100vh - 80px)',
           overflowY: 'auto',
@@ -590,85 +604,69 @@ const VoiceAssistant = () => {
       </div>
 
       {/* Fixed Control Bar */}
-      <div className="fixed bottom-[10vh] md:bottom-0 left-0 right-0 border-t border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-4 shadow-lg">
-        {/* Buttons Row */}
-        <div className="flex justify-end items-center mb-4 space-x-2">
-          {/* Auto Listen Toggle */}
-          <button
-            onClick={() => {
-              setAutoListen(!autoListen);
-              if (!autoListen) {
-                initSpeechRecognition();
-              } else if (recognitionRef.current) {
-                recognitionRef.current.stop();
-              }
-            }}
-            className={`p-2 rounded-full transition-all shadow-md ${
-              autoListen
-                ? 'bg-green-500 text-white'
-                : 'bg-gray-200 dark:bg-gray-700 text-gray-600 dark:text-gray-300'
-            }`}
-          >
-            <MdOutlineAutoAwesome className="w-5 h-5" />
-          </button>
-
-          {/* Clear Chat */}
-          <button
-            onClick={async () => {
-              if (user) {
-                const batch = writeBatch(db);
-                const querySnapshot = await getDocs(
-                  collection(db, `users/${user.uid}/assistance`)
-                );
-                querySnapshot.forEach((doc) => {
-                  batch.delete(doc.ref);
-                });
-                await batch.commit();
-                setMessages([]);
-              }
-            }}
-            className="p-2 rounded-full bg-red-500 text-white hover:bg-red-600 transition-all shadow-md"
-          >
-            <BsTrash className="w-5 h-5" />
-          </button>
-        </div>
-
+      <div className="fixed bottom-[10vh] md:bottom-0 left-0 right-0 border-t border-gray-200 dark:border-gray-700 bg-white/80 dark:bg-gray-800/90 backdrop-blur-md p-3 md:p-4 shadow-lg">
         {/* Input Area */}
-        <div className="flex items-center space-x-2">
-          <input
-            type="text"
-            value={inputText}
-            onChange={(e) => setInputText(e.target.value)}
-            onKeyPress={(e) => e.key === 'Enter' && handleSend()}
-            placeholder="Type your message..."
-            className="flex-1 rounded-full px-4 py-2 bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 shadow-inner"
-          />
-          <button
-            onClick={() => {
-              if (recognitionRef.current) {
-                recognitionRef.current.stop();
-                recognitionRef.current = null;
-              }
-              initSpeechRecognition();
-            }}
-            className={`p-2 rounded-full transition-all shadow-md ${
-              isListening
-                ? 'bg-red-500 text-white'
-                : 'bg-blue-500 text-white hover:bg-blue-600'
-            }`}
-          >
-            {isListening ? (
-              <FaMicrophoneSlash className="w-5 h-5" />
-            ) : (
-              <FaMicrophone className="w-5 h-5" />
-            )}
-          </button>
-          <button
-            onClick={() => handleSend()}
-            className="p-2 rounded-full bg-blue-500 text-white hover:bg-blue-600 transition-all shadow-md"
-          >
-            <IoSend className="w-5 h-5" />
-          </button>
+        <div className="max-w-4xl mx-auto">
+          {/* Input and Buttons */}
+          <div className="flex items-center gap-2 md:gap-3">
+            <div className="relative flex-1">
+              <input
+                type="text"
+                value={inputText}
+                onChange={(e) => setInputText(e.target.value)}
+                onKeyPress={(e) => e.key === 'Enter' && handleSend()}
+                placeholder="Type your message..."
+                className="w-full rounded-full px-4 py-2.5 md:py-3 bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 shadow-inner text-sm md:text-base"
+              />
+            </div>
+            
+            {/* Voice Control Button */}
+            <button
+              onClick={stopSpeech}
+              className={`p-2 md:p-3 rounded-full ${isSpeaking ? 'bg-red-500 hover:bg-red-600' : 'bg-green-500 hover:bg-green-600'} text-white transition-all shadow-md hover:shadow-lg transform hover:scale-105 active:scale-95 duration-200 flex items-center justify-center min-w-[40px] min-h-[40px] md:min-w-[44px] md:min-h-[44px]`}
+              title={isSpeaking ? 'Stop Voice' : 'Voice Active'}
+            >
+              {isSpeaking ? (
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                  <path fillRule="evenodd" d="M9.383 3.076A1 1 0 0110 4v12a1 1 0 01-1.707.707L4.586 13H2a1 1 0 01-1-1V8a1 1 0 011-1h2.586l3.707-3.707a1 1 0 011.09-.217zM12.293 7.293a1 1 0 011.414 0L15 8.586l1.293-1.293a1 1 0 111.414 1.414L16.414 10l1.293 1.293a1 1 0 01-1.414 1.414L15 11.414l-1.293 1.293a1 1 0 01-1.414-1.414L13.586 10l-1.293-1.293a1 1 0 010-1.414z" clipRule="evenodd" />
+                </svg>
+              ) : (
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                  <path fillRule="evenodd" d="M9.383 3.076A1 1 0 0110 4v12a1 1 0 01-1.707.707L4.586 13H2a1 1 0 01-1-1V8a1 1 0 011-1h2.586l3.707-3.707a1 1 0 011.09-.217zM14.657 2.929a1 1 0 011.414 0A9.972 9.972 0 0119 10a9.972 9.972 0 01-2.929 7.071 1 1 0 01-1.414-1.414A7.971 7.971 0 0017 10c0-2.21-.894-4.208-2.343-5.657a1 1 0 010-1.414zm-2.829 2.828a1 1 0 011.415 0A5.983 5.983 0 0115 10a5.984 5.984 0 01-1.757 4.243a1 1 0 01-1.415-1.415A3.984 3.984 0 0013 10a3.983 3.983 0 00-1.172-2.828a1 1 0 010-1.415z" clipRule="evenodd" />
+                </svg>
+              )}
+            </button>
+            
+            {/* Clear Chat Button */}
+            <button
+              onClick={async () => {
+                if (user && window.confirm('Are you sure you want to clear all chat messages?')) {
+                  const batch = writeBatch(db);
+                  const querySnapshot = await getDocs(
+                    collection(db, `users/${user.uid}/assistance`)
+                  );
+                  querySnapshot.forEach((doc) => {
+                    batch.delete(doc.ref);
+                  });
+                  await batch.commit();
+                  setMessages([]);
+                }
+              }}
+              className="p-2 md:p-3 rounded-full bg-red-500 text-white hover:bg-red-600 transition-all shadow-md hover:shadow-lg transform hover:scale-105 active:scale-95 duration-200 flex items-center justify-center min-w-[40px] min-h-[40px] md:min-w-[44px] md:min-h-[44px]"
+              title="Clear Chat History"
+            >
+              <BsTrash className="w-4 h-4 md:w-5 md:h-5" />
+            </button>
+            
+            {/* Send Button */}
+            <button
+              onClick={() => handleSend()}
+              disabled={isLoading || !inputText.trim()}
+              className="p-2 md:p-3 rounded-full bg-blue-500 text-white hover:bg-blue-600 transition-all shadow-md hover:shadow-lg transform hover:scale-105 active:scale-95 duration-200 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100 flex items-center justify-center min-w-[40px] min-h-[40px] md:min-w-[44px] md:min-h-[44px]"
+            >
+              <IoSend className="w-4 h-4 md:w-5 md:h-5" />
+            </button>
+          </div>
         </div>
       </div>
     </div>
