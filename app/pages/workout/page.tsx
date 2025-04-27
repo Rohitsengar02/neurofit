@@ -271,9 +271,7 @@ export default function WorkoutPage() {
       <div className="container mx-auto px-4 py-8">
         {/* Active Workouts - Horizontal Scrollable Section */}
         <section className="mb-12 relative">
-          <h2 className="text-2xl font-bold mb-6 text-gray-900 dark:text-white">
-            Active Workouts
-          </h2>
+         
           
           <div className="relative">
             <div className="overflow-x-auto scrollbar-hide">
