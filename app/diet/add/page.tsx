@@ -12,6 +12,28 @@ import { generateNutritionFacts, analyzeDietPlan, type NutritionInfo } from '../
 import { generateRecipe, generateDietPlan } from '../../services/geminiService';
 import { toast } from 'react-hot-toast';
 
+const generateImageFromPrompt = async (prompt: string): Promise<string | null> => {
+  try {
+    const response = await fetch('/api/generate-image', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ prompt }),
+    });
+
+    if (!response.ok) {
+      throw new Error('Failed to generate image');
+    }
+
+    const data = await response.json();
+    return data.imageUrl;
+  } catch (error) {
+    console.error('Error generating image:', error);
+    return null;
+  }
+};
+
 type MealType = 'recipe' | 'diet' | null;
 type MealTime = 'breakfast' | 'lunch' | 'dinner' | 'snack';
 
@@ -120,6 +142,7 @@ export default function AddMealPage() {
   const [showPromptModal, setShowPromptModal] = useState(false);
   const [prompt, setPrompt] = useState('');
   const [loading, setLoading] = useState(false);
+  const [isGeneratingImage, setIsGeneratingImage] = useState(false);
   
   const [formData, setFormData] = useState<FormData>({
     name: '',
@@ -255,12 +278,43 @@ export default function AddMealPage() {
             ...prev,
             nutrition: { ...defaultNutrition, ...result.data }
           }));
+          
+          // Generate image from the recipe using the imagePrompt
+          if (result.data.imagePrompt) {
+            setIsGeneratingImage(true);
+            toast.loading('Generating recipe image...', { id: 'generating-image' });
+            
+            try {
+              const imageUrl = await generateImageFromPrompt(result.data.imagePrompt);
+              if (imageUrl) {
+                // Convert the URL to a file object for the form
+                const response = await fetch(imageUrl);
+                const blob = await response.blob();
+                const file = new File([blob], 'recipe-image.jpg', { type: 'image/jpeg' });
+                
+                setFormData(prev => ({
+                  ...prev,
+                  image: file,
+                  imagePreview: imageUrl
+                }));
+                
+                toast.success('Recipe image generated!', { id: 'generating-image' });
+              } else {
+                toast.error('Could not generate recipe image', { id: 'generating-image' });
+              }
+            } catch (imageError) {
+              console.error('Error generating image:', imageError);
+              toast.error('Failed to generate recipe image', { id: 'generating-image' });
+            } finally {
+              setIsGeneratingImage(false);
+            }
+          }
         } else {
-          alert(result.error || 'Failed to generate nutrition facts');
+          toast.error(result.error || 'Failed to generate nutrition facts');
         }
       } catch (error) {
         console.error('Error generating nutrition facts:', error);
-        alert('Failed to generate nutrition facts. Please try again or enter manually.');
+        toast.error('Failed to generate nutrition facts. Please try again or enter manually.');
       } finally {
         setIsGenerating(false);
       }
@@ -342,16 +396,27 @@ export default function AddMealPage() {
         userName: `users/${user.uid}/displayName`,
         userImage: `users/${user.uid}/photoURL`,
         type: selectedType,
-        nutrition: formData.nutrition || {
-          calories: 0,
-          protein: 0,
-          carbs: 0,
-          fat: 0,
-          fiber: 0,
-          sugar: 0,
-          sodium: 0,
-          cholesterol: 0
-        },
+        nutrition: (() => {
+          // Create a copy of nutrition data without any extra fields
+          // that aren't part of the NutritionInfo type
+          const nutritionData = { ...formData.nutrition };
+          
+          // Remove imagePrompt if it exists (using type assertion since TypeScript doesn't know about it)
+          if ('imagePrompt' in nutritionData) {
+            delete (nutritionData as any).imagePrompt;
+          }
+          
+          return nutritionData || {
+            calories: 0,
+            protein: 0,
+            carbs: 0,
+            fat: 0,
+            fiber: 0,
+            sugar: 0,
+            sodium: 0,
+            cholesterol: 0
+          };
+        })(),
         duration: formData.duration || '',
         goals: formData.goals.filter(g => g.trim()),
         restrictions: formData.restrictions.filter(r => r.trim()),
@@ -563,8 +628,7 @@ export default function AddMealPage() {
 
               {/* Image Upload */}
               <div className="mb-8">
-                <div className="relative h-48 w-full rounded-2xl overflow-hidden bg-gray-100 
-                             dark:bg-gray-700 mb-4">
+                <div className="relative w-full h-48 bg-gray-100 dark:bg-gray-800 rounded-lg overflow-hidden mb-4">
                   {formData.imagePreview ? (
                     <Image
                       src={formData.imagePreview}
@@ -577,22 +641,80 @@ export default function AddMealPage() {
                       <FaImage className="w-12 h-12 text-gray-400" />
                     </div>
                   )}
+                  {isGeneratingImage && (
+                    <div className="absolute inset-0 bg-black bg-opacity-50 flex items-center justify-center">
+                      <div className="text-white text-center">
+                        <div className="animate-spin rounded-full h-10 w-10 border-t-2 border-b-2 border-white mx-auto mb-2"></div>
+                        <p>Generating image...</p>
+                      </div>
+                    </div>
+                  )}
                 </div>
-                <input
-                  type="file"
-                  accept="image/*"
-                  onChange={handleImageChange}
-                  className="hidden"
-                  id="image-upload"
-                />
-                <label
-                  htmlFor="image-upload"
-                  className="inline-flex items-center px-4 py-2 bg-blue-500 text-white 
-                           rounded-lg hover:bg-blue-600 cursor-pointer"
-                >
-                  <FaImage className="w-5 h-5 mr-2" />
-                  Upload Image
-                </label>
+                <div className="flex space-x-2">
+                  <input
+                    type="file"
+                    accept="image/*"
+                    onChange={handleImageChange}
+                    className="hidden"
+                    id="image-upload"
+                  />
+                  <label
+                    htmlFor="image-upload"
+                    className="inline-flex items-center px-4 py-2 bg-blue-500 text-white 
+                             rounded-lg hover:bg-blue-600 cursor-pointer"
+                  >
+                    <FaImage className="w-5 h-5 mr-2" />
+                    Upload Image
+                  </label>
+                  
+                  {selectedType === 'recipe' && formData.name && formData.ingredients.some(i => i) && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        // Generate an image prompt based on the recipe details
+                        const prompt = `Appetizing photo of ${formData.name} dish with ${formData.ingredients.filter(i => i).slice(0, 3).join(', ')}`;
+                        
+                        setIsGeneratingImage(true);
+                        toast.loading('Generating recipe image...', { id: 'generating-image' });
+                        
+                        generateImageFromPrompt(prompt)
+                          .then(imageUrl => {
+                            if (imageUrl) {
+                              // Convert the URL to a file object for the form
+                              fetch(imageUrl)
+                                .then(response => response.blob())
+                                .then(blob => {
+                                  const file = new File([blob], 'recipe-image.jpg', { type: 'image/jpeg' });
+                                  
+                                  setFormData(prev => ({
+                                    ...prev,
+                                    image: file,
+                                    imagePreview: imageUrl
+                                  }));
+                                  
+                                  toast.success('Recipe image generated!', { id: 'generating-image' });
+                                });
+                            } else {
+                              toast.error('Could not generate recipe image', { id: 'generating-image' });
+                            }
+                          })
+                          .catch(error => {
+                            console.error('Error generating image:', error);
+                            toast.error('Failed to generate recipe image', { id: 'generating-image' });
+                          })
+                          .finally(() => {
+                            setIsGeneratingImage(false);
+                          });
+                      }}
+                      className="inline-flex items-center px-4 py-2 bg-purple-500 text-white 
+                               rounded-lg hover:bg-purple-600 cursor-pointer"
+                      disabled={isGeneratingImage}
+                    >
+                      <FaBolt className="w-5 h-5 mr-2" />
+                      Generate Image
+                    </button>
+                  )}
+                </div>
               </div>
 
               {/* Basic Info */}
@@ -762,7 +884,11 @@ export default function AddMealPage() {
                       </button>
 
                       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                        {(Object.entries(formData.nutrition) as [keyof NutritionInfo, number][]).map(([key, value]) => (
+                        {(Object.entries(formData.nutrition) as [string, number][]).
+                          // Filter out the imagePrompt field from the nutrition display
+                          filter(([key]) => key !== 'imagePrompt' && 
+                                 ['calories', 'protein', 'carbs', 'fat', 'fiber', 'sugar', 'sodium', 'cholesterol'].includes(key)).
+                          map(([key, value]) => (
                           <div key={key} className="p-4 bg-white dark:bg-gray-800 rounded-lg shadow-sm">
                             <label className="text-sm text-gray-500 dark:text-gray-400 capitalize block mb-1">
                               {key}
@@ -771,7 +897,7 @@ export default function AddMealPage() {
                               <input
                                 type="number"
                                 value={value}
-                                onChange={(e) => handleNutritionChange(key, e.target.value)}
+                                onChange={(e) => handleNutritionChange(key as keyof NutritionInfo, e.target.value)}
                                 className="w-full px-3 py-2 rounded-md border border-gray-300 
                                          dark:border-gray-600 bg-white dark:bg-gray-800 
                                          text-gray-900 dark:text-white"
