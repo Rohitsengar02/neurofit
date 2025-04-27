@@ -9,7 +9,7 @@ import {
   FaStore, FaUserFriends, FaSpa, FaHeart,
   FaYinYang, FaLeaf, FaRunning, FaNewspaper, FaUsers
 } from 'react-icons/fa';
-import { BsGrid3X3GapFill, BsRobot } from 'react-icons/bs';
+import { BsGrid3X3GapFill, BsRobot, BsTrophy } from 'react-icons/bs';
 import { GiMuscleUp, GiWeightLiftingUp } from 'react-icons/gi';
 import { MdRestaurant, MdFeedback } from 'react-icons/md';
 
@@ -32,7 +32,10 @@ const moreMenuItems: Tab[] = [
   { id: 'blog', label: 'Blog', icon: FaNewspaper, color: 'from-teal-400 to-teal-600', href: '/blog' },
   { id: 'diet', label: 'Diet', icon: MdRestaurant, color: 'from-orange-400 to-orange-600', href: '/diet' },
   { id: 'steps', label: 'Steps', icon: FaWalking, color: 'from-blue-400 to-blue-600', href: '/pages/steps' },
+  { id: 'rewards', label: 'Neurons', icon: BsTrophy, color: 'from-yellow-400 to-orange-500', href: '/pages/rewards' },
   { id: 'suggestion', label: 'Suggestion', icon: MdFeedback, color: 'from-violet-400 to-violet-600', href: '/pages/contact' }
+  
+  
 ];
 
 const bottomTabs: Tab[] = [

@@ -1,11 +1,11 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { motion } from 'framer-motion';
 import { getAuth } from 'firebase/auth';
 import { getFirestore, doc, writeBatch, setDoc } from 'firebase/firestore';
 import Image from 'next/image';
-import { FiUpload, FiUser, FiMail, FiPhone } from 'react-icons/fi';
+import { FiUpload, FiUser, FiMail, FiPhone, FiImage } from 'react-icons/fi';
 import { useRouter } from 'next/navigation';
 
 interface ProfileSetupProps {
@@ -19,6 +19,9 @@ const ProfileSetup: React.FC<ProfileSetupProps> = ({ onNext, onBack, commonProps
   const [profileImage, setProfileImage] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string>('');
   const [error, setError] = useState<string>('');
+  const [generatingAvatar, setGeneratingAvatar] = useState(false);
+  const [showAvatarPrompt, setShowAvatarPrompt] = useState(false);
+  const [avatarPrompt, setAvatarPrompt] = useState('');
   const auth = getAuth();
   const [formData, setFormData] = useState({
     firstName: '',
@@ -37,6 +40,61 @@ const ProfileSetup: React.FC<ProfileSetupProps> = ({ onNext, onBack, commonProps
       }
       setProfileImage(file);
       setPreviewUrl(URL.createObjectURL(file));
+    }
+  };
+  
+  const handleGenerateAvatar = async () => {
+    if (!avatarPrompt.trim()) {
+      setError('Please enter a description for your avatar');
+      return;
+    }
+    
+    setGeneratingAvatar(true);
+    setError('');
+    
+    try {
+      // Use the existing working generate-image API instead
+      // Enhanced prompt for better avatar generation
+      const enhancedPrompt = `high quality, detailed avatar portrait of a person ${avatarPrompt}, digital art, profile picture, fitness app avatar, professional looking, centered composition, face clearly visible`;
+      
+      const response = await fetch('/api/generate-image', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ prompt: enhancedPrompt }),
+      });
+      
+      const data = await response.json();
+      
+      if (data.imageUrl) {
+        // For the generate-image API, we get the direct URL
+        const imageUrl = data.imageUrl;
+        
+        try {
+          // Convert the URL to a File object
+          const fetchRes = await fetch(imageUrl);
+          const blob = await fetchRes.blob();
+          const file = new File([blob], 'avatar.jpg', { type: 'image/jpeg' });
+          
+          setProfileImage(file);
+          setPreviewUrl(imageUrl);
+          setShowAvatarPrompt(false);
+          setAvatarPrompt('');
+        } catch (fetchError) {
+          console.error('Error fetching image:', fetchError);
+          throw new Error('Failed to process the generated image');
+        }
+      } else if (data.error) {
+        throw new Error(data.error);
+      } else {
+        throw new Error('Failed to generate avatar');
+      }
+    } catch (error: any) {
+      console.error('Error generating avatar:', error);
+      setError(error.message || 'Failed to generate avatar. Please try again.');
+    } finally {
+      setGeneratingAvatar(false);
     }
   };
 
@@ -88,7 +146,7 @@ const ProfileSetup: React.FC<ProfileSetupProps> = ({ onNext, onBack, commonProps
         profile: {
           firstName: formData.firstName,
           lastName: formData.lastName,
-          phoneNumber: formData.phoneNumber,
+          phoneNumber: formData.phoneNumber, // Ensuring phone number is saved
           email: user.email,
           ...(base64Image && { profileImage: base64Image }),
           updatedAt: new Date().toISOString()
@@ -103,6 +161,7 @@ const ProfileSetup: React.FC<ProfileSetupProps> = ({ onNext, onBack, commonProps
         firstName: formData.firstName,
         lastName: formData.lastName,
         displayName: `${formData.firstName} ${formData.lastName}`,
+        phoneNumber: formData.phoneNumber, // Adding phone number to users collection as well
         ...(base64Image && { photoURL: base64Image }),
         onboardingCompleted: true,
         updatedAt: new Date().toISOString()
@@ -139,39 +198,121 @@ const ProfileSetup: React.FC<ProfileSetupProps> = ({ onNext, onBack, commonProps
           Complete Your Profile
         </h2>
         <form onSubmit={handleSubmit} className="space-y-6">
-          {/* Profile Image Upload */}
-          <div className="flex flex-col items-center space-y-4">
-            <div className="relative w-32 h-32">
-              {previewUrl ? (
-                <Image
-                  src={previewUrl}
-                  alt="Profile preview"
-                  fill
-                  className="rounded-full object-cover"
-                />
-              ) : (
-                <div className="w-full h-full rounded-full bg-gray-100 dark:bg-gray-700 flex items-center justify-center">
-                  <FiUser className="w-12 h-12 text-gray-400" />
-                </div>
-              )}
-              <label
-                htmlFor="profile-image"
-                className="absolute bottom-0 right-0 bg-purple-500 p-2 rounded-full cursor-pointer hover:bg-purple-600 transition-colors"
-              >
-                <FiUpload className="w-4 h-4 text-white" />
-              </label>
-              <input
-                type="file"
-                id="profile-image"
-                accept="image/*"
-                onChange={handleImageChange}
-                className="hidden"
-              />
+          {/* Profile Image Upload - Enhanced Version */}
+          <div className="flex flex-col items-center mb-10">
+            <div className="relative group">
+              <div className="absolute -inset-0.5 bg-gradient-to-r from-purple-600 to-blue-500 rounded-full opacity-75 group-hover:opacity-100 blur-sm group-hover:blur transition duration-300"></div>
+              <div className="relative w-32 h-32 rounded-full overflow-hidden">
+                {previewUrl ? (
+                  <Image
+                    src={previewUrl}
+                    alt="Profile Preview"
+                    fill
+                    className="object-cover"
+                  />
+                ) : (
+                  <div className="w-full h-full bg-gradient-to-br from-gray-100 to-gray-200 dark:from-gray-700 dark:to-gray-800 flex items-center justify-center">
+                    <FiUser className="text-purple-500 dark:text-purple-400" size={50} />
+                  </div>
+                )}
+              </div>
             </div>
-            <p className="text-sm text-gray-500 dark:text-gray-400">
-              Upload your profile picture
+            
+            <div className="mt-6 flex items-center gap-3">
+              <motion.div 
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
+                className="relative overflow-hidden"
+              >
+                <div className="absolute inset-0 bg-gradient-to-r from-purple-600 to-purple-400 rounded-lg opacity-80"></div>
+                <label 
+                  htmlFor="profile-upload" 
+                  className="relative flex items-center gap-2 px-4 py-2 rounded-lg cursor-pointer text-white font-medium z-10"
+                >
+                  <FiUpload size={16} />
+                  <span>Upload</span>
+                </label>
+                <input
+                  id="profile-upload"
+                  type="file"
+                  accept="image/*"
+                  onChange={handleImageChange}
+                  className="hidden"
+                />
+              </motion.div>
+              
+              <motion.button 
+                type="button" 
+                onClick={() => setShowAvatarPrompt(true)}
+                className="relative overflow-hidden"
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
+              >
+                <div className="absolute inset-0 bg-gradient-to-r from-blue-500 to-blue-300 rounded-lg opacity-80"></div>
+                <div className="relative flex items-center gap-2 px-4 py-2 rounded-lg text-white font-medium z-10">
+                  <FiImage size={16} />
+                  <span>AI Avatar</span>
+                </div>
+              </motion.button>
+            </div>
+            
+            <p className="text-sm text-gray-500 dark:text-gray-400 mt-3">
+              Upload your photo or generate an AI avatar
             </p>
           </div>
+          
+          {/* AI Avatar Generator Modal */}
+          {showAvatarPrompt && (
+            <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+              <motion.div 
+                initial={{ opacity: 0, scale: 0.9 }}
+                animate={{ opacity: 1, scale: 1 }}
+                className="bg-white dark:bg-gray-800 rounded-xl p-6 max-w-md w-full mx-4"
+              >
+                <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
+                  Generate AI Avatar
+                </h3>
+                <p className="text-sm text-gray-600 dark:text-gray-300 mb-4">
+                  Describe how you want your avatar to look. For example: "a fitness trainer with short brown hair and blue eyes" or "professional athlete with a headband".
+                </p>
+                <textarea
+                  value={avatarPrompt}
+                  onChange={(e) => setAvatarPrompt(e.target.value)}
+                  placeholder="Describe your avatar..."
+                  className="w-full px-4 py-2 rounded-xl border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-purple-500 outline-none mb-4"
+                  rows={3}
+                />
+                <div className="flex justify-end space-x-3">
+                  <button
+                    type="button"
+                    onClick={() => setShowAvatarPrompt(false)}
+                    className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
+                    disabled={generatingAvatar}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleGenerateAvatar}
+                    className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center"
+                    disabled={generatingAvatar}
+                  >
+                    {generatingAvatar ? (
+                      <>
+                        <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                        </svg>
+                        Generating...
+                      </>
+                    ) : (
+                      'Generate Avatar'
+                    )}
+                  </button>
+                </div>
+              </motion.div>
+            </div>
+          )}
 
           {/* Form Fields */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -205,13 +346,20 @@ const ProfileSetup: React.FC<ProfileSetupProps> = ({ onNext, onBack, commonProps
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                 Phone Number
               </label>
-              <input
-                type="tel"
-                name="phoneNumber"
-                value={formData.phoneNumber}
-                onChange={handleInputChange}
-                className="w-full px-4 py-2 rounded-xl border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-purple-500 outline-none"
-              />
+              <div className="relative">
+                <input
+                  type="tel"
+                  name="phoneNumber"
+                  value={formData.phoneNumber}
+                  onChange={handleInputChange}
+                  placeholder="Enter your phone number"
+                  className="w-full px-4 py-2 pl-10 rounded-xl border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-purple-500 outline-none transition-all duration-200"
+                />
+                <FiPhone className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={16} />
+              </div>
+              <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                We'll use this for account recovery and important notifications
+              </p>
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">

@@ -70,10 +70,10 @@ const trainingTypes = [
 ];
 
 const trainingDurations = [
-  { id: 'beginner', label: '0-6 months', description: 'Building foundations' },
-  { id: 'novice', label: '6-12 months', description: 'Developing habits' },
-  { id: 'intermediate', label: '1-3 years', description: 'Consistent progress' },
-  { id: 'advanced', label: '3+ years', description: 'Long-term dedication' }
+  { id: 'beginner', label: '0 months', description: 'Building foundations' },
+  { id: 'novice', label: '0-6 months', description: 'Developing habits' },
+  { id: 'intermediate', label: '6-12 years', description: 'Consistent progress' },
+  { id: 'advanced', label: '2+ years', description: 'Long-term dedication' }
 ];
 
 const consistencyLevels = [

@@ -24,8 +24,8 @@ export default function StepLayout({
   nextButtonText = 'Next'
 }: StepLayoutProps) {
   return (
-    <div className="min-h-screen bg-gray-900 py-8">
-      <div className="max-w-6xl mx-auto px-4">
+    <div className="min-h-screen bg-gray-900 flex flex-col">
+      <div className="max-w-6xl w-full mx-auto px-4 flex-1 pt-8  relative">
         {/* Progress Bar */}
         <div className="mb-8">
           <div className="flex justify-between items-center mb-2">
@@ -68,34 +68,36 @@ export default function StepLayout({
           {children}
         </motion.div>
 
-        {/* Navigation Buttons */}
-        <div className="flex justify-between mt-8">
-          <motion.button
-            whileHover={{ scale: 1.02 }}
-            whileTap={{ scale: 0.98 }}
-            onClick={onPrevious}
-            className={`px-6 py-2 rounded-lg font-medium ${
-              onPrevious
-                ? 'bg-gray-700 text-white hover:bg-gray-600'
-                : 'opacity-50 cursor-not-allowed'
-            }`}
-            disabled={!onPrevious}
-          >
-            Previous
-          </motion.button>
-          <motion.button
-            whileHover={{ scale: 1.02 }}
-            whileTap={{ scale: 0.98 }}
-            onClick={onNext}
-            className={`px-6 py-2 rounded-lg font-medium ${
-              onNext
-                ? 'bg-purple-600 text-white hover:bg-purple-500'
-                : 'opacity-50 cursor-not-allowed'
-            }`}
-            disabled={!onNext}
-          >
-            {currentStep === totalSteps ? nextButtonText : nextButtonText || 'Next'}
-          </motion.button>
+        {/* Fixed Navigation Buttons */}
+        <div className="fixed bottom-0 left-0 right-0 bg-gray-900 border-t border-gray-800 p-4 z-10">
+          <div className="max-w-6xl mx-auto flex justify-between items-center">
+            <motion.button
+              whileHover={{ scale: 1.02 }}
+              whileTap={{ scale: 0.98 }}
+              onClick={onPrevious}
+              className={`px-6 py-3 rounded-lg font-medium shadow-lg ${
+                onPrevious
+                  ? 'bg-gray-700 text-white hover:bg-gray-600'
+                  : 'opacity-50 cursor-not-allowed'
+              }`}
+              disabled={!onPrevious}
+            >
+              Previous
+            </motion.button>
+            <motion.button
+              whileHover={{ scale: 1.02 }}
+              whileTap={{ scale: 0.98 }}
+              onClick={onNext}
+              className={`px-6 py-3 rounded-lg font-medium shadow-lg ${
+                onNext
+                  ? 'bg-purple-600 text-white hover:bg-purple-500'
+                  : 'opacity-50 cursor-not-allowed'
+              }`}
+              disabled={!onNext}
+            >
+              {currentStep === totalSteps ? nextButtonText : nextButtonText || 'Next'}
+            </motion.button>
+          </div>
         </div>
       </div>
     </div>

@@ -11,6 +11,7 @@ import {
   GoogleAuthProvider,
   AuthError
 } from 'firebase/auth';
+import { useRouter } from 'next/navigation';
 
 interface AuthFormProps {
   onSuccess?: () => void;
@@ -71,7 +72,8 @@ const initialUserData: UserData = {
     previousExperience: [],
     trainingDuration: '',
     consistency: ''
-  }
+  },
+  currentStep: 0
 };
 
 export default function AuthForm({ onSuccess }: AuthFormProps) {
@@ -80,6 +82,11 @@ export default function AuthForm({ onSuccess }: AuthFormProps) {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [showOtpVerification, setShowOtpVerification] = useState(false);
+  const [otp, setOtp] = useState('');
+  const [tempEmail, setTempEmail] = useState('');
+  const [tempPassword, setTempPassword] = useState('');
+  const router = useRouter();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -87,10 +94,8 @@ export default function AuthForm({ onSuccess }: AuthFormProps) {
     setLoading(true);
 
     try {
-      console.log('Attempting auth with:', { email, isLogin });
-      
       if (isLogin) {
-        // Handle login
+        // Login - no OTP needed for login
         const userCredential = await signInWithEmailAndPassword(auth, email, password);
         console.log('Login successful:', userCredential.user.uid);
         
@@ -108,14 +113,53 @@ export default function AuthForm({ onSuccess }: AuthFormProps) {
           onSuccess?.();
         }
       } else {
-        // Handle signup
-        const userCredential = await createUserWithEmailAndPassword(auth, email, password);
-        console.log('Signup successful:', userCredential.user.uid);
-        
-        // Create initial user data in Firestore
-        await saveUserData(initialUserData);
-        console.log('Initial user data saved');
-        onSuccess?.();
+        // For sign up, we need OTP verification
+        if (!showOtpVerification) {
+          // First step: Store credentials temporarily and send OTP
+          setTempEmail(email);
+          setTempPassword(password);
+          
+          // Send OTP
+          const response = await fetch('/api/send-otp', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ email }),
+          });
+          
+          const data = await response.json();
+          
+          if (data.success) {
+            setShowOtpVerification(true);
+          } else {
+            throw new Error(data.message || 'Failed to send verification code');
+          }
+        } else {
+          // Second step: Verify OTP and create account
+          const verifyResponse = await fetch('/api/verify-otp', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ email: tempEmail, otp }),
+          });
+          
+          const verifyData = await verifyResponse.json();
+          
+          if (verifyData.success) {
+            // OTP verified, proceed with account creation
+            const userCredential = await createUserWithEmailAndPassword(auth, tempEmail, tempPassword);
+            console.log('Signup successful:', userCredential.user.uid);
+            
+            // Create initial user data in Firestore
+            await saveUserData(initialUserData);
+            console.log('Initial user data saved');
+            onSuccess?.();
+          } else {
+            throw new Error(verifyData.message || 'Invalid verification code');
+          }
+        }
       }
     } catch (error: any) {
       console.error('Auth error:', error);
@@ -145,7 +189,7 @@ export default function AuthForm({ onSuccess }: AuthFormProps) {
           errorMessage = 'Password should be at least 6 characters';
           break;
         default:
-          errorMessage = authError.message;
+          errorMessage = error.message || authError.message;
       }
       
       setError(errorMessage);
@@ -165,152 +209,269 @@ export default function AuthForm({ onSuccess }: AuthFormProps) {
   };
 
   return (
-    <div className="min-h-screen bg-gray-900 flex items-center justify-center px-4">
+    <div className="fixed inset-0 flex items-center justify-center overflow-hidden">
+      {/* Animated background */}
+      <div className="absolute inset-0 bg-gradient-to-br from-blue-600 via-indigo-700 to-purple-800 overflow-hidden">
+        {/* Animated gradient orbs */}
+        <div className="absolute top-0 left-0 w-full h-full overflow-hidden opacity-20">
+          <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-blue-400 rounded-full mix-blend-multiply filter blur-3xl animate-blob"></div>
+          <div className="absolute top-1/3 right-1/4 w-96 h-96 bg-purple-400 rounded-full mix-blend-multiply filter blur-3xl animate-blob animation-delay-2000"></div>
+          <div className="absolute bottom-1/4 right-1/3 w-96 h-96 bg-pink-400 rounded-full mix-blend-multiply filter blur-3xl animate-blob animation-delay-4000"></div>
+          <div className="absolute bottom-1/3 left-1/3 w-96 h-96 bg-yellow-400 rounded-full mix-blend-multiply filter blur-3xl animate-blob animation-delay-6000"></div>
+        </div>
+        
+        {/* Grid pattern overlay */}
+        <div className="absolute inset-0 bg-grid-white/[0.05] bg-[length:40px_40px] opacity-20"></div>
+      </div>
+
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
-        className="max-w-md w-full space-y-8 bg-gray-800 p-8 rounded-2xl"
+        transition={{ duration: 0.5 }}
+        className="max-w-md w-full relative z-10 px-4 m-0"
       >
-        <div>
-          <h2 className="mt-6 text-center text-3xl font-extrabold text-white">
-            {isLogin ? 'Welcome back!' : 'Create your account'}
-          </h2>
-          <p className="mt-2 text-center text-sm text-gray-400">
-            {isLogin
-              ? "Don't have an account? "
-              : 'Already have an account? '}
-            <button
-              type="button"
-              onClick={() => setIsLogin(!isLogin)}
-              className="w-full text-sm text-gray-400 hover:text-white"
-            >
-              {isLogin ? "Don't have an account? Sign Up" : "Already have an account? Sign In"}
-            </button>
-          </p>
-        </div>
-
-        <motion.form 
-          onSubmit={handleSubmit} 
-          className="space-y-6"
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.3 }}
-        >
-          <motion.div
-            initial={{ opacity: 0, x: -20 }}
-            animate={{ opacity: 1, x: 0 }}
-            transition={{ delay: 0.1 }}
+        <div className="bg-white/10 backdrop-blur-xl rounded-3xl p-6 shadow-2xl border border-white/20">
+          <motion.div 
+            initial={{ opacity: 0, y: -20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.1, duration: 0.5 }}
+            className="text-center mb-4"
           >
-            <label htmlFor="email" className="block text-sm font-medium text-gray-300">
-              Email
-            </label>
-            <input
-              type="email"
-              id="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              className="mt-1 block w-full rounded-md bg-gray-800 border-gray-700 text-white shadow-sm focus:border-purple-500 focus:ring-purple-500"
-              required
-            />
+            <h2 className="text-3xl font-bold text-white mb-2">
+              {isLogin ? 'Welcome back!' : 'Join NeuroFit'}
+            </h2>
+            <p className="text-blue-100">
+              {isLogin
+                ? 'Sign in to continue your fitness journey'
+                : 'Create an account to start your fitness journey'}
+            </p>
           </motion.div>
 
-          <motion.div
-            initial={{ opacity: 0, x: -20 }}
-            animate={{ opacity: 1, x: 0 }}
-            transition={{ delay: 0.2 }}
+          <motion.form 
+            onSubmit={handleSubmit} 
+            className="space-y-4"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ duration: 0.5, delay: 0.2 }}
           >
-            <label htmlFor="password" className="block text-sm font-medium text-gray-300">
-              Password
-            </label>
-            <input
-              type="password"
-              id="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              className="mt-1 block w-full rounded-md bg-gray-800 border-gray-700 text-white shadow-sm focus:border-purple-500 focus:ring-purple-500"
-              required
-              minLength={6}
-            />
-          </motion.div>
-
-          {error && (
-            <motion.p 
-              className="text-red-500 text-sm"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-            >
-              {error}
-            </motion.p>
-          )}
-
-          <motion.button
-            type="submit"
-            disabled={loading}
-            className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-purple-600 hover:bg-purple-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-purple-500 disabled:opacity-50"
-            whileHover={{ scale: 1.02 }}
-            whileTap={{ scale: 0.98 }}
-          >
-            {loading ? 'Please wait...' : (isLogin ? 'Sign In' : 'Sign Up')}
-          </motion.button>
-
-          <motion.button
-            type="button"
-            onClick={() => setIsLogin(!isLogin)}
-            className="w-full text-sm text-gray-400 hover:text-white"
-            whileHover={{ scale: 1.02 }}
-            whileTap={{ scale: 0.98 }}
-          >
-            {isLogin ? "Don't have an account? Sign Up" : "Already have an account? Sign In"}
-          </motion.button>
-
-          {/* <div className="mt-6">
-            <div className="relative">
-              <div className="absolute inset-0 flex items-center">
-                <div className="w-full border-t border-gray-700"></div>
-              </div>
-              <div className="relative flex justify-center text-sm">
-                <span className="px-2 bg-gray-800 text-gray-400">
-                  Or continue with
-                </span>
-              </div>
-            </div>
-
-            <div className="mt-6">
-              <motion.button
-                whileHover={{ scale: 1.02 }}
-                whileTap={{ scale: 0.98 }}
-                onClick={handleGoogleSignIn}
-                type="button"
-                className="w-full flex items-center justify-center px-4 py-2 border border-gray-700 rounded-md shadow-sm text-sm font-medium text-white bg-gray-700 hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-purple-500"
-              >
-                <svg
-                  className="w-5 h-5 mr-2"
-                  xmlns="http://www.w3.org/2000/svg"
-                  viewBox="0 0 48 48"
+            {!showOtpVerification ? (
+              <>
+                <motion.div
+                  initial={{ opacity: 0, x: -20 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  transition={{ delay: 0.3 }}
+                  className="space-y-2"
                 >
-                  <path
-                    fill="#FFC107"
-                    d="M43.611 20.083H42V20H24v8h11.303c-1.649 4.657-6.08 8-11.303 8-6.627 0-12-5.373-12-12s5.373-12 12-12c3.059 0 5.842 1.154 7.961 3.039l5.657-5.657C34.046 6.053 29.268 4 24 4 12.955 4 4 12.955 4 24s8.955 20 20 20 20-8.955 20-20c0-1.341-.138-2.65-.389-3.917z"
+                  <label htmlFor="email" className="block text-sm font-medium text-white">
+                    Email
+                  </label>
+                  <div className="relative">
+                    <input
+                      type="email"
+                      id="email"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      className="block w-full px-4 py-3 rounded-xl bg-white/10 border border-white/20 text-white placeholder-blue-200/60 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-transparent transition-all duration-200"
+                      placeholder="your@email.com"
+                      required
+                    />
+                  </div>
+                </motion.div>
+
+                <motion.div
+                  initial={{ opacity: 0, x: -20 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  transition={{ delay: 0.4 }}
+                  className="space-y-2"
+                >
+                  <label htmlFor="password" className="block text-sm font-medium text-white">
+                    Password
+                  </label>
+                  <div className="relative">
+                    <input
+                      type="password"
+                      id="password"
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      className="block w-full px-4 py-3 rounded-xl bg-white/10 border border-white/20 text-white placeholder-blue-200/60 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-transparent transition-all duration-200"
+                      placeholder="••••••••"
+                      required
+                      minLength={6}
+                    />
+                  </div>
+                </motion.div>
+              </>
+            ) : (
+              <motion.div
+                initial={{ opacity: 0, scale: 0.95 }}
+                animate={{ opacity: 1, scale: 1 }}
+                transition={{ duration: 0.3 }}
+                className="space-y-4"
+              >
+                <div className="text-center">
+                  <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-blue-500/20 mb-4">
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8 text-blue-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                    </svg>
+                  </div>
+                  <h3 className="text-xl font-medium text-white mb-1">Verification Required</h3>
+                  <p className="text-blue-200/80 text-sm mb-4">We've sent a verification code to {tempEmail}</p>
+                </div>
+                
+                <div className="space-y-2">
+                  <label htmlFor="otp" className="block text-sm font-medium text-white">
+                    Verification Code
+                  </label>
+                  <input
+                    type="text"
+                    id="otp"
+                    value={otp}
+                    onChange={(e) => setOtp(e.target.value)}
+                    className="block w-full px-4 py-3 rounded-xl bg-white/10 border border-white/20 text-white text-center tracking-widest font-medium placeholder-blue-200/60 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-transparent transition-all duration-200"
+                    placeholder="000000"
+                    required
+                    maxLength={6}
+                    autoComplete="one-time-code"
                   />
-                  <path
-                    fill="#FF3D00"
-                    d="m6.306 14.691 6.571 4.819C14.655 15.108 18.961 12 24 12c3.059 0 5.842 1.154 7.961 3.039l5.657-5.657C34.046 6.053 29.268 4 24 4 16.318 4 9.656 8.337 6.306 14.691z"
-                  />
-                  <path
-                    fill="#4CAF50"
-                    d="M24 44c5.166 0 9.86-1.977 13.409-5.192l-6.19-5.238A11.91 11.91 0 0 1 24 36c-5.202 0-9.619-3.317-11.283-7.946l-6.522 5.025C9.505 39.556 16.227 44 24 44z"
-                  />
-                  <path
-                    fill="#1976D2"
-                    d="M43.611 20.083H42V20H24v8h11.303a12.04 12.04 0 0 1-4.087 5.571l.003-.002 6.19 5.238C36.971 39.205 44 34 44 24c0-1.341-.138-2.65-.389-3.917z"
-                  />
-                </svg>
-                Continue with Google
-              </motion.button>
-            </div>
-          </div> */}
-        </motion.form>
+                </div>
+                
+                <div className="text-center">
+                  <button 
+                    type="button" 
+                    onClick={() => {
+                      setShowOtpVerification(false);
+                      setOtp('');
+                    }}
+                    className="text-sm text-blue-300 hover:text-white transition-colors"
+                  >
+                    Back to sign up
+                  </button>
+                </div>
+              </motion.div>
+            )}
+
+            {error && (
+              <motion.div 
+                className="bg-red-500/20 border border-red-500/50 text-white px-4 py-3 rounded-xl"
+                initial={{ opacity: 0, y: -10 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.3 }}
+              >
+                <p className="text-sm">{error}</p>
+              </motion.div>
+            )}
+
+            <motion.button
+              type="submit"
+              disabled={loading}
+              className="w-full flex justify-center py-3 px-4 border border-transparent rounded-xl text-white bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50 transition-all duration-200 font-medium shadow-lg shadow-indigo-600/30"
+              whileHover={{ scale: 1.02 }}
+              whileTap={{ scale: 0.98 }}
+            >
+              {loading ? (
+                <span className="flex items-center">
+                  <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                  </svg>
+                  Processing...
+                </span>
+              ) : (
+                isLogin ? 'Sign In' : (showOtpVerification ? 'Verify Code' : 'Continue')
+              )}
+            </motion.button>
+
+            {!showOtpVerification && (
+              <>
+                <div className="relative my-3">
+                  <div className="absolute inset-0 flex items-center">
+                    <div className="w-full border-t border-white/20"></div>
+                  </div>
+                  <div className="relative flex justify-center text-sm">
+                    <span className="px-2 bg-gradient-to-r from-blue-600 via-indigo-700 to-purple-800 text-white/70">
+                      Or
+                    </span>
+                  </div>
+                </div>
+
+                <motion.button
+                  type="button"
+                  onClick={handleGoogleSignIn}
+                  className="w-full flex items-center justify-center px-4 py-3 border border-white/20 rounded-xl text-white bg-white/10 hover:bg-white/20 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-all duration-200"
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.98 }}
+                >
+                  <svg
+                    className="w-5 h-5 mr-2"
+                    xmlns="http://www.w3.org/2000/svg"
+                    viewBox="0 0 48 48"
+                  >
+                    <path
+                      fill="#FFC107"
+                      d="M43.611 20.083H42V20H24v8h11.303c-1.649 4.657-6.08 8-11.303 8-6.627 0-12-5.373-12-12s5.373-12 12-12c3.059 0 5.842 1.154 7.961 3.039l5.657-5.657C34.046 6.053 29.268 4 24 4 12.955 4 4 12.955 4 24s8.955 20 20 20 20-8.955 20-20c0-1.341-.138-2.65-.389-3.917z"
+                    />
+                    <path
+                      fill="#FF3D00"
+                      d="m6.306 14.691 6.571 4.819C14.655 15.108 18.961 12 24 12c3.059 0 5.842 1.154 7.961 3.039l5.657-5.657C34.046 6.053 29.268 4 24 4 16.318 4 9.656 8.337 6.306 14.691z"
+                    />
+                    <path
+                      fill="#4CAF50"
+                      d="M24 44c5.166 0 9.86-1.977 13.409-5.192l-6.19-5.238A11.91 11.91 0 0 1 24 36c-5.202 0-9.619-3.317-11.283-7.946l-6.522 5.025C9.505 39.556 16.227 44 24 44z"
+                    />
+                    <path
+                      fill="#1976D2"
+                      d="M43.611 20.083H42V20H24v8h11.303a12.04 12.04 0 0 1-4.087 5.571l.003-.002 6.19 5.238C36.971 39.205 44 34 44 24c0-1.341-.138-2.65-.389-3.917z"
+                    />
+                  </svg>
+                  Continue with Google
+                </motion.button>
+              </>
+            )}
+
+            {!showOtpVerification && (
+              <motion.div 
+                className="text-center mt-2"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ delay: 0.6 }}
+              >
+                <button
+                  type="button"
+                  onClick={() => setIsLogin(!isLogin)}
+                  className="text-sm text-blue-200 hover:text-white transition-colors"
+                >
+                  {isLogin ? "Don't have an account? Sign Up" : "Already have an account? Sign In"}
+                </button>
+              </motion.div>
+            )}
+          </motion.form>
+        </div>
       </motion.div>
+
+      {/* Add custom styles for animations */}
+      <style jsx global>{`
+        @keyframes blob {
+          0% { transform: translate(0px, 0px) scale(1); }
+          33% { transform: translate(30px, -50px) scale(1.1); }
+          66% { transform: translate(-20px, 20px) scale(0.9); }
+          100% { transform: translate(0px, 0px) scale(1); }
+        }
+        .animate-blob {
+          animation: blob 7s infinite;
+        }
+        .animation-delay-2000 {
+          animation-delay: 2s;
+        }
+        .animation-delay-4000 {
+          animation-delay: 4s;
+        }
+        .animation-delay-6000 {
+          animation-delay: 6s;
+        }
+        .bg-grid-white {
+          background-image: url("data:image/svg+xml,%3Csvg width='100' height='100' viewBox='0 0 100 100' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M0 0h100v100H0z' fill='none' stroke='%23FFFFFF' stroke-width='0.25'/%3E%3C/svg%3E");
+        }
+      `}</style>
     </div>
   );
 }
