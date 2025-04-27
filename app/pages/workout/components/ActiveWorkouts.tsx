@@ -63,7 +63,7 @@ const ActiveWorkouts: React.FC = () => {
     fetchActiveWorkouts();
   }, [user]);
 
-  // Auto scroll animation
+  // Manual scroll instead of animation to prevent cards from disappearing
   useEffect(() => {
     if (activeWorkouts.length <= 1) return;
     
@@ -74,16 +74,22 @@ const ActiveWorkouts: React.FC = () => {
         
         // If we're at the end, go back to the start
         if (scrollLeft >= maxScroll - 10) {
-          controls.start({ x: 0, transition: { duration: 0.5 } });
+          scrollContainerRef.current.scrollTo({
+            left: 0,
+            behavior: 'smooth'
+          });
         } else {
           // Otherwise scroll a bit more
-          controls.start({ x: -(scrollLeft + 350), transition: { duration: 0.5 } });
+          scrollContainerRef.current.scrollTo({
+            left: scrollLeft + 350,
+            behavior: 'smooth'
+          });
         }
       }
     }, 5000); // Scroll every 5 seconds
     
     return () => clearInterval(interval);
-  }, [controls, activeWorkouts.length]);
+  }, [activeWorkouts.length]);
 
   const handleDeleteWorkout = async (workoutId: string) => {
     if (!user) return;
@@ -160,11 +166,9 @@ const ActiveWorkouts: React.FC = () => {
         Active Workouts
       </h2>
       <div className="relative">
-        <motion.div 
+        <div 
           ref={scrollContainerRef}
           className="flex gap-4 overflow-x-auto pb-4 scrollbar-hide"
-          animate={controls}
-          style={{ x: 0 }}
         >
           {activeWorkouts.map((workout) => {
             // Calculate progress
@@ -189,7 +193,7 @@ const ActiveWorkouts: React.FC = () => {
                             fill
                             className="object-cover"
                           />
-                          <div className="absolute inset-0 bg-gradient-to-r from-black/60 to-transparent" />
+                          {/* Removed the inset shadow */}
                         </div>
                       </div>
                       <div className="p-4 w-2/3">
@@ -270,11 +274,11 @@ const ActiveWorkouts: React.FC = () => {
               </motion.div>
             );
           })}
-        </motion.div>
+        </div>
         
-        {/* Gradient shadows for scroll indication */}
-        <div className="absolute left-0 top-0 bottom-4 w-8 bg-gradient-to-r from-gray-50 dark:from-gray-900 to-transparent pointer-events-none z-10" />
-        <div className="absolute right-0 top-0 bottom-4 w-8 bg-gradient-to-l from-gray-50 dark:from-gray-900 to-transparent pointer-events-none z-10" />
+        {/* Scroll indicators without shadows */}
+        <div className="absolute left-0 top-0 bottom-4 w-8 pointer-events-none z-10" />
+        <div className="absolute right-0 top-0 bottom-4 w-8 pointer-events-none z-10" />
       </div>
       
       {/* Custom Scrollbar Styles */}
