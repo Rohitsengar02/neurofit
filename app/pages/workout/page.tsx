@@ -270,7 +270,7 @@ export default function WorkoutPage() {
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
       <div className="container mx-auto px-4 py-8">
         {/* Active Workouts - Horizontal Scrollable Section */}
-        <section className="mb-12 relative">
+        <section className=" relative">
          
           
           <div className="relative">
