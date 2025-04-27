@@ -14,35 +14,23 @@ import { toast } from 'react-hot-toast';
 
 const generateImageFromPrompt = async (prompt: string): Promise<string | null> => {
   try {
-    // Add a cache-busting parameter to prevent caching issues in production
     const response = await fetch('/api/generate-image', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Cache-Control': 'no-cache, no-store, must-revalidate',
-        'Pragma': 'no-cache'
       },
-      body: JSON.stringify({ 
-        prompt,
-        timestamp: Date.now() // Add timestamp to prevent caching
-      }),
+      body: JSON.stringify({ prompt }),
     });
 
     if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}));
-      throw new Error(errorData.error || 'Failed to generate image');
+      throw new Error('Failed to generate image');
     }
 
     const data = await response.json();
-    if (!data.imageUrl) {
-      throw new Error('No image URL returned from API');
-    }
-    
     return data.imageUrl;
   } catch (error) {
     console.error('Error generating image:', error);
-    // Return a placeholder image as fallback in production
-    return `https://picsum.photos/seed/${encodeURIComponent(prompt)}/600/400?random=${Date.now()}`;
+    return null;
   }
 };
 
@@ -520,51 +508,245 @@ export default function AddMealPage() {
       } else if (selectedType === 'diet') {
         const result = await generateDietPlan(prompt);
         if (result.success && result.data) {
-          const data = result.data as GeneratedDietPlan;
-          setFormData(prev => ({
-            ...prev,
-            name: data.name || '',
-            description: data.description || '',
-            duration: data.duration || '',
-            difficulty: data.difficulty || 'easy',
-            restrictions: data.restrictions || [''],
-            goals: data.goals || [''],
-            mealPlan: {
-              breakfast: { 
-                options: data.mealPlan?.breakfast?.options?.map(meal => ({
-                  ...meal,
-                  macros: meal.macros || { protein: 0, carbs: 0, fat: 0 }
-                })) || []
-              },
-              lunch: {
-                options: data.mealPlan?.lunch?.options?.map(meal => ({
-                  ...meal,
-                  macros: meal.macros || { protein: 0, carbs: 0, fat: 0 }
-                })) || []
-              },
-              dinner: {
-                options: data.mealPlan?.dinner?.options?.map(meal => ({
-                  ...meal,
-                  macros: meal.macros || { protein: 0, carbs: 0, fat: 0 }
-                })) || []
-              },
-              snacks: {
-                options: data.mealPlan?.snacks?.options?.map(meal => ({
-                  ...meal,
-                  macros: meal.macros || { protein: 0, carbs: 0, fat: 0 }
-                })) || []
+          const data = result.data;
+          
+          // Generate image from the diet plan using the imagePrompt
+          if (data.imagePrompt) {
+            setIsGeneratingImage(true);
+            toast.loading('Generating diet plan image...', { id: 'generating-image' });
+            
+            try {
+              const imageUrl = await generateImageFromPrompt(data.imagePrompt);
+              if (imageUrl) {
+                // Convert the URL to a file object for the form
+                const response = await fetch(imageUrl);
+                const blob = await response.blob();
+                const file = new File([blob], 'diet-plan-image.jpg', { type: 'image/jpeg' });
+                
+                // Update form data with the image and other diet plan data
+                setFormData(prev => ({
+                  ...prev,
+                  name: data.name,
+                  description: data.description,
+                  image: file,
+                  imagePreview: imageUrl,
+                  duration: data.duration || '',
+                  difficulty: data.difficulty || 'medium',
+                  restrictions: data.restrictions || [],
+                  goals: data.goals || [],
+                  mealPlan: {
+                    breakfast: {
+                      options: (data.mealPlan?.breakfast?.options || []).map(meal => ({
+                        name: (meal as any).name || '',
+                        description: (meal as any).description || '',
+                        ingredients: (meal as any).ingredients || [],
+                        calories: (meal as any).calories || 0,
+                        macros: { protein: 0, carbs: 0, fat: 0 }
+                      }))
+                    },
+                    lunch: {
+                      options: (data.mealPlan?.lunch?.options || []).map(meal => ({
+                        name: (meal as any).name || '',
+                        description: (meal as any).description || '',
+                        ingredients: (meal as any).ingredients || [],
+                        calories: (meal as any).calories || 0,
+                        macros: { protein: 0, carbs: 0, fat: 0 }
+                      }))
+                    },
+                    dinner: {
+                      options: (data.mealPlan?.dinner?.options || []).map(meal => ({
+                        name: (meal as any).name || '',
+                        description: (meal as any).description || '',
+                        ingredients: (meal as any).ingredients || [],
+                        calories: (meal as any).calories || 0,
+                        macros: { protein: 0, carbs: 0, fat: 0 }
+                      }))
+                    },
+                    snacks: {
+                      options: (data.mealPlan?.snacks?.options || []).map(meal => ({
+                        name: (meal as any).name || '',
+                        description: (meal as any).description || '',
+                        ingredients: (meal as any).ingredients || [],
+                        calories: (meal as any).calories || 0,
+                        macros: { protein: 0, carbs: 0, fat: 0 }
+                      }))
+                    }
+                  }
+                }));
+                
+                toast.success('Diet plan image generated!', { id: 'generating-image' });
+              } else {
+                toast.error('Could not generate diet plan image', { id: 'generating-image' });
+                
+                // Still update the form data even if image generation fails
+                setFormData(prev => ({
+                  ...prev,
+                  name: data.name,
+                  description: data.description,
+                  duration: data.duration || '',
+                  difficulty: data.difficulty || 'medium',
+                  restrictions: data.restrictions || [],
+                  goals: data.goals || [],
+                  mealPlan: {
+                    breakfast: {
+                      options: (data.mealPlan?.breakfast?.options || []).map(meal => ({
+                        name: (meal as any).name || '',
+                        description: (meal as any).description || '',
+                        ingredients: (meal as any).ingredients || [],
+                        calories: (meal as any).calories || 0,
+                        macros: { protein: 0, carbs: 0, fat: 0 }
+                      }))
+                    },
+                    lunch: {
+                      options: (data.mealPlan?.lunch?.options || []).map(meal => ({
+                        name: (meal as any).name || '',
+                        description: (meal as any).description || '',
+                        ingredients: (meal as any).ingredients || [],
+                        calories: (meal as any).calories || 0,
+                        macros: { protein: 0, carbs: 0, fat: 0 }
+                      }))
+                    },
+                    dinner: {
+                      options: (data.mealPlan?.dinner?.options || []).map(meal => ({
+                        name: (meal as any).name || '',
+                        description: (meal as any).description || '',
+                        ingredients: (meal as any).ingredients || [],
+                        calories: (meal as any).calories || 0,
+                        macros: { protein: 0, carbs: 0, fat: 0 }
+                      }))
+                    },
+                    snacks: {
+                      options: (data.mealPlan?.snacks?.options || []).map(meal => ({
+                        name: (meal as any).name || '',
+                        description: (meal as any).description || '',
+                        ingredients: (meal as any).ingredients || [],
+                        calories: (meal as any).calories || 0,
+                        macros: { protein: 0, carbs: 0, fat: 0 }
+                      }))
+                    }
+                  }
+                }));
               }
+            } catch (imageError) {
+              console.error('Error generating image:', imageError);
+              toast.error('Failed to generate diet plan image', { id: 'generating-image' });
+              
+              // Still update the form data even if image generation fails
+              setFormData(prev => ({
+                ...prev,
+                name: data.name,
+                description: data.description,
+                duration: data.duration || '',
+                difficulty: data.difficulty || 'medium',
+                restrictions: data.restrictions || [],
+                goals: data.goals || [],
+                mealPlan: {
+                  breakfast: {
+                    options: (data.mealPlan?.breakfast?.options || []).map(meal => ({
+                      name: (meal as any).name || '',
+                      description: (meal as any).description || '',
+                      ingredients: (meal as any).ingredients || [],
+                      calories: (meal as any).calories || 0,
+                      macros: { protein: 0, carbs: 0, fat: 0 }
+                    }))
+                  },
+                  lunch: {
+                    options: (data.mealPlan?.lunch?.options || []).map(meal => ({
+                      name: (meal as any).name || '',
+                      description: (meal as any).description || '',
+                      ingredients: (meal as any).ingredients || [],
+                      calories: (meal as any).calories || 0,
+                      macros: { protein: 0, carbs: 0, fat: 0 }
+                    }))
+                  },
+                  dinner: {
+                    options: (data.mealPlan?.dinner?.options || []).map(meal => ({
+                      name: (meal as any).name || '',
+                      description: (meal as any).description || '',
+                      ingredients: (meal as any).ingredients || [],
+                      calories: (meal as any).calories || 0,
+                      macros: { protein: 0, carbs: 0, fat: 0 }
+                    }))
+                  },
+                  snacks: {
+                    options: (data.mealPlan?.snacks?.options || []).map(meal => ({
+                      name: (meal as any).name || '',
+                      description: (meal as any).description || '',
+                      ingredients: (meal as any).ingredients || [],
+                      calories: (meal as any).calories || 0,
+                      macros: { protein: 0, carbs: 0, fat: 0 }
+                    }))
+                  }
+                }
+              }));
+            } finally {
+              setIsGeneratingImage(false);
             }
-          }));
+          } else {
+            // No image prompt available, just update the form data
+            setFormData(prev => ({
+              ...prev,
+              name: data.name,
+              description: data.description,
+              duration: data.duration || '',
+              difficulty: data.difficulty || 'medium',
+              restrictions: data.restrictions || [],
+              goals: data.goals || [],
+              mealPlan: {
+                breakfast: {
+                  options: (data.mealPlan?.breakfast?.options || []).map(meal => ({
+                    name: (meal as any).name || '',
+                    description: (meal as any).description || '',
+                    ingredients: (meal as any).ingredients || [],
+                    calories: (meal as any).calories || 0,
+                    macros: { protein: 0, carbs: 0, fat: 0 }
+                  }))
+                },
+                lunch: {
+                  options: (data.mealPlan?.lunch?.options || []).map(meal => ({
+                    name: (meal as any).name || '',
+                    description: (meal as any).description || '',
+                    ingredients: (meal as any).ingredients || [],
+                    calories: (meal as any).calories || 0,
+                    macros: { protein: 0, carbs: 0, fat: 0 }
+                  }))
+                },
+                dinner: {
+                  options: (data.mealPlan?.dinner?.options || []).map(meal => ({
+                    name: (meal as any).name || '',
+                    description: (meal as any).description || '',
+                    ingredients: (meal as any).ingredients || [],
+                    calories: (meal as any).calories || 0,
+                    macros: { protein: 0, carbs: 0, fat: 0 }
+                  }))
+                },
+                snacks: {
+                  options: (data.mealPlan?.snacks?.options || []).map(meal => ({
+                    name: (meal as any).name || '',
+                    description: (meal as any).description || '',
+                    ingredients: (meal as any).ingredients || [],
+                    calories: (meal as any).calories || 0,
+                    macros: { protein: 0, carbs: 0, fat: 0 }
+                  }))
+                }
+              }
+            }));
+          }
         } else {
-          alert(result.error || 'Failed to generate diet plan');
+          toast.error(result.error || 'Failed to generate diet plan');
         }
       }
+
+      // Always close the prompt modal and reset prompt regardless of success/failure
       setShowPromptModal(false);
       setPrompt('');
     } catch (error) {
       console.error('Error generating content:', error);
-      alert('Failed to generate content. Please try again.');
+      toast.error('Failed to generate content. Please try again.');
+      
+      // Also close the prompt modal on error
+      setShowPromptModal(false);
+      setPrompt('');
     } finally {
       setIsGenerating(false);
     }
