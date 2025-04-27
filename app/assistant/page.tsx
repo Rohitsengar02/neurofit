@@ -554,7 +554,7 @@ const VoiceAssistant = () => {
   };
 
   return (
-    <div className="flex flex-col h-screen bg-gray-50 dark:bg-gray-900 pt-[15px]">
+    <div className="flex flex-col h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 dark:from-gray-900 dark:via-indigo-950 dark:to-purple-950 pt-[15px]">
       {/* Chat Container with margins for navbar and bottom menu */}
       <div 
         ref={chatContainerRef}
@@ -567,7 +567,11 @@ const VoiceAssistant = () => {
       >
         {Object.keys(groupedMessages).map((date) => (
           <div key={date} className="flex flex-col">
-            <div className="text-gray-600 dark:text-gray-300 text-sm mb-2">{date}</div>
+            <div className="flex justify-center mb-4">
+              <div className="px-4 py-1 bg-gradient-to-r from-blue-100/80 to-indigo-100/80 dark:from-blue-900/30 dark:to-indigo-900/30 rounded-full text-xs md:text-sm text-blue-800 dark:text-blue-200 font-medium shadow-sm border border-blue-200/50 dark:border-blue-800/50 backdrop-blur-sm">
+                {date}
+              </div>
+            </div>
             {groupedMessages[date].map((message) => (
               <div
                 key={message.id}
@@ -578,11 +582,11 @@ const VoiceAssistant = () => {
                 <div
                   className={`max-w-[80%] rounded-lg p-3 ${
                     message.sender === 'user'
-                      ? 'bg-blue-500 text-white'
-                      : 'bg-gray-200 dark:bg-gray-700 text-gray-900 dark:text-white'
-                  } shadow-md`}
+                      ? 'bg-gradient-to-r from-blue-500 to-indigo-600 text-white'
+                      : 'bg-gradient-to-r from-gray-100 to-gray-200 dark:from-gray-700 dark:to-gray-800 text-gray-900 dark:text-white'
+                  } shadow-md backdrop-blur-sm border ${message.sender === 'user' ? 'border-blue-400/30' : 'border-gray-300/30 dark:border-gray-600/30'}`}
                 >
-                  <pre className="whitespace-pre-wrap font-sans text-sm md:text-base">
+                  <pre className="whitespace-pre-wrap font-sans text-sm md:text-base leading-relaxed">
                     {formatMessage(message.text)}
                   </pre>
                 </div>
@@ -592,11 +596,14 @@ const VoiceAssistant = () => {
         ))}
         {isLoading && (
           <div className="flex justify-start mb-4">
-            <div className="bg-gray-200 dark:bg-gray-700 rounded-lg p-3 shadow-md">
-              <div className="flex space-x-2">
-                <div className="w-2 h-2 bg-gray-500 rounded-full animate-bounce" />
-                <div className="w-2 h-2 bg-gray-500 rounded-full animate-bounce delay-100" />
-                <div className="w-2 h-2 bg-gray-500 rounded-full animate-bounce delay-200" />
+            <div className="bg-gradient-to-r from-gray-100 to-gray-200 dark:from-gray-700 dark:to-gray-800 rounded-lg p-4 shadow-md border border-gray-300/30 dark:border-gray-600/30 backdrop-blur-sm">
+              <div className="flex items-center space-x-3">
+                <div className="relative flex space-x-2">
+                  <div className="w-3 h-3 bg-gradient-to-r from-indigo-400 to-blue-500 rounded-full animate-pulse" style={{ animationDelay: '0ms' }} />
+                  <div className="w-3 h-3 bg-gradient-to-r from-indigo-400 to-blue-500 rounded-full animate-pulse" style={{ animationDelay: '300ms' }} />
+                  <div className="w-3 h-3 bg-gradient-to-r from-indigo-400 to-blue-500 rounded-full animate-pulse" style={{ animationDelay: '600ms' }} />
+                </div>
+                <span className="text-gray-600 dark:text-gray-300 text-sm font-medium">Rudra is thinking...</span>
               </div>
             </div>
           </div>
@@ -604,7 +611,7 @@ const VoiceAssistant = () => {
       </div>
 
       {/* Fixed Control Bar */}
-      <div className="fixed bottom-[10vh] md:bottom-0 left-0 right-0 border-t border-gray-200 dark:border-gray-700 bg-white/80 dark:bg-gray-800/90 backdrop-blur-md p-3 md:p-4 shadow-lg">
+      <div className="fixed bottom-[10vh] md:bottom-0 left-0 right-0 border-t border-gray-200/50 dark:border-gray-700/50 bg-gradient-to-r from-white/80 to-blue-50/80 dark:from-gray-900/90 dark:to-indigo-950/90 backdrop-blur-md p-3 md:p-4 shadow-lg">
         {/* Input Area */}
         <div className="max-w-4xl mx-auto">
           {/* Input and Buttons */}
@@ -616,14 +623,14 @@ const VoiceAssistant = () => {
                 onChange={(e) => setInputText(e.target.value)}
                 onKeyPress={(e) => e.key === 'Enter' && handleSend()}
                 placeholder="Type your message..."
-                className="w-full rounded-full px-4 py-2.5 md:py-3 bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 shadow-inner text-sm md:text-base"
+                className="w-full rounded-full px-4 py-2.5 md:py-3 bg-white/70 dark:bg-gray-800/70 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 shadow-inner text-sm md:text-base border border-gray-200/50 dark:border-gray-700/50 backdrop-blur-sm"
               />
             </div>
             
             {/* Voice Control Button */}
             <button
               onClick={stopSpeech}
-              className={`p-2 md:p-3 rounded-full ${isSpeaking ? 'bg-red-500 hover:bg-red-600' : 'bg-green-500 hover:bg-green-600'} text-white transition-all shadow-md hover:shadow-lg transform hover:scale-105 active:scale-95 duration-200 flex items-center justify-center min-w-[40px] min-h-[40px] md:min-w-[44px] md:min-h-[44px]`}
+              className={`p-2 md:p-3 rounded-full ${isSpeaking ? 'bg-gradient-to-r from-red-500 to-red-600' : 'bg-gradient-to-r from-green-500 to-green-600'} text-white transition-all shadow-md hover:shadow-lg transform hover:scale-105 active:scale-95 duration-200 flex items-center justify-center min-w-[40px] min-h-[40px] md:min-w-[44px] md:min-h-[44px] border ${isSpeaking ? 'border-red-400/30' : 'border-green-400/30'}`}
               title={isSpeaking ? 'Stop Voice' : 'Voice Active'}
             >
               {isSpeaking ? (
@@ -632,7 +639,7 @@ const VoiceAssistant = () => {
                 </svg>
               ) : (
                 <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                  <path fillRule="evenodd" d="M9.383 3.076A1 1 0 0110 4v12a1 1 0 01-1.707.707L4.586 13H2a1 1 0 01-1-1V8a1 1 0 011-1h2.586l3.707-3.707a1 1 0 011.09-.217zM14.657 2.929a1 1 0 011.414 0A9.972 9.972 0 0119 10a9.972 9.972 0 01-2.929 7.071 1 1 0 01-1.414-1.414A7.971 7.971 0 0017 10c0-2.21-.894-4.208-2.343-5.657a1 1 0 010-1.414zm-2.829 2.828a1 1 0 011.415 0A5.983 5.983 0 0115 10a5.984 5.984 0 01-1.757 4.243a1 1 0 01-1.415-1.415A3.984 3.984 0 0013 10a3.983 3.983 0 00-1.172-2.828a1 1 0 010-1.415z" clipRule="evenodd" />
+                  <path fillRule="evenodd" d="M9.383 3.076A1 1 0 0110 4v12a1 1 0 01-1.707.707L4.586 13H2a1 1 0 01-1-1V8a1 1 0 011-1h2.586l3.707-3.707a1 1 0 011.09-.217zM14.657 2.929a1 1 0 011.414 0A9.972 9.972 0 0119 10a9.972 9.972 0 01-2.929 7.071a1 1 0 01-1.414-1.414A7.971 7.971 0 0017 10c0-2.21-.894-4.208-2.343-5.657a1 1 0 010-1.414zm-2.829 2.828a1 1 0 011.415 0A5.983 5.983 0 0115 10a5.984 5.984 0 01-1.757 4.243a1 1 0 01-1.415-1.415A3.984 3.984 0 0013 10a3.983 3.983 0 00-1.172-2.828a1 1 0 010-1.415z" clipRule="evenodd" />
                 </svg>
               )}
             </button>
@@ -652,7 +659,7 @@ const VoiceAssistant = () => {
                   setMessages([]);
                 }
               }}
-              className="p-2 md:p-3 rounded-full bg-red-500 text-white hover:bg-red-600 transition-all shadow-md hover:shadow-lg transform hover:scale-105 active:scale-95 duration-200 flex items-center justify-center min-w-[40px] min-h-[40px] md:min-w-[44px] md:min-h-[44px]"
+              className="p-2 md:p-3 rounded-full bg-gradient-to-r from-red-500 to-red-600 text-white transition-all shadow-md hover:shadow-lg transform hover:scale-105 active:scale-95 duration-200 flex items-center justify-center min-w-[40px] min-h-[40px] md:min-w-[44px] md:min-h-[44px] border border-red-400/30"
               title="Clear Chat History"
             >
               <BsTrash className="w-4 h-4 md:w-5 md:h-5" />
@@ -662,7 +669,7 @@ const VoiceAssistant = () => {
             <button
               onClick={() => handleSend()}
               disabled={isLoading || !inputText.trim()}
-              className="p-2 md:p-3 rounded-full bg-blue-500 text-white hover:bg-blue-600 transition-all shadow-md hover:shadow-lg transform hover:scale-105 active:scale-95 duration-200 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100 flex items-center justify-center min-w-[40px] min-h-[40px] md:min-w-[44px] md:min-h-[44px]"
+              className="p-2 md:p-3 rounded-full bg-gradient-to-r from-blue-500 to-indigo-600 text-white transition-all shadow-md hover:shadow-lg transform hover:scale-105 active:scale-95 duration-200 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100 flex items-center justify-center min-w-[40px] min-h-[40px] md:min-w-[44px] md:min-h-[44px] border border-blue-400/30"
             >
               <IoSend className="w-4 h-4 md:w-5 md:h-5" />
             </button>
