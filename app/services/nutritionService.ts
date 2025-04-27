@@ -2,6 +2,26 @@ import { GoogleGenerativeAI } from '@google/generative-ai';
 
 const genAI = new GoogleGenerativeAI(process.env.NEXT_PUBLIC_GEMINI_API_KEY || '');
 
+const extractJsonFromText = (text: string) => {
+  try {
+    // Try to parse the entire text as JSON first
+    return JSON.parse(text);
+  } catch (e) {
+    // If that fails, try to extract JSON from the text
+    const jsonMatch = text.match(/\{[\s\S]*\}/);
+    if (jsonMatch) {
+      try {
+        return JSON.parse(jsonMatch[0]);
+      } catch (e) {
+        console.error('Error parsing extracted JSON:', e);
+        throw new Error('Could not parse JSON from response');
+      }
+    }
+    console.error('No JSON found in text');
+    throw new Error('No JSON found in response');
+  }
+};
+
 export interface NutritionInfo {
   calories: number;
   protein: number;
@@ -11,21 +31,6 @@ export interface NutritionInfo {
   sugar: number;
   sodium: number;
   cholesterol: number;
-}
-
-function extractJsonFromText(text: string): any {
-  // Remove markdown code block syntax if present
-  const jsonStr = text.replace(/```json\n|\n```/g, '').trim();
-  try {
-    return JSON.parse(jsonStr);
-  } catch (error) {
-    // If direct parsing fails, try to find JSON object within the text
-    const jsonMatch = jsonStr.match(/\{[\s\S]*\}/);
-    if (jsonMatch) {
-      return JSON.parse(jsonMatch[0]);
-    }
-    throw error;
-  }
 }
 
 export const generateNutritionFacts = async ({
@@ -40,7 +45,7 @@ export const generateNutritionFacts = async ({
   instructions: string[];
 }): Promise<{
   success: boolean;
-  data?: NutritionInfo;
+  data?: NutritionInfo & { imagePrompt?: string };
   error?: string;
 }> => {
   try {
@@ -61,7 +66,8 @@ export const generateNutritionFacts = async ({
       "fiber": number (grams per serving),
       "sugar": number (grams per serving),
       "sodium": number (milligrams per serving),
-      "cholesterol": number (milligrams per serving)
+      "cholesterol": number (milligrams per serving),
+      "imagePrompt": string (a detailed prompt for generating an appetizing, professional food photo of this dish - make it descriptive for AI image generation)
     }`);
 
     const response = result.response;
@@ -78,7 +84,8 @@ export const generateNutritionFacts = async ({
         fiber: Math.round(nutritionInfo.fiber),
         sugar: Math.round(nutritionInfo.sugar),
         sodium: Math.round(nutritionInfo.sodium),
-        cholesterol: Math.round(nutritionInfo.cholesterol)
+        cholesterol: Math.round(nutritionInfo.cholesterol),
+        imagePrompt: nutritionInfo.imagePrompt || `Appetizing photo of ${name} dish with ${ingredients.slice(0, 3).join(', ')}`
       }
     };
   } catch (error) {
