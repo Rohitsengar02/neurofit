@@ -5,7 +5,7 @@ import { getAuth } from 'firebase/auth';
 import { doc, getDoc, updateDoc } from 'firebase/firestore';
 import { db } from '../../firebase/config';
 import { uploadToCloudinary } from '../../utils/cloudinary';
-import { FiEdit2, FiCamera, FiSave, FiX } from 'react-icons/fi';
+import { FiEdit2, FiCamera, FiSave, FiX, FiImage } from 'react-icons/fi';
 import {
   FaUserAlt,
   FaRulerVertical,
@@ -65,6 +65,11 @@ const ProfilePage = () => {
   const [userData, setUserData] = useState<UserData | null>(null);
   const [editingSection, setEditingSection] = useState<EditableSection | null>(null);
   const [editForm, setEditForm] = useState<EditFormData>({});
+  const [generatingAvatar, setGeneratingAvatar] = useState(false);
+  const [showPromptModal, setShowPromptModal] = useState(false);
+  const [avatarPrompt, setAvatarPrompt] = useState('');
+  const [generatedAvatarUrl, setGeneratedAvatarUrl] = useState('');
+  const [showConfirmModal, setShowConfirmModal] = useState(false);
 
   useEffect(() => {
     const fetchUserData = async () => {
@@ -265,6 +270,123 @@ const ProfilePage = () => {
     }
   };
 
+  // Function to open the prompt modal
+  const handleOpenPromptModal = () => {
+    // Generate a default prompt based on user data
+    let defaultPrompt = 'cartoon style portrait avatar';
+    
+    // Add gender if available
+    if (userData?.personalInfo?.gender) {
+      defaultPrompt += ` of a ${userData.personalInfo.gender}`;
+    } else {
+      defaultPrompt += ' of a person';
+    }
+    
+    // Add fitness context
+    defaultPrompt += ' for a fitness app profile picture. Vibrant colors, professional looking, friendly face.';
+    
+    setAvatarPrompt(defaultPrompt);
+    setShowPromptModal(true);
+  };
+
+  // Function to generate cartoon avatar
+  const generateCartoonAvatar = async () => {
+    if (!auth.currentUser || !avatarPrompt) return;
+    
+    try {
+      setGeneratingAvatar(true);
+      const loadingToast = toast.loading('Generating cartoon avatar...');
+      
+      console.log('Sending prompt to generate image:', avatarPrompt);
+      
+      // Call the API to generate the image
+      const response = await fetch('/api/generate-image', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ prompt: avatarPrompt }),
+      });
+      
+      console.log('Image generation response status:', response.status);
+      
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        console.error('Error response:', errorData);
+        throw new Error(`Failed to generate image: ${response.status} ${errorData.error || response.statusText}`);
+      }
+      
+      const data = await response.json();
+      console.log('Image generation response data:', data);
+      
+      if (!data.imageUrl) {
+        throw new Error('No image URL returned from API');
+      }
+      
+      // Store the generated image URL
+      setGeneratedAvatarUrl(data.imageUrl);
+      
+      // Show the confirmation modal
+      setShowConfirmModal(true);
+      
+      toast.dismiss(loadingToast);
+      toast.success('Avatar generated! Please confirm to set as profile picture.');
+    } catch (error: any) {
+      console.error('Avatar generation error details:', error);
+      toast.dismiss();
+      toast.error(error.message || 'Failed to generate avatar');
+    } finally {
+      setGeneratingAvatar(false);
+      setShowPromptModal(false);
+    }
+  };
+
+  // Function to confirm and set the generated avatar as profile picture
+  const confirmAndSetAvatar = async () => {
+    if (!auth.currentUser || !generatedAvatarUrl) return;
+    
+    try {
+      const loadingToast = toast.loading('Setting as profile picture...');
+      
+      // Download the image and convert to File object
+      const imageResponse = await fetch(generatedAvatarUrl);
+      const imageBlob = await imageResponse.blob();
+      const imageFile = new File([imageBlob], 'cartoon-avatar.jpg', { type: 'image/jpeg' });
+      
+      // Upload to Cloudinary
+      console.log('Starting upload to Cloudinary...');
+      const result = await uploadToCloudinary(imageFile);
+      
+      if (!result || !result.url) {
+        throw new Error('Failed to get upload URL from Cloudinary');
+      }
+
+      const photoURL = result.url;
+      console.log('Upload successful, updating Firebase...');
+      
+      // Update user document with new photo URL
+      const userRef = doc(db, 'users', auth.currentUser.uid);
+      await updateDoc(userRef, { 
+        photoURL,
+        lastUpdated: new Date().toISOString()
+      });
+      
+      // Update local state
+      setUser(prev => prev ? { ...prev, photoURL } : { photoURL });
+      
+      toast.dismiss(loadingToast);
+      toast.success('Profile picture updated successfully');
+    } catch (error: any) {
+      console.error('Avatar update error:', error);
+      toast.dismiss();
+      toast.error(error.message || 'Failed to update profile picture');
+    } finally {
+      // Reset state
+      setGeneratedAvatarUrl('');
+      setShowConfirmModal(false);
+    }
+  };
+
   if (loading || !userData) {
     return (
       <div className="flex items-center justify-center min-h-screen">
@@ -305,6 +427,12 @@ const ProfilePage = () => {
                     onChange={handleImageUpload}
                   />
                 </label>
+                <button
+                  onClick={handleOpenPromptModal}
+                  className="absolute bottom-0 left-0 bg-orange-500 p-2 rounded-full cursor-pointer hover:bg-orange-600 transition-all duration-300 shadow-lg hover:shadow-orange-500/25"
+                >
+                  <FiImage className="w-5 h-5 text-white" />
+                </button>
               </div>
             </div>
           </div>
@@ -323,6 +451,109 @@ const ProfilePage = () => {
             </div>
           </div>
         </div>
+
+        {/* AI Avatar Prompt Modal */}
+        {showPromptModal && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              className="bg-white dark:bg-zinc-800 rounded-xl p-6 max-w-lg w-full"
+            >
+              <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-4">
+                Generate Cartoon Avatar
+              </h3>
+              <p className="text-gray-600 dark:text-gray-400 mb-4">
+                Describe how you want your cartoon avatar to look. Be specific about style, features, and colors.
+              </p>
+              <textarea
+                value={avatarPrompt}
+                onChange={(e) => setAvatarPrompt(e.target.value)}
+                placeholder="E.g., cartoon style portrait of a person with blue eyes and brown hair, fitness enthusiast, vibrant colors..."
+                className="w-full h-32 px-4 py-2 rounded-lg border border-gray-300 
+                         dark:border-gray-600 bg-white dark:bg-gray-800 
+                         text-gray-900 dark:text-white resize-none mb-4"
+              />
+              <div className="flex justify-end gap-4">
+                <button
+                  onClick={() => {
+                    setShowPromptModal(false);
+                    setAvatarPrompt('');
+                  }}
+                  className="px-4 py-2 rounded-lg text-gray-700 dark:text-gray-300 
+                           hover:bg-gray-100 dark:hover:bg-gray-700"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={generateCartoonAvatar}
+                  disabled={generatingAvatar || !avatarPrompt.trim()}
+                  className={`px-4 py-2 rounded-lg bg-orange-500 text-white 
+                           hover:bg-orange-600 transition-colors flex items-center gap-2
+                           ${(generatingAvatar || !avatarPrompt.trim()) ? 'opacity-50 cursor-not-allowed' : ''}`}
+                >
+                  {generatingAvatar ? (
+                    <>
+                      <svg className="animate-spin h-5 w-5" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                      </svg>
+                      Generating...
+                    </>
+                  ) : (
+                    'Generate Avatar'
+                  )}
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+
+        {/* Avatar Confirmation Modal */}
+        {showConfirmModal && generatedAvatarUrl && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              className="bg-white dark:bg-zinc-800 rounded-xl p-6 max-w-md w-full"
+            >
+              <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-4">
+                Set as Profile Picture?
+              </h3>
+              <div className="mb-6 flex justify-center">
+                <div className="w-40 h-40 rounded-full overflow-hidden border-4 border-white dark:border-zinc-700 shadow-lg">
+                  <Image 
+                    src={generatedAvatarUrl} 
+                    alt="Generated Avatar" 
+                    width={160} 
+                    height={160} 
+                    className="w-full h-full object-cover"
+                  />
+                </div>
+              </div>
+              <div className="flex justify-center gap-4">
+                <button
+                  onClick={() => {
+                    setShowConfirmModal(false);
+                    setGeneratedAvatarUrl('');
+                  }}
+                  className="px-6 py-2 rounded-lg text-gray-700 dark:text-gray-300 
+                           border border-gray-300 dark:border-gray-600
+                           hover:bg-gray-100 dark:hover:bg-gray-700"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={confirmAndSetAvatar}
+                  className="px-6 py-2 rounded-lg bg-purple-500 text-white 
+                           hover:bg-purple-600 transition-colors"
+                >
+                  Set as Profile Picture
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
 
         {/* Profile Content Grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
@@ -688,13 +919,13 @@ const ProfilePage = () => {
               <div className="flex justify-between items-center mb-6">
                 <div className="flex items-center gap-3">
                   <div className="p-2 bg-indigo-100 dark:bg-indigo-900/30 rounded-xl">
-                    <FaClock className="w-5 h-5 text-indigo-500 dark:text-indigo-400" />
+                    <FaClock className="w-5 h-5 text-indigo-500" />
                   </div>
                   <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Daily Routine</h3>
                 </div>
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 mb-6">
-                <div className="flex flex-col p-4 bg-gray-50 dark:bg-zinc-900/50 rounded-2xl">
+                <div className="flex flex-col items-center p-4 bg-gray-50 dark:bg-zinc-900/50 rounded-2xl">
                   <div className="flex items-center gap-3 mb-2">
                     <FaSun className="w-5 h-5 text-yellow-500" />
                     <span className="text-sm text-gray-500 dark:text-gray-400">Wake Up Time</span>
@@ -703,7 +934,7 @@ const ProfilePage = () => {
                     {userData.dailyRoutine.wakeUpTime}
                   </span>
                 </div>
-                <div className="flex flex-col p-4 bg-gray-50 dark:bg-zinc-900/50 rounded-2xl">
+                <div className="flex flex-col items-center p-4 bg-gray-50 dark:bg-zinc-900/50 rounded-2xl">
                   <div className="flex items-center gap-3 mb-2">
                     <FaMoon className="w-5 h-5 text-blue-500" />
                     <span className="text-sm text-gray-500 dark:text-gray-400">Sleep Time</span>
