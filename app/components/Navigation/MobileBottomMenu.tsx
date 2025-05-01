@@ -31,6 +31,7 @@ const moreMenuItems: Tab[] = [
   { id: 'community', label: 'Community', icon: FaUsers, color: 'from-green-500 to-green-700', href: '/pages/community' },
   { id: 'blog', label: 'Blog', icon: FaNewspaper, color: 'from-teal-400 to-teal-600', href: '/blog' },
   { id: 'diet', label: 'Diet', icon: MdRestaurant, color: 'from-orange-400 to-orange-600', href: '/diet' },
+  { id: 'community', label: 'Community', icon: FaUsers, color: 'from-green-500 to-green-700', href: '/community' },
   { id: 'steps', label: 'Steps', icon: FaWalking, color: 'from-blue-400 to-blue-600', href: '/pages/steps' },
   { id: 'rewards', label: 'Neurons', icon: BsTrophy, color: 'from-yellow-400 to-orange-500', href: '/pages/rewards' },
   { id: 'suggestion', label: 'Suggestion', icon: MdFeedback, color: 'from-violet-400 to-violet-600', href: '/pages/contact' }
