@@ -69,7 +69,8 @@ export interface LiveSession {
   scheduledFor: any; // Firestore timestamp
   duration: number; // In minutes
   maxParticipants?: number;
-  requiredTiers: string[]; // Array of tier IDs
+  participantCount?: number; // Number of participants registered
+  requiredTiers?: string[]; // Array of tier IDs
   status: 'scheduled' | 'live' | 'completed' | 'cancelled';
   recordingUrl?: string;
   createdAt: any; // Firestore timestamp

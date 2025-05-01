@@ -31,6 +31,50 @@ const uploadFile = async (file: File, path: string): Promise<string> => {
   return getDownloadURL(snapshot.ref);
 };
 
+// Live Sessions
+export const createLiveSession = async (
+  sessionData: Omit<LiveSession, 'id' | 'updatedAt'>
+): Promise<LiveSession> => {
+  try {
+    const sessionsRef = collection(db, 'liveSessions');
+    const newSessionData = {
+      ...sessionData,
+      participantCount: 0,
+      updatedAt: serverTimestamp()
+    };
+    
+    const docRef = await addDoc(sessionsRef, newSessionData);
+    return { id: docRef.id, ...newSessionData } as LiveSession;
+  } catch (error) {
+    console.error('Error creating live session:', error);
+    throw error;
+  }
+};
+
+// Delete a session
+export const deleteSession = async (sessionId: string): Promise<void> => {
+  try {
+    // Delete the session document
+    const sessionRef = doc(db, 'liveSessions', sessionId);
+    await deleteDoc(sessionRef);
+    
+    // Delete all participants for this session
+    const participantsQuery = query(
+      collection(db, 'sessionParticipants'),
+      where('sessionId', '==', sessionId)
+    );
+    
+    const participantsSnapshot = await getDocs(participantsQuery);
+    
+    // Delete each participant document
+    const deletePromises = participantsSnapshot.docs.map(doc => deleteDoc(doc.ref));
+    await Promise.all(deletePromises);
+  } catch (error) {
+    console.error('Error deleting session:', error);
+    throw error;
+  }
+};
+
 // Live session services
 export const getSessionsByCommunityId = async (communityId: string, status: LiveSession['status'] | 'all' = 'all'): Promise<LiveSession[]> => {
   let q;

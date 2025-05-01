@@ -7,7 +7,8 @@ import Image from 'next/image';
 import { 
   FiUsers, FiCalendar, FiPlus, FiBarChart2, 
   FiDollarSign, FiSettings, FiEdit, FiTrash2,
-  FiEye, FiClock, FiMessageCircle, FiVideo, FiTag, FiArrowLeft
+  FiEye, FiClock, FiMessageCircle, FiVideo, FiTag, FiArrowLeft,
+  FiX
 } from 'react-icons/fi';
 import { useAuth } from '../../../context/AuthContext';
 import * as communityService from '../services/communityService';
@@ -25,6 +26,17 @@ const TrainerDashboardPage = () => {
   const [communities, setCommunities] = useState<Community[]>([]);
   const [upcomingSessions, setUpcomingSessions] = useState<LiveSession[]>([]);
   const [activeTab, setActiveTab] = useState('overview');
+  const [showSessionForm, setShowSessionForm] = useState(false);
+  const [sessionFormData, setSessionFormData] = useState({
+    title: '',
+    description: '',
+    scheduledFor: '',
+    duration: 30,
+    maxParticipants: 20,
+    communityId: '',
+    requiredTiers: [] as string[]
+  });
+  const [editingSessionId, setEditingSessionId] = useState<string | null>(null);
   const [selectedCommunityId, setSelectedCommunityId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -85,7 +97,112 @@ const TrainerDashboardPage = () => {
   
   // Handle creating a new session
   const handleCreateSession = (communityId: string) => {
-    router.push(`/community/trainer/session/create?communityId=${communityId}`);
+    setEditingSessionId(null);
+    setSessionFormData(prev => ({ ...prev, communityId }));
+    setShowSessionForm(true);
+  };
+  
+  // Handle editing an existing session
+  const handleEditSession = async (sessionId: string) => {
+    try {
+      // Find the session in the upcomingSessions array
+      const sessionToEdit = upcomingSessions.find(session => session.id === sessionId);
+      
+      if (!sessionToEdit) {
+        console.error('Session not found');
+        return;
+      }
+      
+      // Convert Firestore timestamp to string format for datetime-local input
+      const sessionDate = sessionToEdit.scheduledFor?.toDate ? 
+        sessionToEdit.scheduledFor.toDate() : 
+        new Date(sessionToEdit.scheduledFor);
+      
+      // Format date for datetime-local input (YYYY-MM-DDThh:mm)
+      const formattedDate = sessionDate.toISOString().slice(0, 16);
+      
+      // Set form data with session values
+      setSessionFormData({
+        title: sessionToEdit.title,
+        description: sessionToEdit.description,
+        scheduledFor: formattedDate,
+        duration: sessionToEdit.duration,
+        maxParticipants: sessionToEdit.maxParticipants || 20,
+        communityId: sessionToEdit.communityId,
+        requiredTiers: sessionToEdit.requiredTiers || []
+      });
+      
+      setEditingSessionId(sessionId);
+      setShowSessionForm(true);
+    } catch (error) {
+      console.error('Error preparing session for edit:', error);
+      setError('Failed to load session data for editing.');
+    }
+  };
+  
+  const handleSessionFormChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
+    const { name, value } = e.target;
+    setSessionFormData(prev => ({ ...prev, [name]: value }));
+  };
+  
+  const handleSubmitSession = async (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    if (!user?.uid || !sessionFormData.communityId) return;
+    
+    try {
+      const scheduledForDate = new Date(sessionFormData.scheduledFor);
+      
+      if (editingSessionId) {
+        // Update existing session
+        // Implementation would go here
+        // For now, we'll just close the form
+        setShowSessionForm(false);
+      } else {
+        // Create new session
+        const newSession = {
+          title: sessionFormData.title,
+          description: sessionFormData.description,
+          scheduledFor: scheduledForDate,
+          duration: Number(sessionFormData.duration),
+          maxParticipants: Number(sessionFormData.maxParticipants),
+          communityId: sessionFormData.communityId,
+          trainerId: user.uid,
+          status: 'scheduled' as const,
+          participantCount: 0,
+          requiredTiers: sessionFormData.requiredTiers,
+          createdAt: new Date()
+        };
+        
+        await contentService.createLiveSession(newSession);
+      }
+      
+      // Reset form and refresh sessions
+      setShowSessionForm(false);
+      setEditingSessionId(null);
+      setSessionFormData({
+        title: '',
+        description: '',
+        scheduledFor: '',
+        duration: 30,
+        maxParticipants: 20,
+        communityId: '',
+        requiredTiers: []
+      });
+      
+      // Refresh upcoming sessions
+      const refreshedSessions = await Promise.all(
+        communities.map(async (community) => {
+          const sessions = await contentService.getUpcomingSessions(community.id, 10);
+          return sessions;
+        })
+      );
+      
+      setUpcomingSessions(refreshedSessions.flat());
+    } catch (error) {
+      console.error('Error managing live session:', error);
+      setError('Failed to save live session. Please try again.');
+    }
   };
   
   // Handle editing a community
@@ -570,6 +687,268 @@ const TrainerDashboardPage = () => {
                     </div>
                   </div>
                 ))}
+              </div>
+            )}
+          </div>
+        )}
+        
+        {/* Live Sessions Tab */}
+        {activeTab === 'sessions' && (
+          <div className="space-y-6">
+            <div className="flex justify-between items-center">
+              <h2 className="text-2xl font-bold text-gray-900 dark:text-white">
+                Live Sessions
+              </h2>
+              <button
+                className="bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-4 rounded-lg transition-colors flex items-center"
+                onClick={() => communities.length > 0 && handleCreateSession(communities[0].id)}
+                disabled={communities.length === 0}
+              >
+                <FiPlus className="mr-2" /> Schedule New Session
+              </button>
+            </div>
+            
+            {/* Session Creation Form Modal */}
+            {showSessionForm && (
+              <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+                <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+                  <div className="p-6">
+                    <div className="flex justify-between items-center mb-6">
+                      <h3 className="text-xl font-bold text-gray-900 dark:text-white">
+                        Schedule New Live Session
+                      </h3>
+                      <button 
+                        onClick={() => setShowSessionForm(false)}
+                        className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
+                      >
+                        <FiX className="text-xl" />
+                      </button>
+                    </div>
+                    
+                    <form onSubmit={handleSubmitSession}>
+                      <div className="space-y-4">
+                        {/* Community Selection */}
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                            Community
+                          </label>
+                          <select
+                            name="communityId"
+                            value={sessionFormData.communityId}
+                            onChange={handleSessionFormChange}
+                            className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                            required
+                          >
+                            <option value="">Select a community</option>
+                            {communities.map(community => (
+                              <option key={community.id} value={community.id}>
+                                {community.name}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                        
+                        {/* Title */}
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                            Session Title
+                          </label>
+                          <input
+                            type="text"
+                            name="title"
+                            value={sessionFormData.title}
+                            onChange={handleSessionFormChange}
+                            className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                            placeholder="e.g., HIIT Workout with Coach Sarah"
+                            required
+                          />
+                        </div>
+                        
+                        {/* Description */}
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                            Description
+                          </label>
+                          <textarea
+                            name="description"
+                            value={sessionFormData.description}
+                            onChange={handleSessionFormChange}
+                            className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white min-h-[100px]"
+                            placeholder="Describe what participants can expect in this session"
+                            required
+                          />
+                        </div>
+                        
+                        {/* Date and Time */}
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                            Date and Time
+                          </label>
+                          <input
+                            type="datetime-local"
+                            name="scheduledFor"
+                            value={sessionFormData.scheduledFor}
+                            onChange={handleSessionFormChange}
+                            className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                            required
+                          />
+                        </div>
+                        
+                        {/* Duration */}
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                            Duration (minutes)
+                          </label>
+                          <input
+                            type="number"
+                            name="duration"
+                            value={sessionFormData.duration}
+                            onChange={handleSessionFormChange}
+                            className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                            min="5"
+                            max="180"
+                            required
+                          />
+                        </div>
+                        
+                        {/* Max Participants */}
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                            Maximum Participants
+                          </label>
+                          <input
+                            type="number"
+                            name="maxParticipants"
+                            value={sessionFormData.maxParticipants}
+                            onChange={handleSessionFormChange}
+                            className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                            min="1"
+                            max="100"
+                            required
+                          />
+                        </div>
+                      </div>
+                      
+                      <div className="mt-6 flex justify-end space-x-3">
+                        <button
+                          type="button"
+                          onClick={() => setShowSessionForm(false)}
+                          className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                        >
+                          Cancel
+                        </button>
+                        <button
+                          type="submit"
+                          className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg transition-colors"
+                        >
+                          Schedule Session
+                        </button>
+                      </div>
+                    </form>
+                  </div>
+                </div>
+              </div>
+            )}
+            
+            {communities.length === 0 ? (
+              <div className="bg-white dark:bg-gray-800 rounded-xl shadow-md p-8 text-center">
+                <FiCalendar className="mx-auto text-5xl text-gray-400 mb-4" />
+                <h3 className="text-xl font-medium text-gray-900 dark:text-white mb-2">
+                  No Communities Yet
+                </h3>
+                <p className="text-gray-600 dark:text-gray-400 mb-6 max-w-md mx-auto">
+                  Create your first fitness community to start scheduling live sessions for your members.
+                </p>
+                <button
+                  className="bg-blue-600 hover:bg-blue-700 text-white font-medium py-3 px-6 rounded-lg transition-colors"
+                  onClick={handleCreateCommunity}
+                >
+                  Create Your First Community
+                </button>
+              </div>
+            ) : upcomingSessions.length === 0 ? (
+              <div className="bg-white dark:bg-gray-800 rounded-xl shadow-md p-8 text-center">
+                <FiCalendar className="mx-auto text-5xl text-gray-400 mb-4" />
+                <h3 className="text-xl font-medium text-gray-900 dark:text-white mb-2">
+                  No Upcoming Sessions
+                </h3>
+                <p className="text-gray-600 dark:text-gray-400 mb-6 max-w-md mx-auto">
+                  You haven't scheduled any live sessions yet. Create your first session to engage with your community members.
+                </p>
+                {/* Removed redundant button - users can use the one in the header */}
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {upcomingSessions.map(session => {
+                  const community = communities.find(c => c.id === session.communityId);
+                  const sessionDate = session.scheduledFor?.toDate ? session.scheduledFor.toDate() : new Date(session.scheduledFor);
+                  const formattedDate = new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric', year: 'numeric' }).format(sessionDate);
+                  const formattedTime = new Intl.DateTimeFormat('en-US', { hour: 'numeric', minute: '2-digit', hour12: true }).format(sessionDate);
+                  
+                  return (
+                    <div key={session.id} className="bg-white dark:bg-gray-800 rounded-xl shadow-md overflow-hidden">
+                      <div className="h-40 relative">
+                        {community?.coverImage ? (
+                          <Image
+                            src={community.coverImage}
+                            alt={community.name}
+                            fill
+                            className="object-cover"
+                          />
+                        ) : (
+                          <div className="w-full h-full bg-gradient-to-r from-blue-400 to-indigo-500"></div>
+                        )}
+                        <div className="absolute inset-0 bg-black/30 flex items-center justify-center">
+                          <div className="text-center text-white">
+                            <h3 className="text-xl font-bold mb-2">{session.title}</h3>
+                            <p className="text-sm">{community?.name || 'Community'}</p>
+                          </div>
+                        </div>
+                      </div>
+                      <div className="p-6">
+                        <p className="text-gray-600 dark:text-gray-400 text-sm mb-4 line-clamp-2">
+                          {session.description}
+                        </p>
+                        
+                        <div className="flex items-center justify-between mb-4">
+                          <div className="flex items-center text-sm text-gray-500 dark:text-gray-400">
+                            <FiCalendar className="mr-1" />
+                            <span>{formattedDate}</span>
+                          </div>
+                          <div className="flex items-center text-sm text-gray-500 dark:text-gray-400">
+                            <FiClock className="mr-1" />
+                            <span>{formattedTime}</span>
+                          </div>
+                        </div>
+                        
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center text-sm text-gray-500 dark:text-gray-400">
+                            <FiUsers className="mr-1" />
+                            <span>{session.participantCount || 0}/{session.maxParticipants} joined</span>
+                          </div>
+                          <span className="text-sm bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300 px-2 py-1 rounded-full">
+                            {session.duration} min
+                          </span>
+                        </div>
+                        
+                        <div className="mt-6 flex space-x-2">
+                          <button
+                            className="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-4 rounded-lg transition-colors"
+                            onClick={() => router.push(`/community/${session.communityId}/sessions/${session.id}`)}
+                          >
+                            <FiEye className="inline mr-1" /> View Details
+                          </button>
+                          <button
+                            className="flex-1 bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-300 font-medium py-2 px-4 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
+                            onClick={() => handleEditSession(session.id)}
+                          >
+                            <FiEdit className="inline mr-1" /> Edit
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
             )}
           </div>
