@@ -287,20 +287,22 @@ export default function SessionDetailsPage() {
                     {session.description}
                   </p>
                   
-                  {/* Testing button to set session status to live */}
-                  <button
-                    onClick={() => {
-                      if (session) {
-                        setSession({
-                          ...session,
-                          status: 'live'
-                        });
-                      }
-                    }}
-                    className="mt-4 bg-green-600 hover:bg-green-700 text-white font-medium py-2 px-4 rounded-lg transition-colors"
-                  >
-                    <FiPlay className="inline mr-2" /> Set Session Status to Live (Testing)
-                  </button>
+                  {/* Testing button to set session status to live - only visible to trainers */}
+                  {isTrainer && (
+                    <button
+                      onClick={() => {
+                        if (session) {
+                          setSession({
+                            ...session,
+                            status: 'live'
+                          });
+                        }
+                      }}
+                      className="mt-4 bg-green-600 hover:bg-green-700 text-white font-medium py-2 px-4 rounded-lg transition-colors"
+                    >
+                      <FiPlay className="inline mr-2" /> Set Session Status to Live (Testing)
+                    </button>
+                  )}
                 </div>
               </div>
               
@@ -363,15 +365,41 @@ export default function SessionDetailsPage() {
                         />
                       </div>
                     ) : (
-                      <div className="bg-gradient-to-r from-blue-600 to-indigo-600 rounded-lg p-8 text-center text-white mb-4">
-                        <h3 className="text-2xl font-bold mb-4">Live Session in Progress</h3>
-                        <p className="mb-6">{isTrainer ? 'Your live session is ready to start. Join now to connect with your participants!' : 'The trainer has started a live session. Join now to participate!'}</p>
-                        <button
-                          onClick={() => setShowVideoStream(true)}
-                          className="bg-white text-blue-600 hover:bg-blue-50 font-bold py-4 px-8 rounded-full text-lg transition-colors flex items-center justify-center mx-auto"
-                        >
-                          <FiVideo className="mr-2" /> {isTrainer ? 'Start Broadcasting' : 'Join Live Session'}
-                        </button>
+                      <div className="bg-gradient-to-r from-red-600 to-red-700 rounded-lg p-8 text-center text-white mb-4 relative overflow-hidden">
+                        {/* Animated pulse background */}
+                        <div className="absolute inset-0 flex items-center justify-center">
+                          <div className="w-64 h-64 bg-white/10 rounded-full animate-pulse"></div>
+                        </div>
+                        
+                        <div className="relative z-10">
+                          <div className="flex items-center justify-center mb-4">
+                            <div className="relative flex h-4 w-4 mr-2">
+                              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-white opacity-75"></span>
+                              <span className="relative inline-flex rounded-full h-4 w-4 bg-white"></span>
+                            </div>
+                            <h3 className="text-2xl font-bold">Live Session in Progress</h3>
+                          </div>
+                          
+                          <p className="mb-6">{isTrainer 
+                            ? 'Your live session is ready to start. Join now to connect with your participants!' 
+                            : 'The trainer has started a live session. Join now to participate!'
+                          }</p>
+                          
+                          <button
+                            onClick={() => setShowVideoStream(true)}
+                            className="bg-white text-red-600 hover:bg-red-50 font-bold py-4 px-8 rounded-lg text-lg transition-colors flex items-center justify-center mx-auto shadow-lg hover:shadow-xl"
+                          >
+                            <FiVideo className="mr-2" /> {isTrainer ? 'Start Broadcasting' : 'Join Live Session'}
+                          </button>
+                          
+                          {/* Participant count */}
+                          {participants.length > 0 && (
+                            <div className="mt-4 flex items-center justify-center text-white/80">
+                              <FiUsers className="mr-2" />
+                              <span>{participants.length} participant{participants.length !== 1 ? 's' : ''} in this session</span>
+                            </div>
+                          )}
+                        </div>
                       </div>
                     )}
                   </div>

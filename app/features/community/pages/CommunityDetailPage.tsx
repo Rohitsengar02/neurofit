@@ -4,7 +4,11 @@ import React, { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { motion } from 'framer-motion';
 import Image from 'next/image';
-import { FiUsers, FiCalendar, FiClock, FiArrowLeft, FiLock, FiTag } from 'react-icons/fi';
+import { 
+  FiUsers, FiCalendar, FiClock, FiArrowLeft, 
+  FiChevronRight, FiLock, FiPlus, FiFilter,
+  FiEdit, FiTrash2, FiX, FiVideo, FiTag
+} from 'react-icons/fi';
 import { useCommunity } from '../context/CommunityContext';
 import { useAuth } from '../../../context/AuthContext';
 import * as communityService from '../services/communityService';
@@ -33,6 +37,9 @@ const CommunityDetailPage = () => {
     trainerProfile,
     isLoadingTrainer
   } = useCommunity();
+  
+  // Check if current user is the trainer of this community
+  const isTrainer = user && currentCommunity && trainerProfile && user.uid === currentCommunity.trainerId;
   
   const [isLoading, setIsLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('overview');
@@ -319,11 +326,78 @@ const CommunityDetailPage = () => {
                 </div>
               </div>
               
-              {/* Upcoming Sessions Preview */}
+              {/* Current Live Sessions */}
+              <div className="bg-gradient-to-r from-red-600 to-red-700 rounded-xl shadow-md p-6 mb-6">
+                <div className="flex justify-between items-center mb-4">
+                  <h2 className="text-2xl font-bold text-white">
+                    <span className="inline-flex items-center">
+                      <span className="relative flex h-3 w-3 mr-2">
+                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-white opacity-75"></span>
+                        <span className="relative inline-flex rounded-full h-3 w-3 bg-white"></span>
+                      </span>
+                      Live Now
+                    </span>
+                  </h2>
+                  <button 
+                    className="text-white text-sm font-medium bg-white/20 hover:bg-white/30 px-3 py-1 rounded-full transition-colors"
+                    onClick={() => setActiveTab('sessions')}
+                  >
+                    View All
+                  </button>
+                </div>
+                
+                {isLoadingUpcomingSessions ? (
+                  <div className="flex justify-center py-10">
+                    <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-white"></div>
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    {upcomingSessions
+                      .filter(session => session.status === 'live')
+                      .map((session) => (
+                        <div 
+                          key={session.id}
+                          className="bg-white/10 backdrop-blur-sm rounded-lg p-4 text-white hover:bg-white/20 transition-all"
+                        >
+                          <div className="flex items-center mb-2">
+                            <div className="relative flex h-3 w-3 mr-2">
+                              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-white opacity-75"></span>
+                              <span className="relative inline-flex rounded-full h-3 w-3 bg-white"></span>
+                            </div>
+                            <h3 className="text-lg font-bold">{session.title}</h3>
+                          </div>
+                          <p className="text-white/80 text-sm mb-3">{session.description}</p>
+                          <div className="flex justify-between items-center">
+                            <div className="flex items-center">
+                              <FiUsers className="mr-1" />
+                              <span className="text-sm">{session.participantCount || 0} joined</span>
+                            </div>
+                            <button 
+                              className="bg-white text-red-600 font-medium py-2 px-4 rounded-lg text-sm hover:bg-red-50 transition-colors flex items-center"
+                              onClick={() => router.push(`/community/${currentCommunity.id}/sessions/${session.id}`)}
+                            >
+                              <FiVideo className="mr-1" /> Join Live Session
+                            </button>
+                          </div>
+                        </div>
+                      ))
+                    }
+                    
+                    {upcomingSessions.filter(session => session.status === 'live').length === 0 && (
+                      <div className="text-center py-6 bg-white/10 rounded-lg p-4">
+                        <p className="text-white">No live sessions right now.</p>
+                        <p className="text-white/80 text-sm">Check back later or view scheduled sessions below.</p>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+              
+              {/* Scheduled Live Sessions */}
               <div className="bg-white dark:bg-gray-800 rounded-xl shadow-md p-6">
                 <div className="flex justify-between items-center mb-4">
                   <h2 className="text-2xl font-bold text-gray-900 dark:text-white">
-                    Upcoming Live Sessions
+                    Scheduled Live Sessions
                   </h2>
                   <button 
                     className="text-blue-600 dark:text-blue-400 text-sm font-medium"
@@ -348,7 +422,7 @@ const CommunityDetailPage = () => {
                         key={session.id} 
                         session={session} 
                         isMember={isMember}
-                        onClick={() => router.push(`/community/${currentCommunity.id}/session/${session.id}`)}
+                        onClick={() => router.push(`/community/${currentCommunity.id}/sessions/${session.id}`)}
                       />
                     ))}
                   </div>
@@ -515,8 +589,8 @@ const CommunityDetailPage = () => {
         
         {/* Other tabs would be implemented here */}
         {activeTab !== 'overview' && (
-          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-md p-8 text-center">
-            <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-4">
+          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-md p-8">
+            <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-4 text-center">
               {activeTab === 'sessions' && 'Live Sessions'}
               {activeTab === 'workouts' && 'Workout Library'}
               {activeTab === 'challenges' && 'Community Challenges'}
@@ -524,11 +598,109 @@ const CommunityDetailPage = () => {
             </h2>
             
             {isMember ? (
-              <p className="text-gray-600 dark:text-gray-400">
-                This section is under development. Check back soon!
-              </p>
+              activeTab === 'sessions' ? (
+                <div>
+                  {/* Live Sessions Section */}
+                  {upcomingSessions.filter(session => session.status === 'live').length > 0 && (
+                    <div className="mb-8">
+                      <div className="flex items-center mb-4">
+                        <div className="relative flex h-3 w-3 mr-2">
+                          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+                          <span className="relative inline-flex rounded-full h-3 w-3 bg-red-500"></span>
+                        </div>
+                        <h3 className="text-xl font-bold text-gray-900 dark:text-white">Live Now</h3>
+                      </div>
+                      
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+                        {upcomingSessions
+                          .filter(session => session.status === 'live')
+                          .map((session) => (
+                            <div 
+                              key={session.id}
+                              className="bg-gradient-to-r from-red-600 to-red-700 rounded-lg p-4 text-white hover:shadow-lg transition-shadow"
+                            >
+                              <div className="flex items-center mb-2">
+                                <div className="relative flex h-3 w-3 mr-2">
+                                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-white opacity-75"></span>
+                                  <span className="relative inline-flex rounded-full h-3 w-3 bg-white"></span>
+                                </div>
+                                <h3 className="text-lg font-bold">{session.title}</h3>
+                              </div>
+                              <p className="text-white/80 text-sm mb-3">{session.description}</p>
+                              <div className="flex justify-between items-center">
+                                <div className="flex items-center">
+                                  <FiUsers className="mr-1" />
+                                  <span className="text-sm">{session.participantCount || 0} joined</span>
+                                </div>
+                                <button 
+                                  className="bg-white text-red-600 font-medium py-2 px-4 rounded-lg text-sm hover:bg-red-50 transition-colors flex items-center"
+                                  onClick={() => router.push(`/community/${currentCommunity.id}/sessions/${session.id}`)}
+                                >
+                                  <FiVideo className="mr-1" /> Join Now
+                                </button>
+                              </div>
+                            </div>
+                          ))
+                        }
+                      </div>
+                    </div>
+                  )}
+                  
+                  {/* Scheduled Sessions Section */}
+                  <div>
+                    <div className="flex items-center justify-between mb-4">
+                      <h3 className="text-xl font-bold text-gray-900 dark:text-white">Scheduled Sessions</h3>
+                      
+                      {isTrainer && (
+                        <button 
+                          className="bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium py-2 px-4 rounded-lg transition-colors flex items-center"
+                          onClick={() => router.push(`/community/${currentCommunity.id}/create-session`)}
+                        >
+                          <FiPlus className="mr-1" /> New Session
+                        </button>
+                      )}
+                    </div>
+                    
+                    {isLoadingUpcomingSessions ? (
+                      <div className="flex justify-center py-10">
+                        <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-blue-600"></div>
+                      </div>
+                    ) : upcomingSessions.filter(session => session.status === 'scheduled').length === 0 ? (
+                      <div className="text-center py-10 bg-gray-50 dark:bg-gray-700/30 rounded-lg">
+                        <p className="text-gray-500 dark:text-gray-400">No scheduled sessions available.</p>
+                        {isTrainer && (
+                          <button 
+                            className="mt-4 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium py-2 px-4 rounded-lg transition-colors inline-flex items-center"
+                            onClick={() => router.push(`/community/${currentCommunity.id}/create-session`)}
+                          >
+                            <FiPlus className="mr-1" /> Create New Session
+                          </button>
+                        )}
+                      </div>
+                    ) : (
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        {upcomingSessions
+                          .filter(session => session.status === 'scheduled')
+                          .map((session) => (
+                            <SessionCard 
+                              key={session.id} 
+                              session={session} 
+                              isMember={isMember}
+                              onClick={() => router.push(`/community/${currentCommunity.id}/sessions/${session.id}`)}
+                            />
+                          ))
+                        }
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ) : (
+                <p className="text-gray-600 dark:text-gray-400 text-center">
+                  This section is under development. Check back soon!
+                </p>
+              )
             ) : (
-              <div className="max-w-md mx-auto">
+              <div className="max-w-md mx-auto text-center">
                 <div className="flex justify-center mb-4">
                   <FiLock className="text-gray-400 text-4xl" />
                 </div>
@@ -569,38 +741,46 @@ const SessionCard: React.FC<SessionCardProps> = ({ session, isMember, onClick })
       className="bg-gray-50 dark:bg-gray-700 rounded-lg p-4 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors"
       onClick={onClick}
     >
-      <div className="flex items-start gap-4">
-        <div className="w-16 h-16 bg-blue-100 dark:bg-blue-900/30 rounded-lg flex items-center justify-center flex-shrink-0">
-          <FiCalendar className="text-blue-600 dark:text-blue-400 text-xl" />
-        </div>
-        
-        <div className="flex-grow">
-          <h3 className="font-medium text-gray-900 dark:text-white mb-1">
-            {session.title}
-          </h3>
-          <p className="text-sm text-gray-600 dark:text-gray-400 mb-2">
-            {session.description.length > 100 
-              ? `${session.description.substring(0, 100)}...` 
-              : session.description}
-          </p>
-          
-          <div className="flex items-center text-xs text-gray-500 dark:text-gray-400">
-            <div className="flex items-center mr-4">
-              <FiCalendar className="mr-1" />
-              <span>{formattedDate}</span>
-            </div>
-            <div className="flex items-center">
-              <FiClock className="mr-1" />
-              <span>{formattedTime} • {session.duration} min</span>
-            </div>
-          </div>
-        </div>
-        
-        {!isMember && (
-          <div className="bg-gray-200 dark:bg-gray-600 rounded-full p-2">
-            <FiLock className="text-gray-500 dark:text-gray-400" />
+      <div className="flex items-center mb-1">
+        {session.status === 'live' && (
+          <div className="relative flex h-3 w-3 mr-2">
+            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-white opacity-75"></span>
+            <span className="relative inline-flex rounded-full h-3 w-3 bg-white"></span>
           </div>
         )}
+        <h3 className="font-bold">{session.title}</h3>
+      </div>
+      <p className={`${session.status === 'live' ? 'text-white/80' : 'text-gray-600 dark:text-gray-300'} text-sm mb-3`}>
+        {session.description}
+      </p>
+      <div className="flex justify-between items-center mb-3">
+        <div className={`flex items-center ${session.status === 'live' ? 'text-white/80' : 'text-gray-500 dark:text-gray-400'} text-sm`}>
+          <FiCalendar className="mr-1" />
+          <span className="mr-3">{formattedDate}</span>
+          <FiClock className="mr-1" />
+          <span>{formattedTime}</span>
+        </div>
+        {isMember && (
+          <div className={`flex items-center ${session.status === 'live' ? 'text-white/80' : 'text-gray-500 dark:text-gray-400'} text-sm`}>
+            <FiUsers className="mr-1" />
+            <span>{session.participantCount || 0} joined</span>
+          </div>
+        )}
+      </div>
+      <div className="flex justify-end">
+        <button 
+          className={`${session.status === 'live' 
+            ? 'bg-white text-red-600 hover:bg-red-50' 
+            : 'bg-blue-600 hover:bg-blue-700 text-white'} 
+            font-medium py-2 px-4 rounded-lg transition-colors text-sm flex items-center`}
+          onClick={(e) => {
+            e.stopPropagation();
+            onClick();
+          }}
+        >
+          <FiVideo className="mr-1" /> 
+          {session.status === 'live' ? 'Join Now' : 'View Session'}
+        </button>
       </div>
     </div>
   );

@@ -39,7 +39,7 @@ const VideoStreamComponent: React.FC<VideoStreamProps> = ({
   const [isFrontCamera, setIsFrontCamera] = useState(true);
   const [showParticipants, setShowParticipants] = useState(false);
   const [showChat, setShowChat] = useState(false);
-  const [chatMessages, setChatMessages] = useState<{sender: string, message: string}[]>([]);
+  const [chatMessages, setChatMessages] = useState<{sender: string, message: string, isNotification?: boolean}[]>([]);
   const [newMessage, setNewMessage] = useState('');
   const [isFullscreen, setIsFullscreen] = useState(false);
   
@@ -133,11 +133,22 @@ const VideoStreamComponent: React.FC<VideoStreamProps> = ({
           // Add the remote participant if not already in the list
           setParticipants(prev => {
             if (!prev.find(p => p.id === callerId)) {
+              // Add a notification message that a new user joined
+              const participantName = `Participant ${callerId.substring(0, 5)}`;
+              setChatMessages(prevMessages => [
+                ...prevMessages,
+                {
+                  sender: 'System',
+                  message: `${participantName} has joined the session`,
+                  isNotification: true
+                }
+              ]);
+              
               return [
                 ...prev,
                 {
                   id: callerId,
-                  displayName: `Participant ${callerId.substring(0, 5)}`,
+                  displayName: participantName,
                   stream: remoteStream,
                   audio: true,
                   video: true
@@ -219,6 +230,16 @@ const VideoStreamComponent: React.FC<VideoStreamProps> = ({
             // Add the trainer to participants if not already there
             setParticipants(prev => {
               if (!prev.find(p => p.id === 'trainer')) {
+                // Add a notification message that you've connected to the trainer
+                setChatMessages(prevMessages => [
+                  ...prevMessages,
+                  {
+                    sender: 'System',
+                    message: 'Connected to trainer',
+                    isNotification: true
+                  }
+                ]);
+                
                 return [
                   ...prev,
                   {
@@ -282,18 +303,55 @@ const VideoStreamComponent: React.FC<VideoStreamProps> = ({
   
   // Switch camera (front/back)
   const switchCamera = async () => {
-    // Stop current stream
-    if (localStream) {
-      localStream.getTracks().forEach(track => track.stop());
-    }
+    if (!localStream) return;
     
-    // Get new stream with different camera
     try {
+      // Get new stream with different camera BEFORE stopping the current one
       const newStream = await navigator.mediaDevices.getUserMedia({
         video: { facingMode: !isFrontCamera ? 'user' : 'environment' },
         audio: true
       });
       
+      // First update all existing connections with the new stream
+      // This ensures we maintain the connection while switching
+      Object.keys(connectionsRef.current).forEach((peerId) => {
+        const conn = connectionsRef.current[peerId];
+        if (conn && conn.peerConnection) {
+          try {
+            // Replace tracks in the peer connection
+            const senders = conn.peerConnection.getSenders();
+            
+            // Replace video track
+            const videoTrack = newStream.getVideoTracks()[0];
+            if (videoTrack) {
+              const videoSender = senders.find((sender: RTCRtpSender) => 
+                sender.track && sender.track.kind === 'video'
+              );
+              if (videoSender) {
+                videoSender.replaceTrack(videoTrack);
+              }
+            }
+            
+            // Replace audio track
+            const audioTrack = newStream.getAudioTracks()[0];
+            if (audioTrack) {
+              const audioSender = senders.find((sender: RTCRtpSender) => 
+                sender.track && sender.track.kind === 'audio'
+              );
+              if (audioSender) {
+                audioSender.replaceTrack(audioTrack);
+              }
+            }
+          } catch (error) {
+            console.error('Error replacing tracks:', error);
+          }
+        }
+      });
+      
+      // Now that connections are updated, stop the old stream
+      localStream.getTracks().forEach(track => track.stop());
+      
+      // Update state and UI
       setLocalStream(newStream);
       setIsFrontCamera(!isFrontCamera);
       
@@ -301,25 +359,27 @@ const VideoStreamComponent: React.FC<VideoStreamProps> = ({
       if (localVideoRef.current) {
         localVideoRef.current.srcObject = newStream;
       }
-      
-      // Update all existing connections with the new stream
-      Object.values(connectionsRef.current).forEach((conn: any) => {
-        if (conn.peerConnection) {
-          // Replace tracks in the peer connection
-          const senders = conn.peerConnection.getSenders();
-          senders.forEach((sender: RTCRtpSender) => {
-            if (sender.track?.kind === 'video') {
-              const videoTrack = newStream.getVideoTracks()[0];
-              if (videoTrack) {
-                sender.replaceTrack(videoTrack);
-              }
-            }
-          });
-        }
-      });
     } catch (err) {
       console.error('Failed to switch camera', err);
-      alert('Could not switch camera. Please check permissions.');
+      
+      // Don't show alert on mobile as it can be disruptive
+      // Instead, try to recover gracefully
+      try {
+        // Try to get a new stream with the current camera setting
+        const recoveryStream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: isFrontCamera ? 'user' : 'environment' },
+          audio: true
+        });
+        
+        setLocalStream(recoveryStream);
+        
+        if (localVideoRef.current) {
+          localVideoRef.current.srcObject = recoveryStream;
+        }
+      } catch (recoveryErr) {
+        console.error('Failed to recover camera:', recoveryErr);
+        alert('Could not access camera. Please check permissions and try again.');
+      }
     }
   };
   
@@ -334,8 +394,19 @@ const VideoStreamComponent: React.FC<VideoStreamProps> = ({
       setChatMessages(prev => [...prev, message]);
       setNewMessage('');
       
-      // In a real app, you would broadcast this message to all participants
-      // For now, we'll just add it to the local chat
+      // Broadcast the message to all connected peers
+      Object.values(connectionsRef.current).forEach((conn: any) => {
+        if (conn.send) {
+          try {
+            conn.send({
+              type: 'chat',
+              data: message
+            });
+          } catch (err) {
+            console.error('Error sending chat message:', err);
+          }
+        }
+      });
     }
   };
   
@@ -623,10 +694,22 @@ const VideoStreamComponent: React.FC<VideoStreamProps> = ({
               chatMessages.map((msg, index) => (
                 <div 
                   key={index}
-                  className={`max-w-[85%] ${msg.sender === userName ? 'ml-auto bg-blue-600 text-white' : 'bg-gray-700 text-white'} rounded-lg p-2`}
+                  className={`max-w-[85%] ${
+                    msg.isNotification 
+                      ? 'mx-auto bg-gray-800 text-gray-300 border border-gray-700' 
+                      : msg.sender === userName 
+                        ? 'ml-auto bg-blue-600 text-white' 
+                        : 'bg-gray-700 text-white'
+                  } rounded-lg p-2`}
                 >
-                  <p className="text-xs font-bold">{msg.sender}</p>
-                  <p className="text-sm">{msg.message}</p>
+                  {msg.isNotification ? (
+                    <p className="text-sm text-center italic">{msg.message}</p>
+                  ) : (
+                    <>
+                      <p className="text-xs font-bold">{msg.sender}</p>
+                      <p className="text-sm">{msg.message}</p>
+                    </>
+                  )}
                 </div>
               ))
             )}
