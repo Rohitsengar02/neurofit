@@ -1,19 +1,22 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Image from 'next/image';
 import { motion } from 'framer-motion';
 import { 
   FiUsers, FiCalendar, FiClock, FiArrowLeft, 
   FiVideo, FiEdit, FiTrash2, FiPlay, FiPause,
-  FiX
+  FiX, FiRefreshCw
 } from 'react-icons/fi';
+import { doc, DocumentSnapshot } from 'firebase/firestore';
+import { db } from '../../../../lib/firebase';
 import VideoStreamComponent from '../../../../features/community/components/VideoStreamComponent';
 import { useAuth } from '../../../../context/AuthContext';
 import * as contentService from '../../../../features/community/services/contentService';
 import * as communityService from '../../../../features/community/services/communityService';
 import { LiveSession, Community, Trainer } from '../../../../features/community/utils/types';
+import { isSessionActive, isSessionCompleted, isSessionUpcoming, getTimeUntilSession, getRemainingSessionTime } from '../../../../features/community/utils/sessionUtils';
 
 export default function SessionDetailsPage() {
   const params = useParams();
@@ -31,71 +34,161 @@ export default function SessionDetailsPage() {
   const [error, setError] = useState<string | null>(null);
   const [isLive, setIsLive] = useState(false);
   const [showVideoStream, setShowVideoStream] = useState(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
   
   // Check if current user is the trainer
   const isTrainer = user && trainer && user.uid === trainer.userId;
   
+  // Set up polling interval for session status updates instead of real-time listener
   useEffect(() => {
-    const fetchSessionData = async () => {
+    if (!session) return;
+    
+    // Function to update session status based on timing
+    const updateSessionStatus = async (currentSession: LiveSession) => {
+      // If a session is scheduled and its start time has passed but not yet ended, mark it as live
+      if (currentSession.status === 'scheduled' && isSessionActive(currentSession)) {
+        try {
+          await contentService.updateSession(currentSession.id, { status: 'live' });
+          console.log(`Session ${currentSession.id} automatically set to live`);
+          // Refresh session data
+          refreshSessionData();
+        } catch (error) {
+          console.error('Error updating session status to live:', error);
+        }
+      }
+      
+      // If a session is live but its end time has passed, mark it as completed
+      if (currentSession.status === 'live' && isSessionCompleted(currentSession)) {
+        try {
+          await contentService.updateSession(currentSession.id, { status: 'completed' });
+          console.log(`Session ${currentSession.id} automatically set to completed`);
+          // Refresh session data
+          refreshSessionData();
+        } catch (error) {
+          console.error('Error updating session status to completed:', error);
+        }
+      }
+    };
+    
+    // Check session status immediately
+    updateSessionStatus(session);
+    
+    // Set up polling interval (every 30 seconds)
+    const intervalId = setInterval(() => {
+      updateSessionStatus(session);
+    }, 30000);
+    
+    // Clean up interval when component unmounts
+    return () => {
+      clearInterval(intervalId);
+    };
+  }, [session, sessionId]);
+  
+  // Load session data
+  useEffect(() => {
+    const loadSessionData = async () => {
+      if (!communityId || !sessionId) return;
+      
       setIsLoading(true);
+      setError(null);
+      
       try {
-        // Fetch session details
+        // Get session data using the cached version from contentService
         const sessionData = await contentService.getSessionById(sessionId);
+        
         if (!sessionData) {
           setError('Session not found');
           setIsLoading(false);
           return;
         }
+        
         setSession(sessionData);
         
-        // Fetch community details
-        const communityData = await communityService.getCommunityById(sessionData.communityId);
+        // Load community data
+        const communityData = await communityService.getCommunityById(communityId);
         setCommunity(communityData);
         
-        // Fetch trainer details
-        if (communityData) {
+        // Load trainer data
+        if (communityData && communityData.trainerId) {
           const trainerData = await communityService.getTrainerByUserId(communityData.trainerId);
           setTrainer(trainerData);
         }
         
-        // Fetch participants
+        // Load participants data
         const participantsData = await contentService.getSessionParticipants(sessionId);
         setParticipants(participantsData);
         
+        // Check if session is live
+        setIsLive(sessionData.status === 'live');
       } catch (error) {
-        console.error('Error fetching session data:', error);
-        setError('Failed to load session details');
+        console.error('Error loading session data:', error);
+        setError('Failed to load session data. Please try again.');
       } finally {
         setIsLoading(false);
       }
     };
     
-    if (sessionId) {
-      fetchSessionData();
-    }
-  }, [sessionId]);
+    loadSessionData();
+  }, [communityId, sessionId]);
   
-  const handleStartSession = async () => {
-    if (!session || !isTrainer) return;
+  // Function to manually refresh session data
+  const refreshSessionData = async () => {
+    if (!communityId || !sessionId) return;
+    
+    setIsRefreshing(true);
     
     try {
-      // Update session status to 'live'
-      await contentService.updateSessionStatus(sessionId, 'live');
+      // Clear session cache to force fresh data
+      contentService.clearSessionCache(communityId);
+      
+      // Get fresh session data
+      const sessionData = await contentService.getSessionById(sessionId);
+      
+      if (!sessionData) {
+        setError('Session not found');
+        return;
+      }
+      
+      setSession(sessionData);
+      
+      // Load participants data
+      const participantsData = await contentService.getSessionParticipants(sessionId);
+      setParticipants(participantsData);
+      
+      // Check if session is live
+      setIsLive(sessionData.status === 'live');
+      
+      // Clear any previous errors
+      setError(null);
+    } catch (error) {
+      console.error('Error refreshing session data:', error);
+      setError('Failed to refresh session data. Please try again.');
+    } finally {
+      setIsRefreshing(false);
+    }
+  };
+  
+  const handleStartSession = async () => {
+    if (!session) return;
+    
+    try {
+      // Update session status to live in Firestore
+      await contentService.updateSessionStatus(session.id, 'live');
+      
+      console.log(`Session ${session.id} set to live by trainer`);
       
       // Update local state
       setSession({
         ...session,
         status: 'live'
       });
-      
       setIsLive(true);
       
-      // In a real app, you would initialize video streaming here
-      // For example, connect to a WebRTC service or similar
-      
+      // Show the video stream automatically when trainer starts the session
+      setShowVideoStream(true);
     } catch (error) {
-      console.error('Error starting live session:', error);
-      setError('Failed to start live session');
+      console.error('Error starting session:', error);
+      alert('Failed to start session. Please try again.');
     }
   };
   
@@ -139,6 +232,19 @@ export default function SessionDetailsPage() {
       console.error('Error deleting session:', error);
       setError('Failed to delete session');
     }
+  };
+  
+  const renderRefreshButton = () => {
+    return (
+      <button
+        onClick={refreshSessionData}
+        disabled={isRefreshing}
+        className="flex items-center text-blue-600 hover:text-blue-800 transition-colors"
+      >
+        <FiRefreshCw className={`mr-1 ${isRefreshing ? 'animate-spin' : ''}`} />
+        {isRefreshing ? 'Refreshing...' : 'Refresh'}
+      </button>
+    );
   };
   
   if (isLoading) {
@@ -349,6 +455,7 @@ export default function SessionDetailsPage() {
                   </div>
                 )}
                 
+                {/* Live Session Section - Only show when session is marked as live AND is within the scheduled time window */}
                 {session.status === 'live' && (
                   <div className="mb-6">
                     {showVideoStream ? (
@@ -364,7 +471,7 @@ export default function SessionDetailsPage() {
                           }}
                         />
                       </div>
-                    ) : (
+                    ) : isSessionActive(session) ? (
                       <div className="bg-gradient-to-r from-red-600 to-red-700 rounded-lg p-8 text-center text-white mb-4 relative overflow-hidden">
                         {/* Animated pulse background */}
                         <div className="absolute inset-0 flex items-center justify-center">
@@ -380,10 +487,15 @@ export default function SessionDetailsPage() {
                             <h3 className="text-2xl font-bold">Live Session in Progress</h3>
                           </div>
                           
-                          <p className="mb-6">{isTrainer 
+                          <p className="mb-2">{isTrainer 
                             ? 'Your live session is ready to start. Join now to connect with your participants!' 
                             : 'The trainer has started a live session. Join now to participate!'
                           }</p>
+                          
+                          <div className="mb-6 flex items-center justify-center text-white/80 text-sm">
+                            <FiClock className="mr-1" />
+                            <span>{getRemainingSessionTime(session)}</span>
+                          </div>
                           
                           <button
                             onClick={() => setShowVideoStream(true)}
@@ -399,6 +511,38 @@ export default function SessionDetailsPage() {
                               <span>{participants.length} participant{participants.length !== 1 ? 's' : ''} in this session</span>
                             </div>
                           )}
+                        </div>
+                      </div>
+                    ) : isSessionCompleted(session) ? (
+                      <div className="bg-gray-100 dark:bg-gray-700 rounded-lg p-8 text-center mb-4">
+                        <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-4">Session Has Ended</h3>
+                        <p className="text-gray-600 dark:text-gray-400 mb-4">
+                          This live session has ended. {isTrainer && 'You can view the participant list below.'}
+                        </p>
+                        <div className="flex justify-center">
+                          <button
+                            onClick={() => router.push(`/community/${communityId}`)}
+                            className="bg-blue-600 hover:bg-blue-700 text-white font-medium py-3 px-6 rounded-lg transition-colors"
+                          >
+                            Back to Community
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="bg-blue-100 dark:bg-blue-900/30 rounded-lg p-8 text-center mb-4">
+                        <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-4">Session Not Started Yet</h3>
+                        <p className="text-gray-600 dark:text-gray-400 mb-4">
+                          This session is scheduled to go live soon. Please check back at the scheduled time.
+                        </p>
+                        <div className="flex items-center justify-center mb-4 text-blue-600 dark:text-blue-400">
+                          <FiCalendar className="mr-2" />
+                          <span>{new Date(session.scheduledFor.seconds * 1000).toLocaleDateString()}</span>
+                          <span className="mx-2">•</span>
+                          <FiClock className="mr-2" />
+                          <span>{new Date(session.scheduledFor.seconds * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                        </div>
+                        <div className="flex items-center justify-center mb-6 text-blue-600 dark:text-blue-400 font-medium">
+                          {getTimeUntilSession(session)}
                         </div>
                       </div>
                     )}
@@ -457,6 +601,23 @@ export default function SessionDetailsPage() {
                 )}
               </div>
             )}
+          </div>
+        </div>
+      </div>
+      {/* Header */}
+      <div className="bg-white dark:bg-gray-800 shadow">
+        <div className="container mx-auto px-4 py-4">
+          <div className="flex justify-between items-center">
+            <button 
+              onClick={() => router.back()} 
+              className="flex items-center text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white"
+            >
+              <FiArrowLeft className="mr-2" />
+              Back to Community
+            </button>
+            
+            {/* Add refresh button */}
+            {renderRefreshButton()}
           </div>
         </div>
       </div>

@@ -5,9 +5,10 @@ import { motion } from 'framer-motion';
 import { 
   FiMic, FiMicOff, FiVideo, FiVideoOff, 
   FiUsers, FiMessageSquare, FiX, FiMaximize,
-  FiCamera, FiPhoneOff
+  FiCamera, FiPhoneOff, FiChevronRight, FiChevronLeft
 } from 'react-icons/fi';
 import Peer from 'peerjs';
+import { getUserProfileById } from '../../../utils/userService';
 
 interface Participant {
   id: string;
@@ -15,6 +16,8 @@ interface Participant {
   stream?: MediaStream | null;
   audio: boolean;
   video: boolean;
+  photoURL?: string;
+  isLoading?: boolean;
 }
 
 interface VideoStreamProps {
@@ -24,6 +27,14 @@ interface VideoStreamProps {
   userName: string;
   onEndSession?: () => void;
 }
+
+// Function to detect if the device is mobile
+const isMobile = (): boolean => {
+  if (typeof window !== 'undefined') {
+    return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+  }
+  return false;
+};
 
 const VideoStreamComponent: React.FC<VideoStreamProps> = ({
   sessionId,
@@ -37,11 +48,12 @@ const VideoStreamComponent: React.FC<VideoStreamProps> = ({
   const [isAudioEnabled, setIsAudioEnabled] = useState(true);
   const [isVideoEnabled, setIsVideoEnabled] = useState(true);
   const [isFrontCamera, setIsFrontCamera] = useState(true);
-  const [showParticipants, setShowParticipants] = useState(false);
+  const [showParticipantsSidebar, setShowParticipantsSidebar] = useState(false);
   const [showChat, setShowChat] = useState(false);
   const [chatMessages, setChatMessages] = useState<{sender: string, message: string, isNotification?: boolean}[]>([]);
   const [newMessage, setNewMessage] = useState('');
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [peerId, setPeerId] = useState<string>('');
   
   const localVideoRef = useRef<HTMLVideoElement>(null);
   const peerRef = useRef<Peer | null>(null);
@@ -50,9 +62,7 @@ const VideoStreamComponent: React.FC<VideoStreamProps> = ({
   
   // Initialize peer connection
   // Check if device is mobile
-  const isMobile = () => {
-    return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
-  };
+  
 
   // Function to request fullscreen
   const requestFullScreen = () => {
@@ -86,88 +96,121 @@ const VideoStreamComponent: React.FC<VideoStreamProps> = ({
   
   useEffect(() => {
     const initPeer = async () => {
-      // Create a unique peer ID using session ID, user ID and a random string to avoid conflicts
-      const randomString = Math.random().toString(36).substring(2, 8);
-      const peerId = `${sessionId}-${userId}-${randomString}`;
-      
-      // Initialize the Peer object
-      const peer = new Peer(peerId, {
-        // Use the free public PeerJS server
-        // No configuration needed for the default server
-        debug: 3
-      });
-      
-      peerRef.current = peer;
-      
-      // Handle peer open event
-      peer.on('open', (id) => {
-        console.log('My peer ID is: ' + id);
+      try {
+        // Generate a unique ID using sessionId, userId and a random string to avoid collisions
+        const randomSuffix = Math.random().toString(36).substring(2, 10);
+        const peerId = `${sessionId}-${userId}-${randomSuffix}`;
+        console.log('Creating peer with ID:', peerId);
         
-        // Add self to participants list
-        setParticipants(prev => [
-          ...prev,
-          {
-            id: userId,
-            displayName: userName,
-            stream: localStream,
-            audio: isAudioEnabled,
-            video: isVideoEnabled
+        // Initialize the Peer object with debugging enabled
+        const peer = new Peer(peerId, {
+          debug: 3,
+          config: {
+            iceServers: [
+              { urls: 'stun:stun.l.google.com:19302' },
+              { urls: 'stun:global.stun.twilio.com:3478' }
+            ]
           }
-        ]);
+        });
         
-        // If trainer, create a room and wait for connections
-        if (isTrainer) {
-          console.log('Trainer ready to accept connections');
-        }
-      });
-      
-      // Handle incoming calls
-      peer.on('call', (call) => {
-        // Answer the call with our local stream
-        call.answer(localStream!);
+        // Store the peer ID for reference
+        setPeerId(peerId);
         
-        // Handle incoming stream
-        call.on('stream', (remoteStream) => {
-          const callerId = call.peer.split('-')[1]; // Extract user ID from peer ID
+        // Handle peer open event
+        peer.on('open', (id) => {
+          console.log('My peer ID is open:', id);
+          peerRef.current = peer;
           
-          // Add the remote participant if not already in the list
+          // Add self to participants list
           setParticipants(prev => {
-            if (!prev.find(p => p.id === callerId)) {
-              // Add a notification message that a new user joined
-              const participantName = `Participant ${callerId.substring(0, 5)}`;
-              setChatMessages(prevMessages => [
-                ...prevMessages,
-                {
-                  sender: 'System',
-                  message: `${participantName} has joined the session`,
-                  isNotification: true
-                }
-              ]);
-              
+            // Only add self if not already in the list
+            if (!prev.find(p => p.id === userId)) {
               return [
                 ...prev,
                 {
-                  id: callerId,
-                  displayName: participantName,
-                  stream: remoteStream,
-                  audio: true,
-                  video: true
+                  id: userId,
+                  displayName: userName,
+                  stream: localStream,
+                  audio: isAudioEnabled,
+                  video: isVideoEnabled
                 }
               ];
             }
             return prev;
           });
           
-          // Store the connection
-          connectionsRef.current[callerId] = call;
+          // Register this peer ID in Firebase for others to discover
+          registerPeerInFirebase(id);
         });
-      });
-      
-      // Handle errors
-      peer.on('error', (err) => {
-        console.error('Peer connection error:', err);
-        alert(`Connection error: ${err.type}`);
-      });
+        
+        // Handle peer error event
+        peer.on('error', (err) => {
+          console.error('Peer connection error:', err);
+          
+          // If the ID is taken, try again with a different random suffix
+          if (err.type === 'unavailable-id') {
+            console.log('Peer ID was taken, retrying with a new ID');
+            // Destroy the current peer
+            peer.destroy();
+            // Wait a bit and try again
+            setTimeout(initPeer, 500);
+            return;
+          }
+          
+          // Don't show alert for disconnection errors as they're common
+          if (err.type !== 'peer-unavailable') {
+            console.log(`Connection error: ${err.type}`);
+          }
+        });
+        
+        // Handle incoming calls
+        peer.on('call', (call) => {
+          console.log('Received call from:', call.peer);
+          
+          // Answer the call with our local stream
+          if (localStream) {
+            call.answer(localStream);
+          } else {
+            console.error('No local stream to answer call with');
+            call.answer(); // Answer without a stream
+          }
+          
+          // Extract the caller's user ID from the peer ID
+          // Format is sessionId-userId-randomSuffix
+          const peerIdParts = call.peer.split('-');
+          // The userId is the second part (index 1) if we have at least 3 parts
+          const callerId = peerIdParts.length >= 3 ? peerIdParts[1] : call.peer;
+          console.log('Caller ID:', callerId);
+          
+          // Handle incoming stream
+          call.on('stream', (remoteStream) => {
+            console.log('Received stream in call from:', callerId);
+            
+            // Use the common handler for remote streams
+            handleRemoteStream(remoteStream, callerId);
+          });
+          
+          // Handle call close
+          call.on('close', () => {
+            console.log('Call closed from:', callerId);
+            
+            // Remove the participant from the list
+            setParticipants(prev => prev.filter(p => p.id !== callerId));
+            
+            // Add a notification message that a user left
+            setChatMessages(prevMessages => [
+              ...prevMessages,
+              {
+                sender: 'System',
+                message: `A participant has left the session`,
+                isNotification: true
+              }
+            ]);
+          });
+        });
+      } catch (err) {
+        console.error('Error initializing peer:', err);
+      }
     };
     
     // Get user media (camera and microphone)
@@ -214,6 +257,47 @@ const VideoStreamComponent: React.FC<VideoStreamProps> = ({
     };
   }, [sessionId, userId, userName, isTrainer, isFrontCamera]);
   
+  useEffect(() => {
+    // Update audio/video status for all peers
+    if (localStream) {
+      // Update local stream tracks
+      localStream.getAudioTracks().forEach(track => {
+        track.enabled = isAudioEnabled;
+      });
+      
+      localStream.getVideoTracks().forEach(track => {
+        track.enabled = isVideoEnabled;
+      });
+      
+      // Update own participant entry
+      setParticipants(prev => 
+        prev.map(p => 
+          p.id === userId 
+            ? { ...p, audio: isAudioEnabled, video: isVideoEnabled } 
+            : p
+        )
+      );
+      
+      // Broadcast status update to all peers
+      Object.values(connectionsRef.current).forEach((conn: any) => {
+        if (conn.send) {
+          try {
+            conn.send({
+              type: 'status',
+              data: {
+                userId,
+                audio: isAudioEnabled,
+                video: isVideoEnabled
+              }
+            });
+          } catch (err) {
+            console.error('Error sending status update:', err);
+          }
+        }
+      });
+    }
+  }, [isAudioEnabled, isVideoEnabled, userId, localStream]);
+  
   // Connect to trainer when joining as a participant
   useEffect(() => {
     const connectToTrainer = async () => {
@@ -227,35 +311,8 @@ const VideoStreamComponent: React.FC<VideoStreamProps> = ({
           
           // Handle the trainer's stream
           call.on('stream', (remoteStream) => {
-            // Add the trainer to participants if not already there
-            setParticipants(prev => {
-              if (!prev.find(p => p.id === 'trainer')) {
-                // Add a notification message that you've connected to the trainer
-                setChatMessages(prevMessages => [
-                  ...prevMessages,
-                  {
-                    sender: 'System',
-                    message: 'Connected to trainer',
-                    isNotification: true
-                  }
-                ]);
-                
-                return [
-                  ...prev,
-                  {
-                    id: 'trainer',
-                    displayName: 'Trainer',
-                    stream: remoteStream,
-                    audio: true,
-                    video: true
-                  }
-                ];
-              }
-              return prev;
-            });
-            
-            // Store the connection
-            connectionsRef.current['trainer'] = call;
+            // Use the common handler for remote streams
+            handleRemoteStream(remoteStream, 'trainer');
           });
         } catch (err) {
           console.error('Failed to connect to trainer', err);
@@ -268,6 +325,79 @@ const VideoStreamComponent: React.FC<VideoStreamProps> = ({
       connectToTrainer();
     }
   }, [isTrainer, localStream, sessionId]);
+  
+  // Function to handle incoming video streams
+  const handleRemoteStream = (stream: MediaStream, participantId: string, displayName?: string) => {
+    console.log('Handling remote stream from:', participantId, 'with display name:', displayName);
+    
+    // Fetch user profile if needed
+    const fetchUserProfile = async () => {
+      try {
+        const profile = await getUserProfileById(participantId);
+        if (profile) {
+          return {
+            displayName: profile.displayName,
+            photoURL: profile.photoURL
+          };
+        }
+      } catch (err) {
+        console.error('Error fetching profile for stream:', err);
+      }
+      return null;
+    };
+    
+    // Add the participant with their stream
+    const addParticipantWithStream = async () => {
+      // Try to get profile info
+      const profile = await fetchUserProfile();
+      
+      // Update participants list with the new stream
+      setParticipants(prev => {
+        // Check if participant already exists
+        const existingParticipant = prev.find(p => p.id === participantId);
+        
+        if (existingParticipant) {
+          // Update existing participant with stream
+          return prev.map(p => 
+            p.id === participantId 
+              ? { 
+                  ...p, 
+                  stream: stream,
+                  displayName: profile?.displayName || displayName || p.displayName,
+                  photoURL: profile?.photoURL || p.photoURL
+                } 
+              : p
+          );
+        } else {
+          // Add new participant with stream
+          return [
+            ...prev,
+            {
+              id: participantId,
+              displayName: profile?.displayName || displayName || `User-${participantId.substring(0, 5)}`,
+              photoURL: profile?.photoURL,
+              stream: stream,
+              audio: true,
+              video: true
+            }
+          ];
+        }
+      });
+      
+      // Add notification
+      setChatMessages(prevMessages => [
+        ...prevMessages,
+        {
+          sender: 'System',
+          message: `${profile?.displayName || displayName || 'A new participant'} has joined the session`,
+          isNotification: true
+        }
+      ]);
+    };
+    
+    // Add the participant with their stream
+    addParticipantWithStream();
+  };
   
   // Toggle audio
   const toggleAudio = () => {
@@ -448,292 +578,575 @@ const VideoStreamComponent: React.FC<VideoStreamProps> = ({
     }
   };
   
+  // Fetch user profiles for participants
+  useEffect(() => {
+    const fetchUserProfiles = async () => {
+      // Only fetch profiles for participants that don't have a photoURL
+      const participantsToUpdate = participants.filter(p => !p.photoURL && !p.isLoading);
+      
+      if (participantsToUpdate.length === 0) return;
+      
+      // Mark participants as loading
+      setParticipants(prev => 
+        prev.map(p => 
+          participantsToUpdate.some(pu => pu.id === p.id) 
+            ? { ...p, isLoading: true } 
+            : p
+        )
+      );
+      
+      // Fetch profiles for each participant
+      for (const participant of participantsToUpdate) {
+        try {
+          const profile = await getUserProfileById(participant.id);
+          
+          if (profile) {
+            // Update participant with profile data
+            setParticipants(prev => 
+              prev.map(p => 
+                p.id === participant.id 
+                  ? { 
+                      ...p, 
+                      displayName: profile.displayName || p.displayName,
+                      photoURL: profile.photoURL,
+                      isLoading: false 
+                    } 
+                  : p
+              )
+            );
+          } else {
+            // Mark as not loading if profile not found
+            setParticipants(prev => 
+              prev.map(p => 
+                p.id === participant.id 
+                  ? { ...p, isLoading: false } 
+                  : p
+              )
+            );
+          }
+        } catch (error) {
+          console.error('Error fetching profile for participant:', participant.id, error);
+          
+          // Mark as not loading on error
+          setParticipants(prev => 
+            prev.map(p => 
+              p.id === participant.id 
+                ? { ...p, isLoading: false } 
+                : p
+            )
+          );
+        }
+      }
+    };
+    
+    fetchUserProfiles();
+  }, [participants]);
+  
+  // Add a Firebase listener for session participants
+  useEffect(() => {
+    const listenForParticipants = async () => {
+      try {
+        // Only start listening if we have a valid peer connection
+        if (!peerRef.current) return;
+        
+        // Import Firebase modules dynamically to avoid SSR issues
+        const { db } = await import('../../../utils/firebase');
+        const { doc, onSnapshot, collection } = await import('firebase/firestore');
+        
+        // Reference to the session document
+        const sessionRef = doc(db, 'sessions', sessionId);
+        
+        // Reference to the participants subcollection
+        const participantsRef = collection(sessionRef, 'participants');
+        
+        // Listen for changes in the participants collection
+        const unsubscribe = onSnapshot(participantsRef, (snapshot) => {
+          console.log('Participants collection changed');
+          
+          // Get the list of participant IDs and their peer IDs from Firestore
+          const participantData = snapshot.docs.map(doc => {
+            const data = doc.data();
+            return {
+              userId: data.userId || doc.id,
+              peerId: data.peerId
+            };
+          });
+          
+          console.log('Current participants from Firestore:', participantData);
+          
+          // For each participant that's not already in our list and not ourselves
+          participantData.forEach(async (participant) => {
+            // Skip if this is our own ID or if we're already connected
+            if (participant.userId === userId || participants.some(p => p.id === participant.userId)) {
+              return;
+            }
+            
+            // Skip if we don't have a peer ID for this participant
+            if (!participant.peerId) {
+              console.log('No peer ID for participant:', participant.userId);
+              return;
+            }
+            
+            console.log('New participant detected:', participant.userId, 'with peer ID:', participant.peerId);
+            
+            // Try to connect to this new participant
+            if (peerRef.current && localStream) {
+              try {
+                console.log('Attempting to call new participant:', participant.peerId);
+                
+                // Call the new participant with our local stream
+                const call = peerRef.current.call(participant.peerId, localStream);
+                
+                if (call) {
+                  console.log('Call initiated to new participant');
+                  
+                  // Handle the remote stream when it arrives
+                  call.on('stream', (remoteStream) => {
+                    console.log('Received stream from new participant:', participant.userId);
+                    
+                    // Use the common handler for remote streams
+                    handleRemoteStream(remoteStream, participant.userId);
+                  });
+                }
+              } catch (err) {
+                console.error('Error connecting to new participant:', participant.userId, err);
+              }
+            }
+          });
+        });
+        
+        // Clean up the listener when component unmounts
+        return () => unsubscribe();
+      } catch (err) {
+        console.error('Error setting up participant listener:', err);
+      }
+    };
+    
+    listenForParticipants();
+  }, [sessionId, userId, participants, localStream]);
+  
+  // Function to register the peer ID in Firebase
+  const registerPeerInFirebase = async (peerId: string) => {
+    try {
+      // Import Firebase modules dynamically to avoid SSR issues
+      const { db } = await import('../../../utils/firebase');
+      const { doc, setDoc, collection, serverTimestamp } = await import('firebase/firestore');
+      
+      // Reference to the session document
+      const sessionRef = doc(db, 'sessions', sessionId);
+      
+      // Reference to the participant document
+      const participantRef = doc(collection(sessionRef, 'participants'), userId);
+      
+      // Add this participant to the session's participants collection
+      await setDoc(participantRef, {
+        userId: userId,
+        displayName: userName,
+        isTrainer: isTrainer,
+        joinedAt: serverTimestamp(),
+        peerId: peerId
+      });
+      
+      console.log('Registered peer ID in Firebase:', peerId);
+    } catch (err) {
+      console.error('Error registering peer in Firebase:', err);
+    }
+  };
+  
+  // Render participants sidebar
+  const renderParticipantsSidebar = () => {
+    return (
+      <motion.div 
+        className={`absolute top-0 right-0 h-full bg-gray-900/90 backdrop-blur-sm z-20 ${showParticipantsSidebar ? 'w-64' : 'w-0'}`}
+        initial={false}
+        animate={{ width: showParticipantsSidebar ? 280 : 0 }}
+        transition={{ duration: 0.3 }}
+      >
+        {showParticipantsSidebar && (
+          <div className="h-full flex flex-col p-4">
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-white font-medium text-lg flex items-center">
+                <FiUsers className="mr-2" /> Participants ({participants.length})
+              </h3>
+              <button 
+                onClick={() => setShowParticipantsSidebar(false)}
+                className="text-white/70 hover:text-white"
+              >
+                <FiX />
+              </button>
+            </div>
+            
+            <div className="flex-1 overflow-y-auto">
+              {participants.map(participant => (
+                <div 
+                  key={participant.id} 
+                  className="flex items-center mb-3 p-2 rounded-lg hover:bg-white/10"
+                >
+                  <div className="w-10 h-10 rounded-full overflow-hidden bg-gray-700 flex-shrink-0 mr-3">
+                    {participant.photoURL ? (
+                      <img 
+                        src={participant.photoURL} 
+                        alt={participant.displayName} 
+                        className="w-full h-full object-cover"
+                      />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center text-white font-bold">
+                        {participant.displayName.charAt(0).toUpperCase()}
+                      </div>
+                    )}
+                  </div>
+                  
+                  <div className="flex-1 min-w-0">
+                    <p className="text-white font-medium truncate">
+                      {participant.displayName}
+                      {participant.id === userId && " (You)"}
+                    </p>
+                    
+                    <div className="flex items-center text-xs text-white/70">
+                      {participant.audio ? (
+                        <FiMic className="mr-1" />
+                      ) : (
+                        <FiMicOff className="mr-1 text-red-500" />
+                      )}
+                      
+                      {participant.video ? (
+                        <FiVideo className="ml-2 mr-1" />
+                      ) : (
+                        <FiVideoOff className="ml-2 mr-1 text-red-500" />
+                      )}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </motion.div>
+    );
+  };
+  
   return (
     <div 
       ref={streamContainerRef}
       className="relative w-full h-full bg-black rounded-lg overflow-hidden flex flex-col"
     >
       {/* Main video area */}
-      <div className="relative flex-1 flex flex-wrap">
-        {/* Local video (self view) */}
-        <div className={`${participants.length > 1 ? 'absolute top-2 right-2 w-1/4 h-1/4 z-10' : 'w-full h-full'}`}>
-          <div className="relative w-full h-full rounded overflow-hidden">
-            <video
-              ref={localVideoRef}
-              autoPlay
-              playsInline
-              muted // Always mute local video to prevent feedback
-              className={`w-full h-full object-cover ${!isVideoEnabled ? 'hidden' : ''}`}
-            />
-            
-            {!isVideoEnabled && (
-              <div className="absolute inset-0 flex items-center justify-center bg-gray-800">
-                <div className="w-16 h-16 rounded-full bg-gray-700 flex items-center justify-center">
-                  <span className="text-2xl text-white font-bold">
-                    {userName.charAt(0)}
-                  </span>
-                </div>
-              </div>
-            )}
-            
-            {/* Audio/video status indicators */}
-            <div className="absolute bottom-2 left-2 flex space-x-1">
-              {!isAudioEnabled && (
-                <div className="bg-red-500 rounded-full p-1">
-                  <FiMicOff className="text-white text-xs" />
-                </div>
-              )}
-              {!isVideoEnabled && (
-                <div className="bg-red-500 rounded-full p-1">
-                  <FiVideoOff className="text-white text-xs" />
-                </div>
-              )}
-            </div>
-            
-            <div className="absolute bottom-2 right-2 text-white text-sm bg-black/50 px-2 py-1 rounded">
-              You
-            </div>
-          </div>
-        </div>
-        
-        {/* Participant videos */}
-        {participants
-          .filter(p => p.id !== userId) // Exclude self
-          .map(participant => (
-            <div 
-              key={participant.id}
-              className={`${participants.length > 2 ? 'w-1/2 h-1/2' : 'w-full h-full'}`}
-            >
-              <div className="relative w-full h-full p-1">
-                {participant.stream ? (
-                  <video
-                    autoPlay
-                    playsInline
-                    className={`w-full h-full object-cover rounded ${!participant.video ? 'hidden' : ''}`}
-                    ref={el => {
-                      if (el && participant.stream) {
-                        el.srcObject = participant.stream;
-                      }
-                    }}
-                  />
-                ) : (
-                  <div className="w-full h-full bg-gray-800 rounded flex items-center justify-center">
-                    <div className="animate-pulse">Connecting...</div>
-                  </div>
-                )}
+      <div className="relative flex-1 flex flex-col">
+        {/* Trainer video (featured at the top) */}
+        {participants.length > 0 && (
+          <div className="w-full h-1/2 bg-gray-900 mb-2">
+            {isTrainer ? (
+              // If current user is the trainer, show their video prominently
+              <div className="relative w-full h-full">
+                <video
+                  ref={localVideoRef}
+                  autoPlay
+                  playsInline
+                  muted
+                  className={`w-full h-full object-cover ${!isVideoEnabled ? 'hidden' : ''}`}
+                />
                 
-                {participant.stream && !participant.video && (
-                  <div className="absolute inset-0 flex items-center justify-center bg-gray-800 rounded">
-                    <div className="w-20 h-20 rounded-full bg-gray-700 flex items-center justify-center">
+                {!isVideoEnabled && (
+                  <div className="absolute inset-0 flex items-center justify-center bg-gray-800">
+                    <div className="w-24 h-24 rounded-full bg-gray-700 flex items-center justify-center overflow-hidden">
                       <span className="text-3xl text-white font-bold">
-                        {participant.displayName.charAt(0)}
+                        {userName.charAt(0)}
                       </span>
+                    </div>
+                    <div className="absolute bottom-4 text-white bg-black/50 px-3 py-1 rounded-full">
+                      Trainer: {userName} (You)
                     </div>
                   </div>
                 )}
                 
                 {/* Audio/video status indicators */}
                 <div className="absolute bottom-3 left-3 flex space-x-2">
-                  {!participant.audio && (
-                    <div className="bg-red-500 rounded-full p-1">
+                  {!isAudioEnabled && (
+                    <div className="bg-red-500 rounded-full p-1.5">
                       <FiMicOff className="text-white" />
                     </div>
                   )}
-                  {!participant.video && (
-                    <div className="bg-red-500 rounded-full p-1">
+                  {!isVideoEnabled && (
+                    <div className="bg-red-500 rounded-full p-1.5">
                       <FiVideoOff className="text-white" />
                     </div>
                   )}
                 </div>
                 
-                <div className="absolute bottom-3 right-3 text-white bg-black/50 px-2 py-1 rounded">
-                  {participant.displayName}
+                {isVideoEnabled && (
+                  <div className="absolute bottom-3 right-3 text-white bg-black/50 px-3 py-1 rounded-full">
+                    Trainer: {userName} (You)
+                  </div>
+                )}
+              </div>
+            ) : (
+              // If current user is not the trainer, find the trainer's video and show it prominently
+              (() => {
+                // Find the trainer participant
+                const trainerParticipant = participants.find(p => p.id !== userId && (p.id === 'trainer' || p.id.includes('trainer')));
+                
+                // If no explicit trainer is found, use the first participant that's not the current user
+                const featuredParticipant = trainerParticipant || participants.find(p => p.id !== userId);
+                
+                return featuredParticipant ? (
+                  <div className="relative w-full h-full">
+                    {featuredParticipant.stream ? (
+                      <video
+                        autoPlay
+                        playsInline
+                        className={`w-full h-full object-cover ${!featuredParticipant.video ? 'hidden' : ''}`}
+                        ref={el => {
+                          if (el && featuredParticipant.stream) {
+                            el.srcObject = featuredParticipant.stream;
+                          }
+                        }}
+                      />
+                    ) : (
+                      <div className="w-full h-full bg-gray-800 rounded flex items-center justify-center">
+                        <div className="animate-pulse">Connecting to trainer...</div>
+                      </div>
+                    )}
+                    
+                    {featuredParticipant.stream && !featuredParticipant.video && (
+                      <div className="absolute inset-0 flex items-center justify-center bg-gray-800">
+                        <div className="w-24 h-24 rounded-full bg-gray-700 flex items-center justify-center overflow-hidden">
+                          {featuredParticipant.photoURL ? (
+                            <img 
+                              src={featuredParticipant.photoURL} 
+                              alt={featuredParticipant.displayName} 
+                              className="w-full h-full object-cover"
+                            />
+                          ) : (
+                            <span className="text-3xl text-white font-bold">
+                              {featuredParticipant.displayName.charAt(0)}
+                            </span>
+                          )}
+                        </div>
+                        <div className="absolute bottom-4 text-white bg-black/50 px-3 py-1 rounded-full">
+                          {trainerParticipant ? 'Trainer: ' : ''}{featuredParticipant.displayName}
+                        </div>
+                      </div>
+                    )}
+                    
+                    {/* Audio/video status indicators */}
+                    <div className="absolute bottom-3 left-3 flex space-x-2">
+                      {!featuredParticipant.audio && (
+                        <div className="bg-red-500 rounded-full p-1.5">
+                          <FiMicOff className="text-white" />
+                        </div>
+                      )}
+                      {!featuredParticipant.video && (
+                        <div className="bg-red-500 rounded-full p-1.5">
+                          <FiVideoOff className="text-white" />
+                        </div>
+                      )}
+                    </div>
+                    
+                    {featuredParticipant.video && (
+                      <div className="absolute bottom-3 right-3 text-white bg-black/50 px-3 py-1 rounded-full">
+                        {trainerParticipant ? 'Trainer: ' : ''}{featuredParticipant.displayName}
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <div className="w-full h-full bg-gray-800 rounded flex items-center justify-center">
+                    <div>Waiting for trainer to join...</div>
+                  </div>
+                );
+              })()
+            )}
+          </div>
+        )}
+        
+        {/* Participants grid (including self view) */}
+        <div className="flex-1 flex flex-wrap overflow-y-auto gap-1 p-1">
+          {/* Local video (self view) - always show the local video in the grid */}
+          <div className={`${participants.length > 3 ? 'w-1/3 h-1/2' : participants.length > 1 ? 'w-1/2 h-1/2' : 'w-full h-full'} p-1`}>
+            <div className="relative w-full h-full rounded overflow-hidden">
+              <video
+                ref={localVideoRef}
+                autoPlay
+                playsInline
+                muted // Always mute local video to prevent feedback
+                className={`w-full h-full object-cover ${!isVideoEnabled ? 'hidden' : ''}`}
+              />
+              
+              {!isVideoEnabled && (
+                <div className="absolute inset-0 flex items-center justify-center bg-gray-800">
+                  <div className="w-16 h-16 rounded-full bg-gray-700 flex items-center justify-center">
+                    <span className="text-2xl text-white font-bold">
+                      {userName.charAt(0)}
+                    </span>
+                  </div>
                 </div>
+              )}
+              
+              {/* Audio/video status indicators */}
+              <div className="absolute bottom-2 left-2 flex space-x-1">
+                {!isAudioEnabled && (
+                  <div className="bg-red-500 rounded-full p-1">
+                    <FiMicOff className="text-white text-xs" />
+                  </div>
+                )}
+                {!isVideoEnabled && (
+                  <div className="bg-red-500 rounded-full p-1">
+                    <FiVideoOff className="text-white text-xs" />
+                  </div>
+                )}
+              </div>
+              
+              <div className="absolute bottom-2 right-2 text-white text-sm bg-black/50 px-2 py-1 rounded">
+                You {isTrainer ? '(Trainer)' : ''}
               </div>
             </div>
-          ))}
-      </div>
-      
-      {/* Control bar */}
-      <motion.div 
-        className={`bg-gray-900 ${isMobile() ? 'p-4 pb-6 fixed bottom-0 left-0 right-0 z-40' : 'p-3'} flex items-center justify-between`}
-        initial={{ y: 100 }}
-        animate={{ y: 0 }}
-        transition={{ duration: 0.3 }}
-      >
-        <div className="flex items-center space-x-2">
-          <button 
-            onClick={toggleAudio}
-            className={`p-3 rounded-full ${isAudioEnabled ? 'bg-gray-700 hover:bg-gray-600' : 'bg-red-600 hover:bg-red-700'} transition-colors`}
-          >
-            {isAudioEnabled ? (
-              <FiMic className="text-white text-xl" />
-            ) : (
-              <FiMicOff className="text-white text-xl" />
-            )}
-          </button>
-          
-          <button 
-            onClick={toggleVideo}
-            className={`p-3 rounded-full ${isVideoEnabled ? 'bg-gray-700 hover:bg-gray-600' : 'bg-red-600 hover:bg-red-700'} transition-colors`}
-          >
-            {isVideoEnabled ? (
-              <FiVideo className="text-white text-xl" />
-            ) : (
-              <FiVideoOff className="text-white text-xl" />
-            )}
-          </button>
-          
-          <button 
-            onClick={switchCamera}
-            className="p-3 rounded-full bg-gray-700 hover:bg-gray-600 transition-colors"
-          >
-            <FiCamera className="text-white text-xl" />
-          </button>
-        </div>
-        
-        <div className="flex items-center space-x-2">
-          <button 
-            onClick={() => setShowParticipants(!showParticipants)}
-            className={`p-3 rounded-full ${showParticipants ? 'bg-blue-600' : 'bg-gray-700 hover:bg-gray-600'} transition-colors`}
-          >
-            <FiUsers className="text-white text-xl" />
-          </button>
-          
-          <button 
-            onClick={() => setShowChat(!showChat)}
-            className={`p-3 rounded-full ${showChat ? 'bg-blue-600' : 'bg-gray-700 hover:bg-gray-600'} transition-colors`}
-          >
-            <FiMessageSquare className="text-white text-xl" />
-          </button>
-          
-          <button 
-            onClick={toggleFullscreen}
-            className="p-3 rounded-full bg-gray-700 hover:bg-gray-600 transition-colors"
-          >
-            <FiMaximize className="text-white text-xl" />
-          </button>
-          
-          {/* End Live Button - More prominent on mobile */}
-          <button 
-            onClick={handleEndSession}
-            className={`${isMobile() ? 'p-4 fixed bottom-20 right-4 z-50 shadow-lg' : 'p-3'} rounded-full bg-red-600 hover:bg-red-700 transition-colors flex items-center`}
-          >
-            <FiPhoneOff className="text-white text-xl" />
-            {isMobile() && <span className="text-white font-bold ml-2">End Live</span>}
-          </button>
-        </div>
-      </motion.div>
-      
-      {/* Participants panel */}
-      {showParticipants && (
-        <motion.div 
-          className="absolute top-0 right-0 h-full w-64 bg-gray-900/90 backdrop-blur-sm p-4 z-20 overflow-y-auto"
-          initial={{ x: 300 }}
-          animate={{ x: 0 }}
-          transition={{ duration: 0.3 }}
-        >
-          <div className="flex justify-between items-center mb-4">
-            <h3 className="text-white font-bold">Participants ({participants.length})</h3>
-            <button 
-              onClick={() => setShowParticipants(false)}
-              className="text-gray-400 hover:text-white"
-            >
-              <FiX />
-            </button>
           </div>
           
-          <div className="space-y-3">
-            {participants.map(participant => (
+          {/* All other participants */}
+          {participants
+            .filter(p => p.id !== userId)
+            .map((participant, index) => (
               <div 
                 key={participant.id}
-                className="flex items-center p-2 rounded bg-gray-800"
+                className={`${participants.length > 3 ? 'w-1/3 h-1/2' : 'w-1/2 h-1/2'} p-1`}
               >
-                <div className="w-8 h-8 rounded-full bg-blue-600 flex items-center justify-center mr-2">
-                  <span className="text-white font-bold">
-                    {participant.displayName.charAt(0)}
-                  </span>
-                </div>
-                <div className="flex-1">
-                  <p className="text-white text-sm">
-                    {participant.displayName} {participant.id === userId && '(You)'}
-                  </p>
-                </div>
-                <div className="flex space-x-1">
-                  {!participant.audio && <FiMicOff className="text-red-500" />}
-                  {!participant.video && <FiVideoOff className="text-red-500" />}
+                <div className="relative w-full h-full rounded overflow-hidden">
+                  {participant.stream ? (
+                    <video
+                      autoPlay
+                      playsInline
+                      className={`w-full h-full object-cover ${!participant.video ? 'hidden' : ''}`}
+                      ref={el => {
+                        if (el && participant.stream) {
+                          el.srcObject = participant.stream;
+                        }
+                      }}
+                    />
+                  ) : (
+                    <div className="w-full h-full bg-gray-800 rounded flex items-center justify-center">
+                      <div className="animate-pulse">Connecting...</div>
+                    </div>
+                  )}
+                  
+                  {(!participant.stream || !participant.video) && (
+                    <div className="absolute inset-0 flex items-center justify-center bg-gray-800">
+                      <div className="w-16 h-16 rounded-full bg-gray-700 flex items-center justify-center overflow-hidden">
+                        {participant.photoURL ? (
+                          <img 
+                            src={participant.photoURL} 
+                            alt={participant.displayName} 
+                            className="w-full h-full object-cover"
+                          />
+                        ) : (
+                          <span className="text-2xl text-white font-bold">
+                            {participant.displayName.charAt(0)}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                  
+                  {/* Audio/video status indicators */}
+                  <div className="absolute bottom-2 left-2 flex space-x-1">
+                    {!participant.audio && (
+                      <div className="bg-red-500 rounded-full p-1">
+                        <FiMicOff className="text-white text-xs" />
+                      </div>
+                    )}
+                    {!participant.video && (
+                      <div className="bg-red-500 rounded-full p-1">
+                        <FiVideoOff className="text-white text-xs" />
+                      </div>
+                    )}
+                  </div>
+                  
+                  <div className="absolute bottom-2 right-2 text-white text-sm bg-black/50 px-2 py-1 rounded">
+                    {participant.displayName} {participant.id === 'trainer' || participant.id.includes('trainer') ? '(Trainer)' : ''}
+                  </div>
                 </div>
               </div>
             ))}
-          </div>
-        </motion.div>
-      )}
+        </div>
+      </div>
       
-      {/* Chat panel */}
-      {showChat && (
-        <motion.div 
-          className="absolute top-0 right-0 h-full w-72 bg-gray-900/90 backdrop-blur-sm flex flex-col z-20"
-          initial={{ x: 300 }}
-          animate={{ x: 0 }}
-          transition={{ duration: 0.3 }}
-        >
-          <div className="flex justify-between items-center p-4 border-b border-gray-800">
-            <h3 className="text-white font-bold">Chat</h3>
-            <button 
-              onClick={() => setShowChat(false)}
-              className="text-gray-400 hover:text-white"
+      {/* Control bar */}
+      <div className="bg-gray-900 p-4 flex items-center justify-between">
+        <div className="flex space-x-2">
+          {/* Mic toggle */}
+          <button
+            onClick={() => setIsAudioEnabled(!isAudioEnabled)}
+            className={`p-3 rounded-full ${isAudioEnabled ? 'bg-gray-700 hover:bg-gray-600' : 'bg-red-600 hover:bg-red-700'}`}
+          >
+            {isAudioEnabled ? <FiMic className="text-white" /> : <FiMicOff className="text-white" />}
+          </button>
+          
+          {/* Camera toggle */}
+          <button
+            onClick={() => setIsVideoEnabled(!isVideoEnabled)}
+            className={`p-3 rounded-full ${isVideoEnabled ? 'bg-gray-700 hover:bg-gray-600' : 'bg-red-600 hover:bg-red-700'}`}
+          >
+            {isVideoEnabled ? <FiVideo className="text-white" /> : <FiVideoOff className="text-white" />}
+          </button>
+          
+          {/* Camera flip (mobile only) */}
+          {isMobile() && (
+            <button
+              onClick={() => setIsFrontCamera(!isFrontCamera)}
+              className="p-3 rounded-full bg-gray-700 hover:bg-gray-600"
             >
-              <FiX />
+              <FiCamera className="text-white" />
             </button>
-          </div>
+          )}
+        </div>
+        
+        <div className="flex space-x-2">
+          {/* Participants button */}
+          <button
+            onClick={() => setShowParticipantsSidebar(!showParticipantsSidebar)}
+            className={`p-3 rounded-full ${showParticipantsSidebar ? 'bg-blue-600' : 'bg-gray-700 hover:bg-gray-600'}`}
+          >
+            <FiUsers className="text-white" />
+          </button>
           
-          <div className="flex-1 overflow-y-auto p-4 space-y-3">
-            {chatMessages.length === 0 ? (
-              <p className="text-gray-500 text-center">No messages yet</p>
-            ) : (
-              chatMessages.map((msg, index) => (
-                <div 
-                  key={index}
-                  className={`max-w-[85%] ${
-                    msg.isNotification 
-                      ? 'mx-auto bg-gray-800 text-gray-300 border border-gray-700' 
-                      : msg.sender === userName 
-                        ? 'ml-auto bg-blue-600 text-white' 
-                        : 'bg-gray-700 text-white'
-                  } rounded-lg p-2`}
-                >
-                  {msg.isNotification ? (
-                    <p className="text-sm text-center italic">{msg.message}</p>
-                  ) : (
-                    <>
-                      <p className="text-xs font-bold">{msg.sender}</p>
-                      <p className="text-sm">{msg.message}</p>
-                    </>
-                  )}
-                </div>
-              ))
-            )}
-          </div>
+          {/* Chat button */}
+          <button
+            onClick={() => setShowChat(!showChat)}
+            className={`p-3 rounded-full ${showChat ? 'bg-blue-600' : 'bg-gray-700 hover:bg-gray-600'}`}
+          >
+            <FiMessageSquare className="text-white" />
+          </button>
           
-          <div className="p-3 border-t border-gray-800">
-            <div className="flex">
-              <input
-                type="text"
-                value={newMessage}
-                onChange={(e) => setNewMessage(e.target.value)}
-                placeholder="Type a message..."
-                className="flex-1 bg-gray-800 text-white rounded-l-lg px-3 py-2 focus:outline-none"
-                onKeyPress={(e) => e.key === 'Enter' && sendMessage()}
-              />
-              <button
-                onClick={sendMessage}
-                className="bg-blue-600 hover:bg-blue-700 text-white px-4 rounded-r-lg"
-              >
-                Send
-              </button>
-            </div>
+          {/* Fullscreen toggle */}
+          <button
+            onClick={toggleFullscreen}
+            className="p-3 rounded-full bg-gray-700 hover:bg-gray-600"
+          >
+            <FiMaximize className="text-white" />
+          </button>
+          
+          {/* End call */}
+          <button
+            onClick={handleEndSession}
+            className="p-3 rounded-full bg-red-600 hover:bg-red-700"
+          >
+            <FiPhoneOff className="text-white" />
+          </button>
+        </div>
+      </div>
+      
+      {/* Participants sidebar */}
+      {renderParticipantsSidebar()}
+      
+      {/* Participants toggle button (when sidebar is closed) */}
+      {!showParticipantsSidebar && (
+        <button
+          onClick={() => setShowParticipantsSidebar(true)}
+          className="absolute top-1/2 right-0 transform -translate-y-1/2 bg-gray-800/80 hover:bg-gray-700/80 text-white p-2 rounded-l-md"
+        >
+          <FiChevronLeft />
+          <div className="absolute top-1/2 right-0 transform -translate-y-1/2 translate-x-1/2 bg-blue-600 text-white text-xs w-5 h-5 flex items-center justify-center rounded-full">
+            {participants.length}
           </div>
-        </motion.div>
+        </button>
       )}
     </div>
   );

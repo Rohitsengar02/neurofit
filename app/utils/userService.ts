@@ -251,3 +251,24 @@ export const toggleChallengeActive = async (challengeId: string) => {
     return false;
   }
 };
+
+// Get user profile by ID
+export const getUserProfileById = async (userId: string): Promise<{displayName: string, photoURL: string} | null> => {
+  try {
+    const userRef = doc(db, 'users', userId);
+    const userDoc = await getDoc(userRef);
+    
+    if (userDoc.exists()) {
+      const userData = userDoc.data();
+      return {
+        displayName: userData.displayName || 'Anonymous User',
+        photoURL: userData.photoURL || ''
+      };
+    }
+    
+    return null;
+  } catch (error) {
+    console.error('Error fetching user profile:', error);
+    return null;
+  }
+};

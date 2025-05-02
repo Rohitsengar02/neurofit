@@ -7,16 +7,31 @@ import Image from 'next/image';
 import { 
   FiUsers, FiCalendar, FiClock, FiArrowLeft, 
   FiChevronRight, FiLock, FiPlus, FiFilter,
-  FiEdit, FiTrash2, FiX, FiVideo, FiTag
+  FiEdit, FiTrash2, FiX, FiVideo, FiTag,
+  FiAlertCircle, FiRefreshCw
 } from 'react-icons/fi';
 import { useCommunity } from '../context/CommunityContext';
 import { useAuth } from '../../../context/AuthContext';
 import * as communityService from '../services/communityService';
 import * as contentService from '../services/contentService';
 import * as subscriptionService from '../services/subscriptionService';
+import { isSessionActive, isSessionCompleted, isSessionUpcoming, getTimeUntilSession, getRemainingSessionTime } from '../utils/sessionUtils';
 import * as couponService from '../services/couponService';
 import CouponApplyForm from '../components/CouponApplyForm';
 import { Community, LiveSession, SubscriptionTier } from '../utils/types';
+
+// Helper functions for date and time formatting
+const formatDate = (timestamp: any): string => {
+  if (!timestamp) return 'N/A';
+  const date = new Date(timestamp.seconds * 1000);
+  return date.toLocaleDateString();
+};
+
+const formatTime = (timestamp: any): string => {
+  if (!timestamp) return 'N/A';
+  const date = new Date(timestamp.seconds * 1000);
+  return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+};
 
 const CommunityDetailPage = () => {
   const params = useParams();
@@ -27,16 +42,23 @@ const CommunityDetailPage = () => {
     setCurrentCommunity,
     currentCommunityTiers,
     isLoadingTiers,
-    upcomingSessions,
-    isLoadingUpcomingSessions,
+    upcomingSessions: contextUpcomingSessions,
+    isLoadingUpcomingSessions: contextIsLoadingUpcomingSessions,
     refreshCurrentCommunityTiers,
-    refreshUpcomingSessions,
+    refreshUpcomingSessions: contextRefreshUpcomingSessions,
     isUserMemberOfCurrentCommunity,
     getUserMembershipForCurrentCommunity,
-    // Add missing trainer-related variables
     trainerProfile,
     isLoadingTrainer
   } = useCommunity();
+  
+  // Local state for sessions to avoid context issues
+  const [localUpcomingSessions, setLocalUpcomingSessions] = useState<LiveSession[]>([]);
+  const [isLoadingLocalSessions, setIsLoadingLocalSessions] = useState(false);
+  
+  // Use local state or context state
+  const upcomingSessions = localUpcomingSessions.length > 0 ? localUpcomingSessions : contextUpcomingSessions;
+  const isLoadingUpcomingSessions = isLoadingLocalSessions || contextIsLoadingUpcomingSessions;
   
   // Check if current user is the trainer of this community
   const isTrainer = user && currentCommunity && trainerProfile && user.uid === currentCommunity.trainerId;
@@ -47,6 +69,95 @@ const CommunityDetailPage = () => {
   const [isJoining, setIsJoining] = useState(false);
   const [appliedCoupon, setAppliedCoupon] = useState<{ code: string; discountPercentage: number } | null>(null);
   
+  // Refresh functions
+  const refreshUpcomingSessions = async () => {
+    setIsLoadingLocalSessions(true);
+    try {
+      // Clear the session cache to force a fresh fetch
+      const communityId = typeof params.id === 'string' ? params.id : Array.isArray(params.id) ? params.id[0] : '';
+      contentService.clearSessionCache(communityId);
+      
+      if (communityId) {
+        const sessions = await contentService.getUpcomingSessions(communityId);
+        setLocalUpcomingSessions(sessions);
+        console.log('Refreshed upcoming sessions:', sessions);
+      }
+    } catch (error) {
+      console.error('Error refreshing upcoming sessions:', error);
+    } finally {
+      setIsLoadingLocalSessions(false);
+    }
+  };
+
+  // Set up polling interval for live and scheduled sessions
+  useEffect(() => {
+    if (!currentCommunity) return;
+    
+    // Function to update session status based on timing
+    const updateSessionStatus = async (session: LiveSession) => {
+      // If a session is scheduled and its start time has passed but not yet ended, mark it as live
+      if (session.status === 'scheduled' && isSessionActive(session)) {
+        try {
+          await contentService.updateSession(session.id, { status: 'live' });
+          console.log(`Session ${session.id} automatically set to live`);
+          // Refresh sessions after status change
+          refreshUpcomingSessions();
+        } catch (error) {
+          console.error('Error updating session status to live:', error);
+        }
+      }
+      
+      // If a session is live but its end time has passed, mark it as completed
+      if (session.status === 'live' && isSessionCompleted(session)) {
+        try {
+          await contentService.updateSession(session.id, { status: 'completed' });
+          console.log(`Session ${session.id} automatically set to completed`);
+          // Refresh sessions after status change
+          refreshUpcomingSessions();
+        } catch (error) {
+          console.error('Error updating session status to completed:', error);
+        }
+      }
+    };
+    
+    // Debug log the current sessions
+    console.log('Current upcoming sessions:', upcomingSessions);
+    
+    // Instead of using real-time listeners, set up a polling interval
+    // This reduces Firebase usage significantly while still providing updates
+    const checkSessionsStatus = async () => {
+      // Only check if we have sessions to avoid unnecessary database operations
+      if (upcomingSessions && upcomingSessions.length > 0) {
+        console.log('Checking status for', upcomingSessions.length, 'sessions');
+        
+        // Find sessions that might need status updates (scheduled or live)
+        const sessionsToCheck = upcomingSessions.filter(
+          session => session.status === 'scheduled' || session.status === 'live'
+        );
+        
+        // Only make API calls if there are sessions that might need updates
+        if (sessionsToCheck.length > 0) {
+          for (const session of sessionsToCheck) {
+            await updateSessionStatus(session);
+          }
+        } else {
+          console.log('No sessions need status updates');
+        }
+      }
+    };
+    
+    // Run initial check
+    checkSessionsStatus();
+    
+    // Set up polling interval (every 120 seconds - reduced from 60s to save quota)
+    const intervalId = setInterval(checkSessionsStatus, 120000);
+    
+    // Clean up interval when component unmounts
+    return () => {
+      clearInterval(intervalId);
+    };
+  }, [currentCommunity, upcomingSessions, params.id]);
+
   // Fetch community data
   useEffect(() => {
     const fetchCommunity = async () => {
@@ -54,7 +165,7 @@ const CommunityDetailPage = () => {
       
       setIsLoading(true);
       try {
-        const communityId = params.id as string;
+        const communityId = typeof params.id === 'string' ? params.id : Array.isArray(params.id) ? params.id[0] : '';
         const community = await communityService.getCommunityById(communityId);
         
         if (!community) {
@@ -72,7 +183,7 @@ const CommunityDetailPage = () => {
     
     fetchCommunity();
   }, [params.id]);
-  
+
   // Fetch tiers and sessions when community is set
   useEffect(() => {
     if (currentCommunity) {
@@ -80,7 +191,7 @@ const CommunityDetailPage = () => {
       refreshUpcomingSessions();
     }
   }, [currentCommunity]);
-  
+
   // Handle joining community
   const handleJoinCommunity = async () => {
     if (!user || !currentCommunity || !selectedTier) return;
@@ -104,7 +215,7 @@ const CommunityDetailPage = () => {
       setIsJoining(false);
     }
   };
-  
+
   // Handle coupon application
   const handleApplyCoupon = (discountPercentage: number, couponCode: string) => {
     if (discountPercentage > 0 && couponCode) {
@@ -116,7 +227,19 @@ const CommunityDetailPage = () => {
       setAppliedCoupon(null);
     }
   };
-  
+
+  // Handle session click
+  const handleSessionClick = (session: LiveSession) => {
+    if (!isUserMemberOfCurrentCommunity()) {
+      // If not a member, show join modal
+      // setShowJoinModal(true);
+      return;
+    }
+    
+    // Navigate to session detail page
+    router.push(`/community/${params.id}/sessions/${session.id}`);
+  };
+
   if (isLoading || !currentCommunity) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -124,10 +247,113 @@ const CommunityDetailPage = () => {
       </div>
     );
   }
-  
+
   const isMember = isUserMemberOfCurrentCommunity();
   const membership = getUserMembershipForCurrentCommunity();
-  
+
+  // Live Sessions Section
+  const renderLiveSessionsSection = () => {
+    const liveSessions = upcomingSessions?.filter(session => session.status === 'live') || [];
+    
+    return (
+      <div className="mb-8">
+        <div className="flex justify-between items-center mb-4">
+          <h3 className="text-xl font-semibold">Live Now</h3>
+          <button 
+            onClick={refreshUpcomingSessions} 
+            className="text-sm text-blue-500 hover:text-blue-700 flex items-center"
+            disabled={isLoadingUpcomingSessions}
+          >
+            {isLoadingUpcomingSessions ? (
+              <span className="flex items-center">
+                <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-blue-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+                Refreshing...
+              </span>
+            ) : (
+              <span className="flex items-center">
+                <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
+                </svg>
+                Refresh
+              </span>
+            )}
+          </button>
+        </div>
+        
+        {liveSessions.length > 0 ? (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {liveSessions.map(session => (
+              <SessionCard 
+                key={session.id} 
+                session={session} 
+                isMember={isMember}
+                onClick={() => handleSessionClick(session)}
+              />
+            ))}
+          </div>
+        ) : (
+          <p className="text-gray-500 mb-4">No live sessions at the moment. Check back later or view upcoming sessions below.</p>
+        )}
+      </div>
+    );
+  };
+
+  // Upcoming Sessions Section
+  const renderUpcomingSessionsSection = () => {
+    // Only show scheduled sessions, not live or completed ones
+    const scheduledSessions = upcomingSessions?.filter(session => 
+      session.status === 'scheduled' && isSessionUpcoming(session)
+    ) || [];
+    
+    return (
+      <div className="mb-8">
+        <div className="flex justify-between items-center mb-4">
+          <h3 className="text-xl font-semibold">Upcoming Sessions</h3>
+          <button 
+            onClick={refreshUpcomingSessions} 
+            className="text-sm text-blue-500 hover:text-blue-700 flex items-center"
+            disabled={isLoadingUpcomingSessions}
+          >
+            {isLoadingUpcomingSessions ? (
+              <span className="flex items-center">
+                <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-blue-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+                Refreshing...
+              </span>
+            ) : (
+              <span className="flex items-center">
+                <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
+                </svg>
+                Refresh
+              </span>
+            )}
+          </button>
+        </div>
+        
+        {scheduledSessions.length > 0 ? (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {scheduledSessions.map(session => (
+              <SessionCard 
+                key={session.id} 
+                session={session} 
+                isMember={isMember}
+                onClick={() => handleSessionClick(session)}
+              />
+            ))}
+          </div>
+        ) : (
+          <p className="text-gray-500 mb-4">No upcoming sessions scheduled at this time.</p>
+        )}
+      </div>
+    );
+  };
+
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
       {/* Community Header */}
@@ -338,12 +564,20 @@ const CommunityDetailPage = () => {
                       Live Now
                     </span>
                   </h2>
-                  <button 
-                    className="text-white text-sm font-medium bg-white/20 hover:bg-white/30 px-3 py-1 rounded-full transition-colors"
-                    onClick={() => setActiveTab('sessions')}
-                  >
-                    View All
-                  </button>
+                  <div className="flex items-center space-x-2">
+                    <button 
+                      className="text-white text-sm font-medium bg-white/20 hover:bg-white/30 px-3 py-1 rounded-full transition-colors flex items-center"
+                      onClick={refreshUpcomingSessions}
+                    >
+                      <FiRefreshCw className="mr-1" /> Refresh
+                    </button>
+                    <button 
+                      className="text-white text-sm font-medium bg-white/20 hover:bg-white/30 px-3 py-1 rounded-full transition-colors"
+                      onClick={() => setActiveTab('sessions')}
+                    >
+                      View All
+                    </button>
+                  </div>
                 </div>
                 
                 {isLoadingUpcomingSessions ? (
@@ -357,7 +591,7 @@ const CommunityDetailPage = () => {
                       .map((session) => (
                         <div 
                           key={session.id}
-                          className="bg-white/10 backdrop-blur-sm rounded-lg p-4 text-white hover:bg-white/20 transition-all"
+                          className="bg-white/10 backdrop-blur-sm rounded-lg p-4 text-white hover:bg-white/20 transition-colors"
                         >
                           <div className="flex items-center mb-2">
                             <div className="relative flex h-3 w-3 mr-2">
@@ -367,26 +601,63 @@ const CommunityDetailPage = () => {
                             <h3 className="text-lg font-bold">{session.title}</h3>
                           </div>
                           <p className="text-white/80 text-sm mb-3">{session.description}</p>
-                          <div className="flex justify-between items-center">
+                          <div className="flex justify-between items-center mb-2">
                             <div className="flex items-center">
                               <FiUsers className="mr-1" />
                               <span className="text-sm">{session.participantCount || 0} joined</span>
                             </div>
-                            <button 
-                              className="bg-white text-red-600 font-medium py-2 px-4 rounded-lg text-sm hover:bg-red-50 transition-colors flex items-center"
-                              onClick={() => router.push(`/community/${currentCommunity.id}/sessions/${session.id}`)}
-                            >
-                              <FiVideo className="mr-1" /> Join Live Session
-                            </button>
+                            <div className="flex items-center text-white/80 text-sm">
+                              <FiClock className="mr-1" />
+                              <span>{getRemainingSessionTime(session)}</span>
+                            </div>
                           </div>
+                          <button 
+                            className="w-full bg-white text-red-600 font-medium py-2 px-4 rounded-lg text-sm hover:bg-red-50 transition-colors flex items-center justify-center"
+                            onClick={() => router.push(`/community/${currentCommunity.id}/sessions/${session.id}`)}
+                          >
+                            <FiVideo className="mr-1" /> Join Live Session
+                          </button>
                         </div>
                       ))
                     }
                     
                     {upcomingSessions.filter(session => session.status === 'live').length === 0 && (
                       <div className="text-center py-6 bg-white/10 rounded-lg p-4">
-                        <p className="text-white">No live sessions right now.</p>
-                        <p className="text-white/80 text-sm">Check back later or view scheduled sessions below.</p>
+                        <p className="text-white mb-2">No live sessions right now.</p>
+                        {upcomingSessions.filter(session => session.status === 'scheduled' && isSessionUpcoming(session)).length > 0 ? (
+                          <div>
+                            <p className="text-white/80 text-sm mb-4">Next session starts soon:</p>
+                            {upcomingSessions
+                              .filter(session => session.status === 'scheduled' && isSessionUpcoming(session))
+                              .sort((a, b) => a.scheduledFor.seconds - b.scheduledFor.seconds)
+                              .slice(0, 1)
+                              .map(session => (
+                                <div key={session.id} className="bg-white/10 p-3 rounded-lg mb-2">
+                                  <p className="font-medium text-white">{session.title}</p>
+                                  <div className="flex items-center justify-center mt-1 text-white/80 text-sm">
+                                    <FiCalendar className="mr-1" />
+                                    <span>{formatDate(session.scheduledFor)}</span>
+                                    <span className="mx-2">•</span>
+                                    <FiClock className="mr-1" />
+                                    <span>{formatTime(session.scheduledFor)}</span>
+                                  </div>
+                                  <div className="mt-2 text-white/80 text-sm flex items-center justify-center">
+                                    <FiAlertCircle className="mr-1" />
+                                    <span>{getTimeUntilSession(session)}</span>
+                                  </div>
+                                </div>
+                              ))
+                            }
+                            <button
+                              className="mt-2 text-white text-sm underline"
+                              onClick={() => setActiveTab('sessions')}
+                            >
+                              View all scheduled sessions
+                            </button>
+                          </div>
+                        ) : (
+                          <p className="text-white/80 text-sm">No upcoming sessions scheduled. Check back later.</p>
+                        )}
                       </div>
                     )}
                   </div>
@@ -603,12 +874,18 @@ const CommunityDetailPage = () => {
                   {/* Live Sessions Section */}
                   {upcomingSessions.filter(session => session.status === 'live').length > 0 && (
                     <div className="mb-8">
-                      <div className="flex items-center mb-4">
+                      <div className="flex justify-between items-center mb-4">
                         <div className="relative flex h-3 w-3 mr-2">
                           <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
                           <span className="relative inline-flex rounded-full h-3 w-3 bg-red-500"></span>
                         </div>
                         <h3 className="text-xl font-bold text-gray-900 dark:text-white">Live Now</h3>
+                        <button 
+                          className="ml-auto text-blue-600 dark:text-blue-400 text-sm font-medium flex items-center"
+                          onClick={refreshUpcomingSessions}
+                        >
+                          <FiRefreshCw className="mr-1" /> Refresh
+                        </button>
                       </div>
                       
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
@@ -667,7 +944,9 @@ const CommunityDetailPage = () => {
                       </div>
                     ) : upcomingSessions.filter(session => session.status === 'scheduled').length === 0 ? (
                       <div className="text-center py-10 bg-gray-50 dark:bg-gray-700/30 rounded-lg">
-                        <p className="text-gray-500 dark:text-gray-400">No scheduled sessions available.</p>
+                        <p className="text-gray-500 dark:text-gray-400">
+                          No scheduled sessions available.
+                        </p>
                         {isTrainer && (
                           <button 
                             className="mt-4 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium py-2 px-4 rounded-lg transition-colors inline-flex items-center"
@@ -681,13 +960,54 @@ const CommunityDetailPage = () => {
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         {upcomingSessions
                           .filter(session => session.status === 'scheduled')
+                          .sort((a, b) => a.scheduledFor.seconds - b.scheduledFor.seconds)
                           .map((session) => (
-                            <SessionCard 
-                              key={session.id} 
-                              session={session} 
-                              isMember={isMember}
-                              onClick={() => router.push(`/community/${currentCommunity.id}/sessions/${session.id}`)}
-                            />
+                            <div 
+                              key={session.id}
+                              className={`bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg p-4 hover:shadow-md transition-shadow ${isSessionActive(session) ? 'border-green-500 dark:border-green-500' : ''}`}
+                            >
+                              <h3 className="font-bold text-gray-900 dark:text-white mb-1">{session.title}</h3>
+                              <p className="text-gray-600 dark:text-gray-300 text-sm mb-3">{session.description}</p>
+                              
+                              <div className="flex justify-between items-center mb-3">
+                                <div className="flex items-center text-gray-500 dark:text-gray-400 text-sm">
+                                  <FiCalendar className="mr-1" />
+                                  <span className="mr-3">{formatDate(session.scheduledFor)}</span>
+                                  <FiClock className="mr-1" />
+                                  <span>{formatTime(session.scheduledFor)}</span>
+                                </div>
+                                {isMember && (
+                                  <div className="flex items-center text-gray-500 dark:text-gray-400 text-sm">
+                                    <FiUsers className="mr-1" />
+                                    <span>{session.participantCount || 0} joined</span>
+                                  </div>
+                                )}
+                              </div>
+                              
+                              <div className="flex items-center mb-3">
+                                <div className={`text-sm px-2 py-1 rounded-full ${isSessionActive(session) 
+                                  ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400' 
+                                  : 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400'}`}
+                                >
+                                  {isSessionActive(session) 
+                                    ? 'Active Now' 
+                                    : getTimeUntilSession(session)}
+                                </div>
+                              </div>
+                              
+                              <div className="flex justify-end">
+                                <button 
+                                  className={`${isSessionActive(session) 
+                                    ? 'bg-green-600 hover:bg-green-700' 
+                                    : 'bg-blue-600 hover:bg-blue-700'} 
+                                    text-white font-medium py-2 px-4 rounded-lg transition-colors text-sm flex items-center`}
+                                  onClick={() => router.push(`/community/${currentCommunity.id}/sessions/${session.id}`)}
+                                >
+                                  <FiVideo className="mr-1" /> 
+                                  {isSessionActive(session) ? 'Join Now' : 'View Details'}
+                                </button>
+                              </div>
+                            </div>
                           ))
                         }
                       </div>

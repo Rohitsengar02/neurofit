@@ -151,13 +151,21 @@ const TrainerDashboardPage = () => {
     if (!user?.uid || !sessionFormData.communityId) return;
     
     try {
+      // Parse the datetime-local input value to a proper Date object
       const scheduledForDate = new Date(sessionFormData.scheduledFor);
       
       if (editingSessionId) {
         // Update existing session
-        // Implementation would go here
-        // For now, we'll just close the form
-        setShowSessionForm(false);
+        await contentService.updateSession(editingSessionId, {
+          title: sessionFormData.title,
+          description: sessionFormData.description,
+          scheduledFor: scheduledForDate,
+          duration: Number(sessionFormData.duration),
+          maxParticipants: Number(sessionFormData.maxParticipants),
+          requiredTiers: sessionFormData.requiredTiers
+        });
+        
+        console.log(`Session ${editingSessionId} updated successfully`);
       } else {
         // Create new session
         const newSession = {
@@ -174,7 +182,8 @@ const TrainerDashboardPage = () => {
           createdAt: new Date()
         };
         
-        await contentService.createLiveSession(newSession);
+        const createdSession = await contentService.createLiveSession(newSession);
+        console.log(`New session created successfully: ${createdSession.id}`);
       }
       
       // Reset form and refresh sessions

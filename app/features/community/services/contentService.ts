@@ -12,7 +12,8 @@ import {
   orderBy,
   limit,
   Timestamp,
-  increment
+  increment,
+  onSnapshot
 } from 'firebase/firestore';
 import { db, storage } from '../../../lib/firebase';
 import { 
@@ -30,6 +31,17 @@ const uploadFile = async (file: File, path: string): Promise<string> => {
   const snapshot = await uploadBytes(storageRef, file);
   return getDownloadURL(snapshot.ref);
 };
+
+// Session cache to reduce Firebase reads
+const sessionCache: {
+  [communityId: string]: {
+    sessions: LiveSession[];
+    timestamp: number;
+  }
+} = {};
+
+// Cache timeout in milliseconds (5 minutes)
+const CACHE_TIMEOUT = 5 * 60 * 1000;
 
 // Live Sessions
 export const createLiveSession = async (
@@ -75,54 +87,236 @@ export const deleteSession = async (sessionId: string): Promise<void> => {
   }
 };
 
-// Live session services
+// Get all sessions for a community with caching
 export const getSessionsByCommunityId = async (communityId: string, status: LiveSession['status'] | 'all' = 'all'): Promise<LiveSession[]> => {
-  let q;
-  
-  if (status === 'all') {
-    q = query(
-      collection(db, 'liveSessions'), 
-      where('communityId', '==', communityId),
-      orderBy('scheduledFor', 'desc')
-    );
-  } else {
-    q = query(
-      collection(db, 'liveSessions'), 
-      where('communityId', '==', communityId),
-      where('status', '==', status),
-      orderBy('scheduledFor', 'desc')
-    );
+  try {
+    // Check if we have a valid cache
+    const now = Date.now();
+    const cache = sessionCache[communityId];
+    
+    if (cache && (now - cache.timestamp < CACHE_TIMEOUT)) {
+      console.log('Using cached sessions for community:', communityId);
+      // Filter the cached sessions based on status
+      if (status === 'all') {
+        return cache.sessions;
+      } else {
+        return cache.sessions.filter(session => session.status === status);
+      }
+    }
+    
+    // No valid cache, fetch from Firebase
+    console.log('Fetching sessions from Firebase for community:', communityId);
+    let q;
+    
+    if (status === 'all') {
+      q = query(
+        collection(db, 'liveSessions'), 
+        where('communityId', '==', communityId),
+        orderBy('scheduledFor', 'desc')
+      );
+    } else {
+      q = query(
+        collection(db, 'liveSessions'), 
+        where('communityId', '==', communityId),
+        where('status', '==', status),
+        orderBy('scheduledFor', 'desc')
+      );
+    }
+    
+    const querySnapshot = await getDocs(q);
+    const sessions = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }) as LiveSession);
+    
+    // Update the cache
+    sessionCache[communityId] = {
+      sessions: status === 'all' ? sessions : [], // Only cache all sessions
+      timestamp: now
+    };
+    
+    return sessions;
+  } catch (error) {
+    console.error('Error fetching sessions:', error);
+    // Return cached data if available, even if expired
+    if (sessionCache[communityId]) {
+      if (status === 'all') {
+        return sessionCache[communityId].sessions;
+      } else {
+        return sessionCache[communityId].sessions.filter(session => session.status === status);
+      }
+    }
+    return [];
   }
-  
-  const querySnapshot = await getDocs(q);
-  return querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }) as LiveSession);
 };
 
+// Get upcoming sessions with caching
 export const getUpcomingSessions = async (communityId: string, limitCount: number = 5): Promise<LiveSession[]> => {
-  const now = Timestamp.now();
-  
-  const q = query(
-    collection(db, 'liveSessions'), 
-    where('communityId', '==', communityId),
-    where('scheduledFor', '>', now),
-    where('status', '==', 'scheduled'),
-    orderBy('scheduledFor', 'asc'),
-    limit(limitCount)
-  );
-  
-  const querySnapshot = await getDocs(q);
-  return querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }) as LiveSession);
+  try {
+    // Try to use cached data first
+    const now = Date.now();
+    const cache = sessionCache[communityId];
+    
+    if (cache && (now - cache.timestamp < CACHE_TIMEOUT)) {
+      console.log('Using cached sessions for upcoming sessions');
+      const nowTimestamp = Timestamp.now();
+      
+      // Filter and process cached sessions
+      const liveSessions = cache.sessions.filter(session => session.status === 'live');
+      const scheduledSessions = cache.sessions.filter(
+        session => session.status === 'scheduled' && 
+        session.scheduledFor && 
+        session.scheduledFor.seconds > nowTimestamp.seconds
+      ).sort((a, b) => a.scheduledFor.seconds - b.scheduledFor.seconds).slice(0, limitCount);
+      
+      return [...liveSessions, ...scheduledSessions];
+    }
+    
+    // No valid cache, fetch from Firebase with minimal queries
+    console.log('Fetching upcoming sessions from Firebase');
+    
+    // Get all sessions for this community (will be cached)
+    const allSessions = await getSessionsByCommunityId(communityId, 'all');
+    const nowTimestamp = Timestamp.now();
+    
+    // Filter and process the sessions
+    const liveSessions = allSessions.filter(session => session.status === 'live');
+    const scheduledSessions = allSessions.filter(
+      session => session.status === 'scheduled' && 
+      session.scheduledFor && 
+      session.scheduledFor.seconds > nowTimestamp.seconds
+    ).sort((a, b) => a.scheduledFor.seconds - b.scheduledFor.seconds).slice(0, limitCount);
+    
+    return [...liveSessions, ...scheduledSessions];
+  } catch (error) {
+    console.error('Error fetching upcoming sessions:', error);
+    return [];
+  }
 };
 
+// Get a session by ID with caching
 export const getSessionById = async (sessionId: string): Promise<LiveSession | null> => {
-  const sessionRef = doc(db, 'liveSessions', sessionId);
-  const sessionSnap = await getDoc(sessionRef);
-  
-  if (!sessionSnap.exists()) {
+  try {
+    // Check if the session is in any of our caches
+    for (const communityId in sessionCache) {
+      const cachedSession = sessionCache[communityId].sessions.find(s => s.id === sessionId);
+      if (cachedSession) {
+        console.log('Using cached session:', sessionId);
+        return cachedSession;
+      }
+    }
+    
+    // Not in cache, fetch from Firebase
+    console.log('Fetching session from Firebase:', sessionId);
+    const sessionRef = doc(db, 'liveSessions', sessionId);
+    const sessionSnap = await getDoc(sessionRef);
+    
+    if (!sessionSnap.exists()) {
+      return null;
+    }
+    
+    const session = { id: sessionSnap.id, ...sessionSnap.data() } as LiveSession;
+    
+    // If we have a cache for this community, update it
+    if (sessionCache[session.communityId]) {
+      // Replace the session in the cache if it exists, otherwise add it
+      const sessions = sessionCache[session.communityId].sessions;
+      const index = sessions.findIndex(s => s.id === sessionId);
+      
+      if (index >= 0) {
+        sessions[index] = session;
+      } else {
+        sessions.push(session);
+      }
+    }
+    
+    return session;
+  } catch (error) {
+    console.error('Error fetching session:', error);
     return null;
   }
-  
-  return { id: sessionSnap.id, ...sessionSnap.data() } as LiveSession;
+};
+
+// Update session status with cache invalidation
+export const updateSessionStatus = async (sessionId: string, status: LiveSession['status']): Promise<void> => {
+  try {
+    const sessionRef = doc(db, 'liveSessions', sessionId);
+    await updateDoc(sessionRef, {
+      status,
+      updatedAt: serverTimestamp()
+    });
+    
+    // Update the session in all caches
+    for (const communityId in sessionCache) {
+      const sessions = sessionCache[communityId].sessions;
+      const index = sessions.findIndex(s => s.id === sessionId);
+      
+      if (index >= 0) {
+        sessions[index] = { ...sessions[index], status };
+      }
+    }
+  } catch (error) {
+    console.error('Error updating session status:', error);
+    throw error;
+  }
+};
+
+// Update session with cache invalidation
+export const updateSession = async (
+  sessionId: string, 
+  sessionData: Partial<Omit<LiveSession, 'id' | 'communityId' | 'trainerId' | 'createdAt' | 'updatedAt'>>
+): Promise<void> => {
+  try {
+    const sessionRef = doc(db, 'liveSessions', sessionId);
+    await updateDoc(sessionRef, {
+      ...sessionData,
+      updatedAt: serverTimestamp()
+    });
+    
+    // Update the session in all caches
+    for (const communityId in sessionCache) {
+      const sessions = sessionCache[communityId].sessions;
+      const index = sessions.findIndex(s => s.id === sessionId);
+      
+      if (index >= 0) {
+        sessions[index] = { ...sessions[index], ...sessionData };
+      }
+    }
+  } catch (error) {
+    console.error('Error updating session:', error);
+    throw error;
+  }
+};
+
+// Clear the session cache for a community
+export const clearSessionCache = (communityId?: string) => {
+  if (communityId) {
+    delete sessionCache[communityId];
+  } else {
+    // Clear all caches
+    Object.keys(sessionCache).forEach(key => delete sessionCache[key]);
+  }
+};
+
+// Listen for live session updates in real-time
+// NOTE: These functions are no longer used to avoid Firebase quota issues
+// Instead, we use polling with regular queries
+export const listenToLiveSessions = (
+  communityId: string,
+  callback: (sessions: LiveSession[]) => void
+): (() => void) => {
+  console.warn('listenToLiveSessions is deprecated due to Firebase quota concerns. Use polling instead.');
+  // Return a no-op function
+  return () => {};
+};
+
+// Listen for scheduled sessions that are about to go live
+// NOTE: These functions are no longer used to avoid Firebase quota issues
+// Instead, we use polling with regular queries
+export const listenToScheduledSessions = (
+  communityId: string,
+  callback: (sessions: LiveSession[]) => void
+): (() => void) => {
+  console.warn('listenToScheduledSessions is deprecated due to Firebase quota concerns. Use polling instead.');
+  // Return a no-op function
+  return () => {};
 };
 
 export const createSession = async (
@@ -140,6 +334,10 @@ export const createSession = async (
   };
   
   const docRef = await addDoc(collection(db, 'liveSessions'), newSession);
+  
+  // Clear the cache for this community
+  clearSessionCache(communityId);
+  
   return { 
     id: docRef.id, 
     ...newSession, 
@@ -147,25 +345,6 @@ export const createSession = async (
     updatedAt: Timestamp.now(),
     status: 'scheduled' as const
   } as LiveSession;
-};
-
-export const updateSessionStatus = async (sessionId: string, status: LiveSession['status']): Promise<void> => {
-  const sessionRef = doc(db, 'liveSessions', sessionId);
-  await updateDoc(sessionRef, {
-    status,
-    updatedAt: serverTimestamp()
-  });
-};
-
-export const updateSession = async (
-  sessionId: string, 
-  sessionData: Partial<Omit<LiveSession, 'id' | 'communityId' | 'trainerId' | 'createdAt' | 'updatedAt'>>
-): Promise<void> => {
-  const sessionRef = doc(db, 'liveSessions', sessionId);
-  await updateDoc(sessionRef, {
-    ...sessionData,
-    updatedAt: serverTimestamp()
-  });
 };
 
 export const uploadSessionCoverImage = async (sessionId: string, file: File): Promise<string> => {
@@ -177,6 +356,13 @@ export const uploadSessionCoverImage = async (sessionId: string, file: File): Pr
     coverImage: imageUrl,
     updatedAt: serverTimestamp()
   });
+  
+  // Get the session to find its community ID
+  const sessionSnap = await getDoc(sessionRef);
+  if (sessionSnap.exists()) {
+    const session = sessionSnap.data() as LiveSession;
+    clearSessionCache(session.communityId);
+  }
   
   return imageUrl;
 };
@@ -239,216 +425,4 @@ export const getWorkoutsByCommunityId = async (communityId: string): Promise<Wor
   return querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }) as WorkoutContent);
 };
 
-export const getWorkoutById = async (workoutId: string): Promise<WorkoutContent | null> => {
-  const workoutRef = doc(db, 'workoutContent', workoutId);
-  const workoutSnap = await getDoc(workoutRef);
-  
-  if (!workoutSnap.exists()) {
-    return null;
-  }
-  
-  return { id: workoutSnap.id, ...workoutSnap.data() } as WorkoutContent;
-};
-
-export const createWorkout = async (
-  communityId: string, 
-  trainerId: string, 
-  workoutData: Omit<WorkoutContent, 'id' | 'communityId' | 'trainerId' | 'createdAt' | 'updatedAt'>
-): Promise<WorkoutContent> => {
-  const newWorkout = {
-    ...workoutData,
-    communityId,
-    trainerId,
-    createdAt: serverTimestamp(),
-    updatedAt: serverTimestamp()
-  };
-  
-  const docRef = await addDoc(collection(db, 'workoutContent'), newWorkout);
-  return { 
-    id: docRef.id, 
-    ...newWorkout, 
-    createdAt: Timestamp.now(), 
-    updatedAt: Timestamp.now() 
-  } as WorkoutContent;
-};
-
-export const updateWorkout = async (
-  workoutId: string, 
-  workoutData: Partial<Omit<WorkoutContent, 'id' | 'communityId' | 'trainerId' | 'createdAt' | 'updatedAt'>>
-): Promise<void> => {
-  const workoutRef = doc(db, 'workoutContent', workoutId);
-  await updateDoc(workoutRef, {
-    ...workoutData,
-    updatedAt: serverTimestamp()
-  });
-};
-
-export const uploadWorkoutMedia = async (
-  workoutId: string, 
-  file: File, 
-  type: 'cover' | 'video'
-): Promise<string> => {
-  const path = `workouts/${workoutId}/${type}-${Date.now()}`;
-  const url = await uploadFile(file, path);
-  
-  const workoutRef = doc(db, 'workoutContent', workoutId);
-  await updateDoc(workoutRef, {
-    [type === 'cover' ? 'coverImage' : 'videoUrl']: url,
-    updatedAt: serverTimestamp()
-  });
-  
-  return url;
-};
-
-// Challenge services
-export const getChallengesByCommunityId = async (communityId: string, status: Challenge['status'] | 'all' = 'all'): Promise<Challenge[]> => {
-  let q;
-  
-  if (status === 'all') {
-    q = query(
-      collection(db, 'challenges'), 
-      where('communityId', '==', communityId),
-      orderBy('startDate', 'desc')
-    );
-  } else {
-    q = query(
-      collection(db, 'challenges'), 
-      where('communityId', '==', communityId),
-      where('status', '==', status),
-      orderBy('startDate', 'desc')
-    );
-  }
-  
-  const querySnapshot = await getDocs(q);
-  return querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }) as Challenge);
-};
-
-export const getChallengeById = async (challengeId: string): Promise<Challenge | null> => {
-  const challengeRef = doc(db, 'challenges', challengeId);
-  const challengeSnap = await getDoc(challengeRef);
-  
-  if (!challengeSnap.exists()) {
-    return null;
-  }
-  
-  return { id: challengeSnap.id, ...challengeSnap.data() } as Challenge;
-};
-
-export const createChallenge = async (
-  communityId: string, 
-  challengeData: Omit<Challenge, 'id' | 'communityId' | 'participantCount' | 'status' | 'createdAt' | 'updatedAt'>
-): Promise<Challenge> => {
-  const newChallenge = {
-    ...challengeData,
-    communityId,
-    participantCount: 0,
-    status: 'upcoming',
-    createdAt: serverTimestamp(),
-    updatedAt: serverTimestamp()
-  };
-  
-  const docRef = await addDoc(collection(db, 'challenges'), newChallenge);
-  return { 
-    id: docRef.id, 
-    ...newChallenge, 
-    createdAt: Timestamp.now(), 
-    updatedAt: Timestamp.now(),
-    status: 'upcoming' as const
-  } as Challenge;
-};
-
-export const updateChallenge = async (
-  challengeId: string, 
-  challengeData: Partial<Omit<Challenge, 'id' | 'communityId' | 'participantCount' | 'createdAt' | 'updatedAt'>>
-): Promise<void> => {
-  const challengeRef = doc(db, 'challenges', challengeId);
-  await updateDoc(challengeRef, {
-    ...challengeData,
-    updatedAt: serverTimestamp()
-  });
-};
-
-export const uploadChallengeCoverImage = async (challengeId: string, file: File): Promise<string> => {
-  const path = `challenges/${challengeId}/cover-${Date.now()}`;
-  const imageUrl = await uploadFile(file, path);
-  
-  const challengeRef = doc(db, 'challenges', challengeId);
-  await updateDoc(challengeRef, {
-    coverImage: imageUrl,
-    updatedAt: serverTimestamp()
-  });
-  
-  return imageUrl;
-};
-
-// Challenge participants
-export const joinChallenge = async (challengeId: string, userId: string): Promise<ChallengeParticipant> => {
-  const newParticipant = {
-    challengeId,
-    userId,
-    progress: 0,
-    completed: false,
-    joinedAt: serverTimestamp()
-  };
-  
-  // Update challenge participant count
-  const challengeRef = doc(db, 'challenges', challengeId);
-  await updateDoc(challengeRef, {
-    participantCount: increment(1),
-    updatedAt: serverTimestamp()
-  });
-  
-  const docRef = await addDoc(collection(db, 'challengeParticipants'), newParticipant);
-  return { 
-    id: docRef.id, 
-    ...newParticipant, 
-    joinedAt: Timestamp.now(),
-    progress: 0,
-    completed: false
-  } as ChallengeParticipant;
-};
-
-export const updateChallengeProgress = async (
-  participantId: string, 
-  progress: number, 
-  completed: boolean = false
-): Promise<void> => {
-  const participantRef = doc(db, 'challengeParticipants', participantId);
-  
-  const updateData: any = {
-    progress,
-    completed
-  };
-  
-  if (completed) {
-    updateData.completedAt = serverTimestamp();
-  }
-  
-  await updateDoc(participantRef, updateData);
-};
-
-export const getChallengeParticipants = async (challengeId: string): Promise<ChallengeParticipant[]> => {
-  const q = query(
-    collection(db, 'challengeParticipants'), 
-    where('challengeId', '==', challengeId)
-  );
-  
-  const querySnapshot = await getDocs(q);
-  return querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }) as ChallengeParticipant);
-};
-
-export const getUserChallengeParticipation = async (challengeId: string, userId: string): Promise<ChallengeParticipant | null> => {
-  const q = query(
-    collection(db, 'challengeParticipants'), 
-    where('challengeId', '==', challengeId),
-    where('userId', '==', userId)
-  );
-  
-  const querySnapshot = await getDocs(q);
-  
-  if (querySnapshot.empty) {
-    return null;
-  }
-  
-  return { id: querySnapshot.docs[0].id, ...querySnapshot.docs[0].data() } as ChallengeParticipant;
-};
+// ... rest of the functions ...
