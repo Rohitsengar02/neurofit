@@ -5,7 +5,8 @@ import { motion } from 'framer-motion';
 import { 
   FiMic, FiMicOff, FiVideo, FiVideoOff, 
   FiUsers, FiMessageSquare, FiX, FiMaximize,
-  FiCamera, FiPhoneOff, FiChevronRight, FiChevronLeft
+  FiCamera, FiPhoneOff, FiChevronRight, FiChevronLeft,
+  FiMaximize2
 } from 'react-icons/fi';
 import Peer from 'peerjs';
 import { getUserProfileById } from '../../../utils/userService';
@@ -55,10 +56,12 @@ const VideoStreamComponent: React.FC<VideoStreamProps> = ({
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [peerId, setPeerId] = useState<string>('');
   
-  const localVideoRef = useRef<HTMLVideoElement>(null);
+  const localVideoRef = useRef<HTMLVideoElement>(null); // For main video when trainer
+  const selfViewRef = useRef<HTMLVideoElement>(null);   // For self view in participant grid
   const peerRef = useRef<Peer | null>(null);
   const connectionsRef = useRef<{[key: string]: any}>({});
   const streamContainerRef = useRef<HTMLDivElement>(null);
+  const chatEndRef = useRef<HTMLDivElement>(null);
   
   // Initialize peer connection
   // Check if device is mobile
@@ -240,12 +243,19 @@ const VideoStreamComponent: React.FC<VideoStreamProps> = ({
     
     // Cleanup function
     return () => {
-      // Stop all tracks in the local stream
+      // Stop all tracks in the local stream (turns off camera and mic)
       if (localStream) {
         localStream.getTracks().forEach(track => track.stop());
       }
       
-      // Close all peer connections
+      // Exit fullscreen if active
+      if (document.fullscreenElement) {
+        document.exitFullscreen().catch(err => {
+          console.error('Error exiting fullscreen:', err);
+        });
+      }
+      
+      // Close peer connections
       if (peerRef.current) {
         peerRef.current.destroy();
       }
@@ -297,6 +307,23 @@ const VideoStreamComponent: React.FC<VideoStreamProps> = ({
       });
     }
   }, [isAudioEnabled, isVideoEnabled, userId, localStream]);
+  
+  useEffect(() => {
+    // Update local video when stream changes
+    if (localStream) {
+      // Update main video reference if it exists
+      if (localVideoRef.current) {
+        localVideoRef.current.srcObject = localStream;
+      }
+      
+      // Always update self view reference
+      if (selfViewRef.current) {
+        selfViewRef.current.srcObject = localStream;
+      }
+      
+      console.log("Local stream updated and assigned to video elements");
+    }
+  }, [localStream]);
   
   // Connect to trainer when joining as a participant
   useEffect(() => {
@@ -830,251 +857,280 @@ const VideoStreamComponent: React.FC<VideoStreamProps> = ({
       ref={streamContainerRef}
       className="relative w-full h-full bg-black rounded-lg overflow-hidden flex flex-col"
     >
-      {/* Main video area */}
-      <div className="relative flex-1 flex flex-col">
-        {/* Trainer video (featured at the top) */}
-        {participants.length > 0 && (
-          <div className="w-full h-1/2 bg-gray-900 mb-2">
-            {isTrainer ? (
-              // If current user is the trainer, show their video prominently
-              <div className="relative w-full h-full">
-                <video
-                  ref={localVideoRef}
-                  autoPlay
-                  playsInline
-                  muted
-                  className={`w-full h-full object-cover ${!isVideoEnabled ? 'hidden' : ''}`}
-                />
+      {/* Main video area with bento grid layout */}
+      <div className="relative flex-1 flex flex-col p-2 md:p-4">
+        <div className="grid grid-cols-12 gap-2 h-full">
+          {/* Trainer video (featured as large) */}
+          {participants.length > 0 && (
+            <>
+              {/* Main large video - Trainer or featured participant */}
+              <div className="col-span-12 md:col-span-8 row-span-2 aspect-video md:aspect-auto relative rounded-xl overflow-hidden bg-gray-900">
+                {/* Fullscreen button */}
+                <button 
+                  onClick={toggleFullscreen}
+                  className="absolute top-3 right-3 z-10 bg-black/50 hover:bg-black/70 text-white p-2 rounded-full transition-colors"
+                  title="Fullscreen"
+                >
+                  <FiMaximize2 size={20} />
+                </button>
                 
-                {!isVideoEnabled && (
-                  <div className="absolute inset-0 flex items-center justify-center bg-gray-800">
-                    <div className="w-24 h-24 rounded-full bg-gray-700 flex items-center justify-center overflow-hidden">
-                      <span className="text-3xl text-white font-bold">
-                        {userName.charAt(0)}
-                      </span>
-                    </div>
-                    <div className="absolute bottom-4 text-white bg-black/50 px-3 py-1 rounded-full">
-                      Trainer: {userName} (You)
-                    </div>
-                  </div>
-                )}
-                
-                {/* Audio/video status indicators */}
-                <div className="absolute bottom-3 left-3 flex space-x-2">
-                  {!isAudioEnabled && (
-                    <div className="bg-red-500 rounded-full p-1.5">
-                      <FiMicOff className="text-white" />
-                    </div>
-                  )}
-                  {!isVideoEnabled && (
-                    <div className="bg-red-500 rounded-full p-1.5">
-                      <FiVideoOff className="text-white" />
-                    </div>
-                  )}
-                </div>
-                
-                {isVideoEnabled && (
-                  <div className="absolute bottom-3 right-3 text-white bg-black/50 px-3 py-1 rounded-full">
-                    Trainer: {userName} (You)
-                  </div>
-                )}
-              </div>
-            ) : (
-              // If current user is not the trainer, find the trainer's video and show it prominently
-              (() => {
-                // Find the trainer participant
-                const trainerParticipant = participants.find(p => p.id !== userId && (p.id === 'trainer' || p.id.includes('trainer')));
-                
-                // If no explicit trainer is found, use the first participant that's not the current user
-                const featuredParticipant = trainerParticipant || participants.find(p => p.id !== userId);
-                
-                return featuredParticipant ? (
+                {isTrainer ? (
+                  // If current user is the trainer, show their video prominently
                   <div className="relative w-full h-full">
-                    {featuredParticipant.stream ? (
+                    {localStream ? (
                       <video
+                        ref={localVideoRef}
                         autoPlay
                         playsInline
-                        className={`w-full h-full object-cover ${!featuredParticipant.video ? 'hidden' : ''}`}
-                        ref={el => {
-                          if (el && featuredParticipant.stream) {
-                            el.srcObject = featuredParticipant.stream;
-                          }
-                        }}
+                        muted
+                        className={`w-full h-full object-cover ${!isVideoEnabled ? 'hidden' : ''}`}
                       />
                     ) : (
                       <div className="w-full h-full bg-gray-800 rounded flex items-center justify-center">
-                        <div className="animate-pulse">Connecting to trainer...</div>
+                        <div className="animate-pulse">Starting camera...</div>
                       </div>
                     )}
                     
-                    {featuredParticipant.stream && !featuredParticipant.video && (
+                    {!isVideoEnabled && (
                       <div className="absolute inset-0 flex items-center justify-center bg-gray-800">
-                        <div className="w-24 h-24 rounded-full bg-gray-700 flex items-center justify-center overflow-hidden">
-                          {featuredParticipant.photoURL ? (
-                            <img 
-                              src={featuredParticipant.photoURL} 
-                              alt={featuredParticipant.displayName} 
-                              className="w-full h-full object-cover"
-                            />
-                          ) : (
-                            <span className="text-3xl text-white font-bold">
-                              {featuredParticipant.displayName.charAt(0)}
-                            </span>
-                          )}
-                        </div>
-                        <div className="absolute bottom-4 text-white bg-black/50 px-3 py-1 rounded-full">
-                          {trainerParticipant ? 'Trainer: ' : ''}{featuredParticipant.displayName}
+                        <div className="w-20 h-20 md:w-24 md:h-24 rounded-full bg-gray-700 flex items-center justify-center overflow-hidden">
+                          <span className="text-2xl md:text-3xl text-white font-bold">
+                            {userName.charAt(0)}
+                          </span>
                         </div>
                       </div>
                     )}
                     
                     {/* Audio/video status indicators */}
                     <div className="absolute bottom-3 left-3 flex space-x-2">
-                      {!featuredParticipant.audio && (
+                      {!isAudioEnabled && (
                         <div className="bg-red-500 rounded-full p-1.5">
                           <FiMicOff className="text-white" />
                         </div>
                       )}
-                      {!featuredParticipant.video && (
+                      {!isVideoEnabled && (
                         <div className="bg-red-500 rounded-full p-1.5">
                           <FiVideoOff className="text-white" />
                         </div>
                       )}
                     </div>
                     
-                    {featuredParticipant.video && (
-                      <div className="absolute bottom-3 right-3 text-white bg-black/50 px-3 py-1 rounded-full">
-                        {trainerParticipant ? 'Trainer: ' : ''}{featuredParticipant.displayName}
-                      </div>
-                    )}
+                    <div className="absolute bottom-3 right-3 text-white bg-black/50 px-3 py-1 rounded-full text-sm">
+                      You (Trainer)
+                    </div>
                   </div>
                 ) : (
-                  <div className="w-full h-full bg-gray-800 rounded flex items-center justify-center">
-                    <div>Waiting for trainer to join...</div>
-                  </div>
-                );
-              })()
-            )}
-          </div>
-        )}
-        
-        {/* Participants grid (including self view) */}
-        <div className="flex-1 flex flex-wrap overflow-y-auto gap-1 p-1">
-          {/* Local video (self view) - always show the local video in the grid */}
-          <div className={`${participants.length > 3 ? 'w-1/3 h-1/2' : participants.length > 1 ? 'w-1/2 h-1/2' : 'w-full h-full'} p-1`}>
-            <div className="relative w-full h-full rounded overflow-hidden">
-              <video
-                ref={localVideoRef}
-                autoPlay
-                playsInline
-                muted // Always mute local video to prevent feedback
-                className={`w-full h-full object-cover ${!isVideoEnabled ? 'hidden' : ''}`}
-              />
-              
-              {!isVideoEnabled && (
-                <div className="absolute inset-0 flex items-center justify-center bg-gray-800">
-                  <div className="w-16 h-16 rounded-full bg-gray-700 flex items-center justify-center">
-                    <span className="text-2xl text-white font-bold">
-                      {userName.charAt(0)}
-                    </span>
-                  </div>
-                </div>
-              )}
-              
-              {/* Audio/video status indicators */}
-              <div className="absolute bottom-2 left-2 flex space-x-1">
-                {!isAudioEnabled && (
-                  <div className="bg-red-500 rounded-full p-1">
-                    <FiMicOff className="text-white text-xs" />
-                  </div>
-                )}
-                {!isVideoEnabled && (
-                  <div className="bg-red-500 rounded-full p-1">
-                    <FiVideoOff className="text-white text-xs" />
-                  </div>
+                  // If current user is not the trainer, find the trainer's video and show it prominently
+                  (() => {
+                    // Find the trainer participant
+                    const trainerParticipant = participants.find(p => p.id !== userId && (p.id === 'trainer' || p.id.includes('trainer')));
+                    
+                    // If no explicit trainer is found, use the first participant that's not the current user
+                    const featuredParticipant = trainerParticipant || participants.find(p => p.id !== userId);
+                    
+                    return featuredParticipant ? (
+                      <div className="relative w-full h-full">
+                        {featuredParticipant.stream ? (
+                          <video
+                            autoPlay
+                            playsInline
+                            className={`w-full h-full object-cover ${!featuredParticipant.video ? 'hidden' : ''}`}
+                            ref={el => {
+                              if (el && featuredParticipant.stream) {
+                                el.srcObject = featuredParticipant.stream;
+                              }
+                            }}
+                          />
+                        ) : (
+                          <div className="w-full h-full bg-gray-800 rounded flex items-center justify-center">
+                            <div className="animate-pulse">Connecting to trainer...</div>
+                          </div>
+                        )}
+                        
+                        {(!featuredParticipant.stream || !featuredParticipant.video) && (
+                          <div className="absolute inset-0 flex items-center justify-center bg-gray-800">
+                            <div className="w-20 h-20 md:w-24 md:h-24 rounded-full bg-gray-700 flex items-center justify-center overflow-hidden">
+                              {featuredParticipant.photoURL ? (
+                                <img 
+                                  src={featuredParticipant.photoURL} 
+                                  alt={featuredParticipant.displayName} 
+                                  className="w-full h-full object-cover"
+                                />
+                              ) : (
+                                <span className="text-2xl md:text-3xl text-white font-bold">
+                                  {featuredParticipant.displayName.charAt(0)}
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        )}
+                        
+                        {/* Audio/video status indicators */}
+                        <div className="absolute bottom-3 left-3 flex space-x-2">
+                          {!featuredParticipant.audio && (
+                            <div className="bg-red-500 rounded-full p-1.5">
+                              <FiMicOff className="text-white" />
+                            </div>
+                          )}
+                          {!featuredParticipant.video && (
+                            <div className="bg-red-500 rounded-full p-1.5">
+                              <FiVideoOff className="text-white" />
+                            </div>
+                          )}
+                        </div>
+                        
+                        <div className="absolute bottom-3 right-3 text-white bg-black/50 px-3 py-1 rounded-full text-sm">
+                          {trainerParticipant ? 'Trainer' : ''} {featuredParticipant.displayName}
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="w-full h-full bg-gray-800 rounded flex items-center justify-center">
+                        <div>Waiting for trainer to join...</div>
+                      </div>
+                    );
+                  })()
                 )}
               </div>
               
-              <div className="absolute bottom-2 right-2 text-white text-sm bg-black/50 px-2 py-1 rounded">
-                You {isTrainer ? '(Trainer)' : ''}
-              </div>
-            </div>
-          </div>
-          
-          {/* All other participants */}
-          {participants
-            .filter(p => p.id !== userId)
-            .map((participant, index) => (
-              <div 
-                key={participant.id}
-                className={`${participants.length > 3 ? 'w-1/3 h-1/2' : 'w-1/2 h-1/2'} p-1`}
-              >
-                <div className="relative w-full h-full rounded overflow-hidden">
-                  {participant.stream ? (
+              {/* Grid of participant videos */}
+              <div className="col-span-12 md:col-span-4 grid grid-cols-2 gap-2 auto-rows-fr">
+                {/* Local video (self view) */}
+                <div className="relative rounded-xl overflow-hidden bg-gray-800">
+                  {localStream ? (
                     <video
+                      ref={selfViewRef}
                       autoPlay
                       playsInline
-                      className={`w-full h-full object-cover ${!participant.video ? 'hidden' : ''}`}
-                      ref={el => {
-                        if (el && participant.stream) {
-                          el.srcObject = participant.stream;
-                        }
-                      }}
+                      muted // Always mute local video to prevent feedback
+                      className={`w-full h-full object-cover ${!isVideoEnabled ? 'hidden' : ''}`}
                     />
                   ) : (
-                    <div className="w-full h-full bg-gray-800 rounded flex items-center justify-center">
-                      <div className="animate-pulse">Connecting...</div>
+                    <div className="w-full h-full flex items-center justify-center">
+                      <div className="animate-pulse text-xs">Starting camera...</div>
                     </div>
                   )}
                   
-                  {(!participant.stream || !participant.video) && (
+                  {(!localStream || !isVideoEnabled) && (
                     <div className="absolute inset-0 flex items-center justify-center bg-gray-800">
-                      <div className="w-16 h-16 rounded-full bg-gray-700 flex items-center justify-center overflow-hidden">
-                        {participant.photoURL ? (
-                          <img 
-                            src={participant.photoURL} 
-                            alt={participant.displayName} 
-                            className="w-full h-full object-cover"
-                          />
-                        ) : (
-                          <span className="text-2xl text-white font-bold">
-                            {participant.displayName.charAt(0)}
-                          </span>
-                        )}
+                      <div className="w-12 h-12 rounded-full bg-gray-700 flex items-center justify-center">
+                        <span className="text-xl text-white font-bold">
+                          {userName.charAt(0)}
+                        </span>
                       </div>
                     </div>
                   )}
                   
                   {/* Audio/video status indicators */}
                   <div className="absolute bottom-2 left-2 flex space-x-1">
-                    {!participant.audio && (
+                    {!isAudioEnabled && (
                       <div className="bg-red-500 rounded-full p-1">
                         <FiMicOff className="text-white text-xs" />
                       </div>
                     )}
-                    {!participant.video && (
+                    {!isVideoEnabled && (
                       <div className="bg-red-500 rounded-full p-1">
                         <FiVideoOff className="text-white text-xs" />
                       </div>
                     )}
                   </div>
                   
-                  <div className="absolute bottom-2 right-2 text-white text-sm bg-black/50 px-2 py-1 rounded">
-                    {participant.displayName} {participant.id === 'trainer' || participant.id.includes('trainer') ? '(Trainer)' : ''}
+                  <div className="absolute bottom-2 right-2 text-white bg-black/50 px-2 py-0.5 rounded-full text-xs">
+                    You
                   </div>
                 </div>
+                
+                {/* Other participants */}
+                {participants
+                  .filter(p => p.id !== userId)
+                  .filter((p, i) => {
+                    // On mobile, show max 3 other participants
+                    // On desktop, show max 5 other participants
+                    const isMobileView = window.innerWidth < 768;
+                    return isMobileView ? i < 3 : i < 5;
+                  })
+                  .map((participant) => (
+                    <div 
+                      key={participant.id}
+                      className="relative rounded-xl overflow-hidden bg-gray-800"
+                    >
+                      {participant.stream ? (
+                        <video
+                          autoPlay
+                          playsInline
+                          className={`w-full h-full object-cover ${!participant.video ? 'hidden' : ''}`}
+                          ref={el => {
+                            if (el && participant.stream) {
+                              el.srcObject = participant.stream;
+                            }
+                          }}
+                        />
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center">
+                          <div className="animate-pulse text-xs">Connecting...</div>
+                        </div>
+                      )}
+                      
+                      {(!participant.stream || !participant.video) && (
+                        <div className="absolute inset-0 flex items-center justify-center">
+                          <div className="w-12 h-12 rounded-full bg-gray-700 flex items-center justify-center overflow-hidden">
+                            {participant.photoURL ? (
+                              <img 
+                                src={participant.photoURL} 
+                                alt={participant.displayName} 
+                                className="w-full h-full object-cover"
+                              />
+                            ) : (
+                              <span className="text-xl text-white font-bold">
+                                {participant.displayName.charAt(0)}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      )}
+                      
+                      {/* Audio/video status indicators */}
+                      <div className="absolute bottom-2 left-2 flex space-x-1">
+                        {!participant.audio && (
+                          <div className="bg-red-500 rounded-full p-1">
+                            <FiMicOff className="text-white text-xs" />
+                          </div>
+                        )}
+                        {!participant.video && (
+                          <div className="bg-red-500 rounded-full p-1">
+                            <FiVideoOff className="text-white text-xs" />
+                          </div>
+                        )}
+                      </div>
+                      
+                      <div className="absolute bottom-2 right-2 text-white bg-black/50 px-2 py-0.5 rounded-full text-xs">
+                        {participant.displayName.length > 8 
+                          ? `${participant.displayName.substring(0, 8)}...` 
+                          : participant.displayName}
+                      </div>
+                    </div>
+                  ))}
+                
+                {/* Participant count indicator if there are more participants than shown */}
+                {participants.filter(p => p.id !== userId).length > (window.innerWidth < 768 ? 3 : 5) && (
+                  <div className="relative rounded-xl overflow-hidden bg-gray-800 flex items-center justify-center">
+                    <div className="text-white font-medium">
+                      +{participants.filter(p => p.id !== userId).length - (window.innerWidth < 768 ? 3 : 5)} more
+                    </div>
+                  </div>
+                )}
               </div>
-            ))}
+            </>
+          )}
         </div>
       </div>
       
       {/* Control bar */}
-      <div className="bg-gray-900 p-4 flex items-center justify-between">
+      <div className="bg-gray-900 p-3 md:p-4 flex items-center justify-between">
         <div className="flex space-x-2">
           {/* Mic toggle */}
           <button
             onClick={() => setIsAudioEnabled(!isAudioEnabled)}
-            className={`p-3 rounded-full ${isAudioEnabled ? 'bg-gray-700 hover:bg-gray-600' : 'bg-red-600 hover:bg-red-700'}`}
+            className={`p-2 md:p-3 rounded-full ${isAudioEnabled ? 'bg-gray-700 hover:bg-gray-600' : 'bg-red-600 hover:bg-red-700'}`}
           >
             {isAudioEnabled ? <FiMic className="text-white" /> : <FiMicOff className="text-white" />}
           </button>
@@ -1082,7 +1138,7 @@ const VideoStreamComponent: React.FC<VideoStreamProps> = ({
           {/* Camera toggle */}
           <button
             onClick={() => setIsVideoEnabled(!isVideoEnabled)}
-            className={`p-3 rounded-full ${isVideoEnabled ? 'bg-gray-700 hover:bg-gray-600' : 'bg-red-600 hover:bg-red-700'}`}
+            className={`p-2 md:p-3 rounded-full ${isVideoEnabled ? 'bg-gray-700 hover:bg-gray-600' : 'bg-red-600 hover:bg-red-700'}`}
           >
             {isVideoEnabled ? <FiVideo className="text-white" /> : <FiVideoOff className="text-white" />}
           </button>
@@ -1091,7 +1147,7 @@ const VideoStreamComponent: React.FC<VideoStreamProps> = ({
           {isMobile() && (
             <button
               onClick={() => setIsFrontCamera(!isFrontCamera)}
-              className="p-3 rounded-full bg-gray-700 hover:bg-gray-600"
+              className="p-2 md:p-3 rounded-full bg-gray-700 hover:bg-gray-600"
             >
               <FiCamera className="text-white" />
             </button>
@@ -1102,7 +1158,7 @@ const VideoStreamComponent: React.FC<VideoStreamProps> = ({
           {/* Participants button */}
           <button
             onClick={() => setShowParticipantsSidebar(!showParticipantsSidebar)}
-            className={`p-3 rounded-full ${showParticipantsSidebar ? 'bg-blue-600' : 'bg-gray-700 hover:bg-gray-600'}`}
+            className={`p-2 md:p-3 rounded-full ${showParticipantsSidebar ? 'bg-blue-600' : 'bg-gray-700 hover:bg-gray-600'}`}
           >
             <FiUsers className="text-white" />
           </button>
@@ -1110,7 +1166,7 @@ const VideoStreamComponent: React.FC<VideoStreamProps> = ({
           {/* Chat button */}
           <button
             onClick={() => setShowChat(!showChat)}
-            className={`p-3 rounded-full ${showChat ? 'bg-blue-600' : 'bg-gray-700 hover:bg-gray-600'}`}
+            className={`p-2 md:p-3 rounded-full ${showChat ? 'bg-blue-600' : 'bg-gray-700 hover:bg-gray-600'}`}
           >
             <FiMessageSquare className="text-white" />
           </button>
@@ -1118,7 +1174,7 @@ const VideoStreamComponent: React.FC<VideoStreamProps> = ({
           {/* Fullscreen toggle */}
           <button
             onClick={toggleFullscreen}
-            className="p-3 rounded-full bg-gray-700 hover:bg-gray-600"
+            className="p-2 md:p-3 rounded-full bg-gray-700 hover:bg-gray-600"
           >
             <FiMaximize className="text-white" />
           </button>
@@ -1126,7 +1182,7 @@ const VideoStreamComponent: React.FC<VideoStreamProps> = ({
           {/* End call */}
           <button
             onClick={handleEndSession}
-            className="p-3 rounded-full bg-red-600 hover:bg-red-700"
+            className="p-2 md:p-3 rounded-full bg-red-600 hover:bg-red-700"
           >
             <FiPhoneOff className="text-white" />
           </button>
