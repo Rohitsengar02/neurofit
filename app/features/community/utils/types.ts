@@ -59,22 +59,29 @@ export interface CommunityMember {
   expiresAt: any; // Firestore timestamp
 }
 
-export interface LiveSession {
+export interface Session {
   id: string;
-  communityId: string;
-  trainerId: string;
   title: string;
   description: string;
-  coverImage?: string;
-  scheduledFor: any; // Firestore timestamp
-  duration: number; // In minutes
-  maxParticipants?: number;
-  participantCount?: number; // Number of participants registered
-  requiredTiers?: string[]; // Array of tier IDs
+  date: string;
+  time: string;
+  duration: number;
   status: 'scheduled' | 'live' | 'completed' | 'cancelled';
+  trainerId: string;
+  communityId: string;
+  coverImage?: string;
+  participants?: string[];
+  createdAt?: any;
+  updatedAt?: any;
+  meetLink?: string;
+  useGoogleMeet?: boolean;
+  
+  // Fields that were previously only in LiveSession are now in Session too
+  scheduledFor: any; // Firestore timestamp
+  maxParticipants: number;
+  participantCount: number; // Number of participants registered
+  requiredTiers: string[]; // Array of tier IDs
   recordingUrl?: string;
-  createdAt: any; // Firestore timestamp
-  updatedAt: any; // Firestore timestamp
 }
 
 export interface SessionParticipant {
@@ -84,6 +91,12 @@ export interface SessionParticipant {
   joinedAt?: any; // Firestore timestamp
   leftAt?: any; // Firestore timestamp
   status: 'registered' | 'attended' | 'no-show';
+}
+
+// For backward compatibility with existing code
+// LiveSession is now identical to Session to avoid TypeScript errors
+export interface LiveSession extends Session {
+  // No additional fields needed since Session now has all LiveSession fields
 }
 
 export interface CommunityPost {

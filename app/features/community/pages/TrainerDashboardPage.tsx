@@ -34,7 +34,9 @@ const TrainerDashboardPage = () => {
     duration: 30,
     maxParticipants: 20,
     communityId: '',
-    requiredTiers: [] as string[]
+    requiredTiers: [] as string[],
+    useGoogleMeet: false,
+    meetLink: ''
   });
   const [editingSessionId, setEditingSessionId] = useState<string | null>(null);
   const [selectedCommunityId, setSelectedCommunityId] = useState<string | null>(null);
@@ -129,7 +131,9 @@ const TrainerDashboardPage = () => {
         duration: sessionToEdit.duration,
         maxParticipants: sessionToEdit.maxParticipants || 20,
         communityId: sessionToEdit.communityId,
-        requiredTiers: sessionToEdit.requiredTiers || []
+        requiredTiers: sessionToEdit.requiredTiers || [],
+        useGoogleMeet: sessionToEdit.useGoogleMeet || false,
+        meetLink: sessionToEdit.meetLink || ''
       });
       
       setEditingSessionId(sessionId);
@@ -141,8 +145,15 @@ const TrainerDashboardPage = () => {
   };
   
   const handleSessionFormChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
-    const { name, value } = e.target;
-    setSessionFormData(prev => ({ ...prev, [name]: value }));
+    const { name, value, type } = e.target;
+    const checked = type === 'checkbox' ? (e.target as HTMLInputElement).checked : false;
+    
+    // Handle checkbox inputs separately
+    if (type === 'checkbox') {
+      setSessionFormData(prev => ({ ...prev, [name]: checked }));
+    } else {
+      setSessionFormData(prev => ({ ...prev, [name]: value }));
+    }
   };
   
   const handleSubmitSession = async (e: React.FormEvent) => {
@@ -162,7 +173,9 @@ const TrainerDashboardPage = () => {
           scheduledFor: scheduledForDate,
           duration: Number(sessionFormData.duration),
           maxParticipants: Number(sessionFormData.maxParticipants),
-          requiredTiers: sessionFormData.requiredTiers
+          requiredTiers: sessionFormData.requiredTiers,
+          useGoogleMeet: sessionFormData.useGoogleMeet,
+          meetLink: sessionFormData.meetLink
         });
         
         console.log(`Session ${editingSessionId} updated successfully`);
@@ -179,7 +192,11 @@ const TrainerDashboardPage = () => {
           status: 'scheduled' as const,
           participantCount: 0,
           requiredTiers: sessionFormData.requiredTiers,
-          createdAt: new Date()
+          createdAt: new Date(),
+          date: scheduledForDate.toLocaleDateString(),
+          time: scheduledForDate.toLocaleTimeString(),
+          useGoogleMeet: sessionFormData.useGoogleMeet,
+          meetLink: sessionFormData.meetLink
         };
         
         const createdSession = await contentService.createLiveSession(newSession);
@@ -196,7 +213,9 @@ const TrainerDashboardPage = () => {
         duration: 30,
         maxParticipants: 20,
         communityId: '',
-        requiredTiers: []
+        requiredTiers: [],
+        useGoogleMeet: false,
+        meetLink: ''
       });
       
       // Refresh upcoming sessions
@@ -786,6 +805,46 @@ const TrainerDashboardPage = () => {
                             placeholder="Describe what participants can expect in this session"
                             required
                           />
+                        </div>
+                        
+                        {/* Google Meet Integration */}
+                        <div className="mt-6 border-t border-gray-200 dark:border-gray-700 pt-4">
+                          <h4 className="text-md font-medium text-gray-800 dark:text-gray-200 mb-3">
+                            Video Conference Options
+                          </h4>
+                          
+                          <div className="flex items-center mb-3">
+                            <input
+                              type="checkbox"
+                              id="useGoogleMeet"
+                              name="useGoogleMeet"
+                              checked={sessionFormData.useGoogleMeet}
+                              onChange={handleSessionFormChange}
+                              className="h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                            />
+                            <label htmlFor="useGoogleMeet" className="ml-2 block text-sm text-gray-700 dark:text-gray-300">
+                              Enable Google Meet for this session
+                            </label>
+                          </div>
+                          
+                          {sessionFormData.useGoogleMeet && (
+                            <div className="mt-3">
+                              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                                Google Meet Link (Optional)
+                              </label>
+                              <input
+                                type="text"
+                                name="meetLink"
+                                value={sessionFormData.meetLink}
+                                onChange={handleSessionFormChange}
+                                className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                                placeholder="https://meet.google.com/xxx-xxxx-xxx"
+                              />
+                              <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                                You can add a link now or later when the session starts. If left empty, participants will still be able to join via Google Meet when the session is live.
+                              </p>
+                            </div>
+                          )}
                         </div>
                         
                         {/* Date and Time */}

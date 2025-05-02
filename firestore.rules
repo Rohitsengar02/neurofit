@@ -1486,5 +1486,34 @@ service cloud.firestore {
       // Override the previous rule to ensure users can create their own trainer profile
       allow create: if isAuthenticated() && trainerId == request.auth.uid;
     }
+    
+    // Sessions with Google Meet integration
+    match /sessions/{sessionId} {
+      // Allow read access to all authenticated users
+      allow read: if isAuthenticated();
+      
+      // Allow trainers to update Google Meet links
+      allow update: if isAuthenticated() && 
+        (
+          // Check if the user is a trainer for this session
+          exists(/databases/$(database)/documents/trainers/$(request.auth.uid)) ||
+          get(/databases/$(database)/documents/sessions/$(sessionId)).data.trainerId == request.auth.uid ||
+          get(/databases/$(database)/documents/sessions/$(sessionId)).data.trainerId == 'trainers/' + request.auth.uid ||
+          get(/databases/$(database)/documents/sessions/$(sessionId)).data.trainerId == 'users/' + request.auth.uid ||
+          // Check if user ID is in the trainerId path (for the format trainers/uid/userId)
+          get(/databases/$(database)/documents/sessions/$(sessionId)).data.trainerId.matches('trainers/' + request.auth.uid + '/.*')
+        ) && 
+        // Only allow updating specific fields related to Google Meet
+        (
+          request.resource.data.diff(resource.data).affectedKeys()
+            .hasAny(['useGoogleMeet', 'meetLink', 'isActive', 'lastUpdated'])
+        );
+        
+      // Allow automatic cleanup when session ends
+      allow update: if isAuthenticated() && 
+        request.resource.data.isActive == false &&
+        request.resource.data.meetLink == null &&
+        request.resource.data.useGoogleMeet == false;
+    }
   }
 
