@@ -8,7 +8,7 @@ import {
   FiUsers, FiCalendar, FiPlus, FiBarChart2, 
   FiDollarSign, FiSettings, FiEdit, FiTrash2,
   FiEye, FiClock, FiMessageCircle, FiVideo, FiTag, FiArrowLeft,
-  FiX
+  FiX, FiCheck
 } from 'react-icons/fi';
 import { useAuth } from '../../../context/AuthContext';
 import * as communityService from '../services/communityService';
@@ -16,7 +16,22 @@ import * as contentService from '../services/contentService';
 import * as subscriptionService from '../services/subscriptionService';
 import * as couponService from '../services/couponService';
 import CouponManagement from '../components/CouponManagement';
-import { Community, Trainer, LiveSession } from '../utils/types';
+import { Community, Trainer, LiveSession, CommunityWorkout } from '../utils/types';
+
+interface Workout {
+  id: string;
+  title: string;
+  description: string;
+  level: string;
+  image?: string;
+  days: number;
+  caloriesPerDay: number;
+  [key: string]: any;
+}
+
+interface SelectedWorkoutsMap {
+  [communityId: string]: Workout[];
+}
 
 const TrainerDashboardPage = () => {
   const router = useRouter();
@@ -26,6 +41,13 @@ const TrainerDashboardPage = () => {
   const [communities, setCommunities] = useState<Community[]>([]);
   const [upcomingSessions, setUpcomingSessions] = useState<LiveSession[]>([]);
   const [activeTab, setActiveTab] = useState('overview');
+  const [availableWorkouts, setAvailableWorkouts] = useState<Workout[]>([]);
+  const [selectedWorkouts, setSelectedWorkouts] = useState<SelectedWorkoutsMap>({});
+  const [selectedCommunityForWorkout, setSelectedCommunityForWorkout] = useState<string | null>(null);
+  const [currentWorkoutPage, setCurrentWorkoutPage] = useState(1);
+  const [workoutsPerPage] = useState(9);
+  const [displayedWorkouts, setDisplayedWorkouts] = useState<Workout[]>([]);
+  const [totalWorkoutPages, setTotalWorkoutPages] = useState(1);
   const [showSessionForm, setShowSessionForm] = useState(false);
   const [sessionFormData, setSessionFormData] = useState({
     title: '',
@@ -42,6 +64,33 @@ const TrainerDashboardPage = () => {
   const [selectedCommunityId, setSelectedCommunityId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  
+  // Update displayed workouts when available workouts or pagination changes
+  useEffect(() => {
+    if (availableWorkouts.length > 0) {
+      const indexOfLastWorkout = currentWorkoutPage * workoutsPerPage;
+      const indexOfFirstWorkout = indexOfLastWorkout - workoutsPerPage;
+      
+      // Calculate total pages
+      const totalPages = Math.ceil(availableWorkouts.length / workoutsPerPage);
+      setTotalWorkoutPages(totalPages);
+      
+      // Update displayed workouts for current page
+      const workoutsToDisplay = availableWorkouts.slice(indexOfFirstWorkout, indexOfLastWorkout);
+      setDisplayedWorkouts(workoutsToDisplay);
+      
+      console.log(`Displaying workouts ${indexOfFirstWorkout + 1} to ${Math.min(indexOfLastWorkout, availableWorkouts.length)} of ${availableWorkouts.length}`);
+    }
+  }, [availableWorkouts, currentWorkoutPage, workoutsPerPage]);
+  
+  // Handle pagination controls
+  const handlePreviousPage = () => {
+    setCurrentWorkoutPage(prev => Math.max(prev - 1, 1));
+  };
+  
+  const handleNextPage = () => {
+    setCurrentWorkoutPage(prev => Math.min(prev + 1, totalWorkoutPages));
+  };
   
   // Fetch trainer data
   useEffect(() => {
@@ -81,6 +130,26 @@ const TrainerDashboardPage = () => {
           allSessions.sort((a, b) => a.scheduledFor.seconds - b.scheduledFor.seconds);
           setUpcomingSessions(allSessions);
         }
+        
+        // Fetch available workouts for the workout tab
+        console.log('Fetching available workouts in fetchTrainerData...');
+        const workouts = await communityService.getAvailableWorkouts();
+        console.log(`Fetched ${workouts.length} workouts for trainer dashboard`);
+        
+        // Process workout data to ensure all required fields
+        const processedWorkouts = workouts.map(workout => ({
+          ...workout,
+          // Ensure image URLs are properly formatted
+          image: workout.image || `https://images.unsplash.com/photo-1517838277536-f5f99be501cd?q=80&w=1470&auto=format`,
+          // Ensure all required fields have default values
+          title: workout.title || 'Untitled Workout',
+          description: workout.description || 'No description available',
+          level: workout.level || 'beginner',
+          days: workout.days || 7,
+          caloriesPerDay: workout.caloriesPerDay || 300
+        }));
+        
+        setAvailableWorkouts(processedWorkouts);
       } catch (error) {
         console.error('Error fetching trainer data:', error);
         setError('Failed to load trainer data. Please try again.');
@@ -92,7 +161,23 @@ const TrainerDashboardPage = () => {
     fetchTrainerData();
   }, [user]);
   
-  // Handle creating a new community
+  // Removed duplicate workout fetching useEffect - we already fetch in fetchTrainerData
+  
+  // Helper function to get appropriate workout image based on level
+  const getWorkoutImageByLevel = (level: string = 'beginner'): string => {
+    switch(level.toLowerCase()) {
+      case 'beginner':
+        return 'https://images.unsplash.com/photo-1517836357463-d25dfeac3438?auto=format&fit=crop&w=1470&q=80';
+      case 'intermediate':
+        return 'https://images.unsplash.com/photo-1549060279-7e168fcee0c2?auto=format&fit=crop&w=1470&q=80';
+      case 'advanced':
+        return 'https://images.unsplash.com/photo-1581009146145-b5ef050c2e1e?auto=format&fit=crop&w=1470&q=80';
+      default:
+        return 'https://images.unsplash.com/photo-1571019613454-1cb2f99b2d8b?auto=format&fit=crop&w=1470&q=80';
+    }
+  };
+  
+  // Handle creating a community
   const handleCreateCommunity = () => {
     router.push('/community/trainer/create');
   };
@@ -243,6 +328,85 @@ const TrainerDashboardPage = () => {
     router.push(`/community/${communityId}`);
   };
   
+  // Handle selecting a community for workout assignment
+  const handleSelectCommunityForWorkout = (communityId: string) => {
+    setSelectedCommunityForWorkout(communityId);
+    
+    // Initialize selected workouts for this community if not already done
+    if (!selectedWorkouts[communityId]) {
+      setSelectedWorkouts(prev => ({
+        ...prev,
+        [communityId]: []
+      }));
+    }
+  };
+  
+  // Handle workout selection for a community
+  const handleSelectWorkout = (workout: Workout) => {
+    if (!selectedCommunityForWorkout) return;
+    
+    console.log('Toggling workout selection:', workout.id, workout.title);
+    
+    setSelectedWorkouts(prev => {
+      const currentSelections = prev[selectedCommunityForWorkout] || [];
+      const isAlreadySelected = currentSelections.some(w => w.id === workout.id);
+      
+      console.log('Current selection status:', isAlreadySelected ? 'selected' : 'not selected');
+      
+      // If already selected, remove it; otherwise add it
+      const updatedSelections = isAlreadySelected
+        ? currentSelections.filter(w => w.id !== workout.id)
+        : [...currentSelections, workout];
+      
+      console.log(`Updated selection count: ${updatedSelections.length} workouts`);
+      
+      return {
+        ...prev,
+        [selectedCommunityForWorkout]: updatedSelections
+      };
+    });
+  };
+  
+  // Handle confirming workout selections for a community
+  const handleConfirmWorkouts = async () => {
+    if (!selectedCommunityForWorkout) return;
+    
+    const communityWorkouts = selectedWorkouts[selectedCommunityForWorkout];
+    if (!communityWorkouts || communityWorkouts.length === 0) return;
+    
+    setIsLoading(true);
+    try {
+      // First get the current community data
+      const community = await communityService.getCommunityById(selectedCommunityForWorkout);
+      if (!community) throw new Error('Community not found');
+      
+      // Add each selected workout to the community
+      for (const workout of communityWorkouts) {
+        await communityService.addWorkoutToCommunity(selectedCommunityForWorkout, workout);
+      }
+      
+      // Clear the selections for this community
+      setSelectedWorkouts(prev => ({
+        ...prev,
+        [selectedCommunityForWorkout]: []
+      }));
+      
+      // Refresh the communities to show updated data
+      if (trainer) {
+        const refreshedCommunities = await communityService.getCommunitiesByTrainerId(trainer.id);
+        setCommunities(refreshedCommunities);
+      }
+      
+      // Show success message
+      alert(`Workouts added to ${communities.find(c => c.id === selectedCommunityForWorkout)?.name}`);
+    } catch (error) {
+      console.error('Error adding workouts to community:', error);
+      alert('Failed to add workouts to community. Please try again.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+  
   if (isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -384,6 +548,16 @@ const TrainerDashboardPage = () => {
               onClick={() => setActiveTab('settings')}
             >
               Settings
+            </button>
+            <button
+              className={`px-4 py-4 font-medium text-sm border-b-2 whitespace-nowrap ${
+                activeTab === 'workouts'
+                  ? 'border-blue-600 text-blue-600 dark:text-blue-400'
+                  : 'border-transparent text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
+              }`}
+              onClick={() => setActiveTab('workouts')}
+            >
+              Workouts
             </button>
           </div>
         </div>
@@ -1109,6 +1283,210 @@ const TrainerDashboardPage = () => {
           </div>
         )}
         
+        {/* Workouts Tab */}
+        {activeTab === 'workouts' && (
+          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-md p-8">
+            <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-6">
+              Workout Management
+            </h2>
+            
+            {/* Community Selector */}
+            <div className="mb-8">
+              <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-3">
+                Select Community
+              </h3>
+              
+              {communities.length === 0 ? (
+                <div className="text-center py-6 bg-gray-50 dark:bg-gray-700 rounded-lg">
+                  <p className="text-gray-600 dark:text-gray-400 mb-4">
+                    You need to create a community first before adding workouts.
+                  </p>
+                  <button
+                    className="bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-4 rounded-lg transition-colors"
+                    onClick={handleCreateCommunity}
+                  >
+                    Create Community
+                  </button>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {communities.map((community) => (
+                    <div 
+                      key={community.id}
+                      className={`p-4 border rounded-lg cursor-pointer transition-colors ${selectedCommunityForWorkout === community.id 
+                        ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20 dark:border-blue-400' 
+                        : 'border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700'}`}
+                      onClick={() => handleSelectCommunityForWorkout(community.id)}
+                    >
+                      <div className="flex items-center">
+                        {community.logoImage && (
+                          <div className="w-10 h-10 rounded-lg overflow-hidden mr-3">
+                            <Image
+                              src={community.logoImage}
+                              alt={community.name}
+                              width={40}
+                              height={40}
+                              className="object-cover"
+                            />
+                          </div>
+                        )}
+                        <div>
+                          <h4 className="font-medium text-gray-900 dark:text-white">
+                            {community.name}
+                          </h4>
+                          <div className="flex items-center text-xs text-gray-500 dark:text-gray-400">
+                            <FiUsers className="mr-1" />
+                            <span>{community.memberCount} members</span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+            
+            {/* Available Workouts */}
+            {selectedCommunityForWorkout && (
+              <div className="mt-6">
+                <div className="flex justify-between items-center mb-4">
+                  <h3 className="text-lg font-bold text-gray-900 dark:text-white">
+                    Available Workouts
+                  </h3>
+                  
+                  {/* Confirm button */}
+                  {selectedWorkouts[selectedCommunityForWorkout]?.length > 0 && (
+                    <button
+                      className="bg-green-600 hover:bg-green-700 text-white font-medium py-2 px-4 rounded-lg transition-colors flex items-center"
+                      onClick={handleConfirmWorkouts}
+                    >
+                      <FiCheck className="mr-2" />
+                      Confirm Selected Workouts
+                    </button>
+                  )}
+                </div>
+                
+                {availableWorkouts.length === 0 ? (
+                  <div className="text-center py-6 bg-gray-50 dark:bg-gray-700 rounded-lg">
+                    <p className="text-gray-600 dark:text-gray-400 mb-4">
+                      No workouts available from the database. 
+                      The system will use sample workouts until real workout data is added.
+                    </p>
+                    <button 
+                      className="bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-4 rounded-lg transition-colors"
+                      onClick={async () => {
+                        // Refresh available workouts
+                        const workouts = await communityService.getAvailableWorkouts();
+                        setAvailableWorkouts(workouts);
+                      }}
+                    >
+                      Refresh Workouts
+                    </button>
+                  </div>
+                ) : (
+                  <>
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
+                      {displayedWorkouts.map((workout) => {
+                        const isSelected = selectedWorkouts[selectedCommunityForWorkout]?.some(w => w.id === workout.id);
+                        
+                        return (
+                          <div 
+                            key={workout.id}
+                            className={`p-4 border rounded-lg cursor-pointer transition-colors ${isSelected 
+                              ? 'border-green-500 bg-green-50 dark:bg-green-900/20 dark:border-green-400' 
+                              : 'border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700'}`}
+                            onClick={() => handleSelectWorkout(workout)}
+                          >
+                            <div className="flex items-start">
+                              {/* Always show image with fallback */}
+                              <div className="w-16 h-16 rounded-lg overflow-hidden mr-3 flex-shrink-0 bg-gray-100 dark:bg-gray-700">
+                                <Image
+                                  src={workout.imageUrl || workout.image || getWorkoutImageByLevel(workout.level)}
+                                  alt={workout.title || 'Workout'}
+                                  width={64}
+                                  height={64}
+                                  className="object-cover h-full w-full"
+                                />
+                              </div>
+                              <div className="flex-grow">
+                                <h4 className="font-medium text-gray-900 dark:text-white">
+                                  {workout.title || 'Untitled Workout'}
+                                </h4>
+                                <p className="text-sm text-gray-600 dark:text-gray-400 line-clamp-2">
+                                  {workout.description || 'No description available'}
+                                </p>
+                                <div className="flex flex-wrap gap-2 mt-2">
+                                  <span className="inline-flex items-center px-2 py-1 text-xs font-medium rounded-full bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300">
+                                    {workout.days || 7} days
+                                  </span>
+                                  <span className="inline-flex items-center px-2 py-1 text-xs font-medium rounded-full bg-orange-100 dark:bg-orange-900/30 text-orange-800 dark:text-orange-300">
+                                    {workout.caloriesPerDay || 300} cal/day
+                                  </span>
+                                  <span className="inline-flex items-center px-2 py-1 text-xs font-medium rounded-full bg-purple-100 dark:bg-purple-900/30 text-purple-800 dark:text-purple-300">
+                                    {workout.level || 'beginner'}
+                                  </span>
+                                </div>
+                              </div>
+                              <div className="ml-2">
+                                <div className={`w-6 h-6 rounded-full flex items-center justify-center ${isSelected 
+                                  ? 'bg-green-500 text-white' 
+                                  : 'bg-gray-200 dark:bg-gray-700 text-gray-600 dark:text-gray-400'}`}>
+                                  {isSelected ? <FiCheck size={14} /> : <FiPlus size={14} />}
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                    
+                    {/* Pagination Controls */}
+                    <div className="flex justify-between items-center mt-6">
+                      <div className="text-sm text-gray-500 dark:text-gray-400">
+                        Showing {availableWorkouts.length > 0 ? (currentWorkoutPage - 1) * workoutsPerPage + 1 : 0} to {Math.min(currentWorkoutPage * workoutsPerPage, availableWorkouts.length)} of {availableWorkouts.length} workouts
+                      </div>
+                      
+                      <div className="flex space-x-2">
+                        <button
+                          className={`px-3 py-1 rounded-md border ${currentWorkoutPage === 1 ? 'text-gray-400 border-gray-200 cursor-not-allowed' : 'text-gray-700 border-gray-300 hover:bg-gray-50'} dark:text-gray-300 dark:border-gray-600 dark:hover:bg-gray-700`}
+                          onClick={handlePreviousPage}
+                          disabled={currentWorkoutPage === 1}
+                        >
+                          Previous
+                        </button>
+                        
+                        <div className="flex items-center px-3 py-1 border border-gray-300 dark:border-gray-600 rounded-md">
+                          <span className="text-gray-700 dark:text-gray-300">{currentWorkoutPage}</span>
+                          <span className="mx-1 text-gray-500">/</span>
+                          <span className="text-gray-700 dark:text-gray-300">{totalWorkoutPages}</span>
+                        </div>
+                        
+                        <button
+                          className={`px-3 py-1 rounded-md border ${currentWorkoutPage === totalWorkoutPages ? 'text-gray-400 border-gray-200 cursor-not-allowed' : 'text-gray-700 border-gray-300 hover:bg-gray-50'} dark:text-gray-300 dark:border-gray-600 dark:hover:bg-gray-700`}
+                          onClick={handleNextPage}
+                          disabled={currentWorkoutPage === totalWorkoutPages}
+                        >
+                          Next
+                        </button>
+                      </div>
+                      
+                      <div>
+                        <button 
+                          onClick={() => setCurrentWorkoutPage(1)}
+                          className="text-sm text-blue-600 dark:text-blue-400 hover:underline"
+                          disabled={currentWorkoutPage === 1}
+                        >
+                          Reset
+                        </button>
+                      </div>
+                    </div>
+                  </>
+                )}
+              </div>
+            )}
+          </div>
+        )}
+            
         {/* Other tabs would be implemented here */}
         {(activeTab === 'sessions' || activeTab === 'content' || activeTab === 'analytics' || activeTab === 'settings') && (
           <div className="bg-white dark:bg-gray-800 rounded-xl shadow-md p-8 text-center">

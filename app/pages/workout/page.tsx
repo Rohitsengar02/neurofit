@@ -279,8 +279,8 @@ export default function WorkoutPage() {
             </div>
             
             {/* Gradient Shadows for Scroll Indication */}
-            <div className="absolute left-0 top-0 bottom-4 w-8 sm:w-12 bg-gradient-to-r from-gray-50 dark:from-gray-900 to-transparent pointer-events-none z-10" />
-            <div className="absolute right-0 top-0 bottom-4 w-8 sm:w-12 bg-gradient-to-l from-gray-50 dark:from-gray-900 to-transparent pointer-events-none z-10" />
+            
+           
           </div>
         </section>
 
@@ -416,8 +416,7 @@ export default function WorkoutPage() {
                   </div>
                   
                   {/* Gradient Shadows for Scroll Indication */}
-                  <div className="absolute left-0 top-0 bottom-6 w-8 sm:w-12 bg-gradient-to-r from-gray-50 dark:from-gray-900 to-transparent pointer-events-none z-10" />
-                  <div className="absolute right-0 top-0 bottom-6 w-8 sm:w-12 bg-gradient-to-l from-gray-50 dark:from-gray-900 to-transparent pointer-events-none z-10" />
+                  
                 </div>
               </div>
             ))}

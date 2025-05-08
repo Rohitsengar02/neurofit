@@ -21,6 +21,7 @@ const CreateCommunityPage = () => {
   const [formData, setFormData] = useState({
     name: '',
     description: '',
+    aboutUs: '',
     categories: [''],
     tags: [],
     isPrivate: false
@@ -39,6 +40,11 @@ const CreateCommunityPage = () => {
   const [logoImagePreview, setLogoImagePreview] = useState<string | null>(null);
   const [coverImage, setCoverImage] = useState<File | null>(null);
   const [coverImagePreview, setCoverImagePreview] = useState<string | null>(null);
+  
+  // Gallery images
+  const [galleryImages, setGalleryImages] = useState<File[]>([]);
+  const [galleryImagePreviews, setGalleryImagePreviews] = useState<string[]>([]);
+  const galleryInputRef = useRef<HTMLInputElement>(null);
   
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -259,6 +265,72 @@ const CreateCommunityPage = () => {
     }
   };
   
+  // Trigger gallery file input click
+  const triggerGalleryInput = () => {
+    if (galleryInputRef.current) {
+      galleryInputRef.current.click();
+    }
+  };
+  
+  // Handle gallery images upload
+  const handleGalleryImagesChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+    
+    const newImages: File[] = [];
+    const newPreviews: string[] = [];
+    
+    Array.from(files).forEach(file => {
+      if (!file.type.startsWith('image/')) {
+        setErrors({
+          ...errors,
+          galleryImages: 'Please upload only image files.'
+        });
+        return;
+      }
+      
+      // Size check (5MB max)
+      if (file.size > 5 * 1024 * 1024) {
+        setErrors({
+          ...errors,
+          galleryImages: 'Images must be less than 5MB.'
+        });
+        return;
+      }
+      
+      const reader = new FileReader();
+      reader.onload = () => {
+        newPreviews.push(reader.result as string);
+        if (newPreviews.length === Array.from(files).length) {
+          setGalleryImagePreviews([...galleryImagePreviews, ...newPreviews]);
+        }
+      };
+      reader.readAsDataURL(file);
+      newImages.push(file);
+    });
+    
+    setGalleryImages([...galleryImages, ...newImages]);
+    
+    // Clear error if it exists
+    if (errors.galleryImages) {
+      setErrors({
+        ...errors,
+        galleryImages: ''
+      });
+    }
+  };
+  
+  // Remove gallery image
+  const removeGalleryImage = (index: number) => {
+    const newImages = [...galleryImages];
+    newImages.splice(index, 1);
+    setGalleryImages(newImages);
+    
+    const newPreviews = [...galleryImagePreviews];
+    newPreviews.splice(index, 1);
+    setGalleryImagePreviews(newPreviews);
+  };
+  
   // Validate form
   const validateForm = (): boolean => {
     const newErrors: Record<string, string> = {};
@@ -321,7 +393,7 @@ const CreateCommunityPage = () => {
       // Filter out empty categories
       const validCategories = formData.categories.filter(c => c.trim().length > 0);
       
-      // Create community
+      // Create community with basic info
       const community = await communityService.createCommunity(trainer.id, {
         name: formData.name,
         description: formData.description,
@@ -330,6 +402,11 @@ const CreateCommunityPage = () => {
         isPrivate: formData.isPrivate,
         logoImage: '', // Will be updated after upload
         coverImage: '', // Will be updated after upload
+      });
+      
+      // Update community with extended info (aboutUs field)
+      await communityService.updateCommunity(community.id, {
+        aboutUs: formData.aboutUs,
       });
       
       // Upload images
@@ -341,6 +418,27 @@ const CreateCommunityPage = () => {
       if (coverImage) {
         const coverFile = new File([coverImage], coverImage.name, { type: coverImage.type });
         await communityService.uploadCommunityImage(community.id, 'cover', coverFile);
+      }
+      
+      // Upload gallery images
+      if (galleryImages.length > 0) {
+        // Create an array to store the gallery image URLs
+        const galleryImageUrls: string[] = [];
+        
+        // Upload each gallery image
+        for (let i = 0; i < galleryImages.length; i++) {
+          const galleryFile = new File([galleryImages[i]], galleryImages[i].name, { type: galleryImages[i].type });
+          // Use the new gallery image upload method
+          const imageUrl = await communityService.uploadGalleryImage(community.id, galleryFile);
+          if (imageUrl) {
+            galleryImageUrls.push(imageUrl);
+          }
+        }
+        
+        // Update community with gallery image references
+        await communityService.updateCommunity(community.id, {
+          galleryImages: galleryImageUrls
+        });
       }
       
       // Create subscription tiers
@@ -504,6 +602,85 @@ const CreateCommunityPage = () => {
                     </div>
                   </div>
                   
+                  {/* Gallery Images */}
+                  <div className="mb-6">
+                    <div className="flex justify-between items-center mb-2">
+                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                        Gallery Images
+                      </label>
+                      <span className="text-xs text-gray-500 dark:text-gray-400">
+                        Add up to 10 images to showcase your community
+                      </span>
+                    </div>
+                    
+                    <div className="border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg p-6 text-center relative">
+                      {galleryImagePreviews.length > 0 ? (
+                        <div>
+                          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4 mb-4">
+                            {galleryImagePreviews.map((preview, index) => (
+                              <div key={index} className="relative rounded-lg overflow-hidden h-32">
+                                <Image 
+                                  src={preview} 
+                                  alt={`Gallery image ${index + 1}`} 
+                                  fill
+                                  className="object-cover"
+                                />
+                                <button
+                                  type="button"
+                                  className="absolute top-2 right-2 bg-red-600 text-white p-1 rounded-full hover:bg-red-700 transition-colors"
+                                  onClick={() => removeGalleryImage(index)}
+                                >
+                                  <FiX />
+                                </button>
+                              </div>
+                            ))}
+                            
+                            {galleryImagePreviews.length < 10 && (
+                              <button
+                                type="button"
+                                onClick={triggerGalleryInput}
+                                className="border-2 border-dashed border-gray-300 dark:border-gray-600 h-32 rounded-lg flex items-center justify-center hover:border-gray-400 dark:hover:border-gray-500 transition-colors"
+                              >
+                                <FiPlus className="text-gray-500 dark:text-gray-400" size={24} />
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      ) : (
+                        <button
+                          type="button"
+                          className="mx-auto flex flex-col items-center justify-center py-4"
+                          onClick={triggerGalleryInput}
+                        >
+                          <div className="bg-gray-100 dark:bg-gray-700 p-3 rounded-full mb-3">
+                            <FiUpload className="text-gray-500 dark:text-gray-400" size={24} />
+                          </div>
+                          <span className="text-gray-700 dark:text-gray-300 font-medium">
+                            Upload Gallery Images
+                          </span>
+                          <span className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                            You can upload multiple images at once
+                          </span>
+                        </button>
+                      )}
+                      
+                      <input
+                        type="file"
+                        ref={galleryInputRef}
+                        className="hidden"
+                        accept="image/*"
+                        multiple
+                        onChange={handleGalleryImagesChange}
+                      />
+                    </div>
+                    
+                    {errors.galleryImages && (
+                      <p className="text-red-600 dark:text-red-400 text-xs mt-1">
+                        {errors.galleryImages}
+                      </p>
+                    )}
+                  </div>
+                  
                   {/* Name */}
                   <div className="mb-6">
                     <label htmlFor="name" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
@@ -558,6 +735,31 @@ const CreateCommunityPage = () => {
                     {errors.description && (
                       <p className="text-red-600 dark:text-red-400 text-xs mt-1">
                         {errors.description}
+                      </p>
+                    )}
+                  </div>
+                  
+                  {/* About Us */}
+                  <div className="mb-6">
+                    <label htmlFor="aboutUs" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                      About Us
+                    </label>
+                    <textarea
+                      id="aboutUs"
+                      name="aboutUs"
+                      value={formData.aboutUs}
+                      onChange={handleChange}
+                      rows={6}
+                      className={`w-full px-4 py-3 rounded-lg border ${
+                        errors.aboutUs 
+                          ? 'border-red-300 dark:border-red-700' 
+                          : 'border-gray-300 dark:border-gray-600'
+                      } bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500`}
+                      placeholder="Tell potential members about your community in detail. Share your team's background, values, and what makes your community unique."
+                    />
+                    {errors.aboutUs && (
+                      <p className="text-red-600 dark:text-red-400 text-xs mt-1">
+                        {errors.aboutUs}
                       </p>
                     )}
                   </div>

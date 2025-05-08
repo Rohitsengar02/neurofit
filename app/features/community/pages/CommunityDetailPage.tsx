@@ -5,13 +5,13 @@ import { useParams, useRouter } from 'next/navigation';
 import { motion } from 'framer-motion';
 import Image from 'next/image';
 import { 
-  FiUsers, FiCalendar, FiClock, FiArrowLeft, 
-  FiChevronRight, FiLock, FiPlus, FiFilter,
-  FiEdit, FiTrash2, FiX, FiVideo, FiTag,
-  FiAlertCircle, FiRefreshCw
+  FiCalendar, FiUsers, FiClock, FiChevronDown, FiCreditCard, FiTag, FiLock, FiVideo, FiArrowLeft, 
+  FiPlus, FiX, FiInfo, FiCheck, FiStar, FiClock as FiClockAlt,
+  FiAlertCircle, FiRefreshCw, FiEdit, FiEdit2, FiUpload, FiImage, FiMaximize2, FiActivity, FiChevronRight
 } from 'react-icons/fi';
 import { useCommunity } from '../context/CommunityContext';
 import { useAuth } from '../../../context/AuthContext';
+import { CommunityWorkout } from '../utils/types';
 import * as communityService from '../services/communityService';
 import * as contentService from '../services/contentService';
 import * as subscriptionService from '../services/subscriptionService';
@@ -64,6 +64,8 @@ const CommunityDetailPage = () => {
   const isTrainer = user && currentCommunity && trainerProfile && user.uid === currentCommunity.trainerId;
   
   const [isLoading, setIsLoading] = useState(true);
+  const [showLeaveConfirmation, setShowLeaveConfirmation] = useState(false);
+  const [isLeaving, setIsLeaving] = useState(false);
   const [activeTab, setActiveTab] = useState('overview');
   const [selectedTier, setSelectedTier] = useState<string | null>(null);
   const [isJoining, setIsJoining] = useState(false);
@@ -193,26 +195,42 @@ const CommunityDetailPage = () => {
   }, [currentCommunity]);
 
   // Handle joining community
-  const handleJoinCommunity = async () => {
+  const handleJoinCommunity = () => {
     if (!user || !currentCommunity || !selectedTier) return;
     
-    setIsJoining(true);
+    // Redirect to billing page with community and tier info
+    router.push(`/community/billing?communityId=${currentCommunity.id}&tierId=${selectedTier}`);
+  };
+
+  // Handle leaving community
+  const handleLeaveCommunity = async () => {
+    if (!user || !currentCommunity) return;
+    
+    setIsLeaving(true);
     try {
-      await subscriptionService.createMembership(
-        user.uid,
-        currentCommunity.id,
-        selectedTier,
-        1, // 1 month duration
-        appliedCoupon?.code // Pass coupon code if available
-      );
+      // Delete user's membership from this community
+      // Assuming cancelMembership only takes the membership ID
+      const membership = getUserMembershipForCurrentCommunity();
+      if (membership?.id) {
+        await subscriptionService.cancelMembership(membership.id);
+      } else {
+        throw new Error('Membership not found');
+      }
       
-      // Refresh membership status
-      window.location.reload();
+      // Delete user's participation in sessions
+      // This would need to be implemented in contentService
+      // await contentService.removeUserFromSessions(user.uid, currentCommunity.id);
+      
+      // Reset UI state
+      setShowLeaveConfirmation(false);
+      
+      // Refresh the page or redirect to communities list
+      router.push('/community');
     } catch (error) {
-      console.error('Error joining community:', error);
-      alert('Failed to join community. Please try again.');
+      console.error('Error leaving community:', error);
+      alert('Failed to leave community. Please try again.');
     } finally {
-      setIsJoining(false);
+      setIsLeaving(false);
     }
   };
 
@@ -411,8 +429,16 @@ const CommunityDetailPage = () => {
               </div>
               
               {isMember && (
-                <div className="bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-300 px-4 py-2 rounded-full text-sm font-medium">
-                  Member
+                <div className="flex items-center gap-3">
+                  <div className="bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-300 px-4 py-2 rounded-full text-sm font-medium">
+                    Member
+                  </div>
+                  <button
+                    onClick={() => setShowLeaveConfirmation(true)}
+                    className="text-red-600 dark:text-red-400 hover:text-red-800 dark:hover:text-red-300 text-sm font-medium"
+                  >
+                    Leave Community
+                  </button>
                 </div>
               )}
             </div>
@@ -491,12 +517,141 @@ const CommunityDetailPage = () => {
             >
               Community Feed
             </button>
+            <button
+              className={`px-4 py-4 font-medium text-sm border-b-2 whitespace-nowrap ${
+                activeTab === 'about'
+                  ? 'border-blue-600 text-blue-600 dark:text-blue-400'
+                  : 'border-transparent text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
+              }`}
+              onClick={() => setActiveTab('about')}
+            >
+              About
+            </button>
+            <button
+              className={`px-4 py-4 font-medium text-sm border-b-2 whitespace-nowrap ${
+                activeTab === 'gallery'
+                  ? 'border-blue-600 text-blue-600 dark:text-blue-400'
+                  : 'border-transparent text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
+              }`}
+              onClick={() => setActiveTab('gallery')}
+            >
+              Gallery
+            </button>
+            <button
+              className={`px-4 py-4 font-medium text-sm border-b-2 whitespace-nowrap ${
+                activeTab === 'workouts'
+                  ? 'border-blue-600 text-blue-600 dark:text-blue-400'
+                  : 'border-transparent text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
+              }`}
+              onClick={() => setActiveTab('workouts')}
+            >
+              Workouts
+            </button>
           </div>
         </div>
       </div>
       
       {/* Main Content */}
       <div className="container mx-auto px-4 py-8">
+        {/* Workouts Tab */}
+        {activeTab === 'workouts' && (
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+            <div className="lg:col-span-3 space-y-6">
+              <div className="bg-white dark:bg-gray-800 rounded-xl shadow-md p-6">
+                <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-4">
+                  Community Workouts
+                </h3>
+                
+                {(!currentCommunity.communityWorkouts || currentCommunity.communityWorkouts.length === 0) ? (
+                  <div className="text-center py-6 bg-gray-50 dark:bg-gray-700 rounded-lg">
+                    <p className="text-gray-600 dark:text-gray-400 mb-4">
+                      No workouts available for this community yet.
+                    </p>
+                    {isTrainer && (
+                      <button
+                        className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                        onClick={() => router.push('/community/trainer/dashboard')}
+                      >
+                        <FiPlus className="-ml-1 mr-2 h-5 w-5" />
+                        Add Workouts
+                      </button>
+                    )}
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+                    {currentCommunity.communityWorkouts.map((workout: CommunityWorkout) => (
+                      <div 
+                        key={workout.id}
+                        className="group overflow-hidden rounded-xl shadow-md hover:shadow-xl transition-shadow duration-300 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 cursor-pointer"
+                        onClick={() => router.push(`/workout/${workout.workoutId}`)}
+                      >
+                        <div className="relative">
+                          <div className="h-48 w-full overflow-hidden">
+                            {workout.image ? (
+                              <img 
+                                src={workout.image} 
+                                alt={workout.title}
+                                className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                              />
+                            ) : (
+                              <div className="w-full h-full bg-gradient-to-r from-blue-400 to-indigo-600 flex items-center justify-center">
+                                <FiActivity className="w-16 h-16 text-white opacity-75" />
+                              </div>
+                            )}
+                          </div>
+                          
+                          <div className="absolute top-0 right-0 p-3">
+                            <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium capitalize ${
+                              workout.level === 'beginner' ? 'bg-green-100 text-green-800' :
+                              workout.level === 'intermediate' ? 'bg-yellow-100 text-yellow-800' :
+                              'bg-red-100 text-red-800'
+                            }`}>
+                              {workout.level}
+                            </span>
+                          </div>
+                        </div>
+                        
+                        <div className="p-5">
+                          <h4 className="text-lg font-bold text-gray-900 dark:text-white mb-2 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">
+                            {workout.title}
+                          </h4>
+                          
+                          <p className="text-gray-500 dark:text-gray-400 text-sm mb-4 line-clamp-2">
+                            {workout.description}
+                          </p>
+                          
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center space-x-3 text-sm text-gray-500 dark:text-gray-400">
+                              <div className="flex items-center">
+                                <FiCalendar className="mr-1" />
+                                <span>{workout.days} days</span>
+                              </div>
+                              <div className="flex items-center">
+                                <FiActivity className="mr-1" />
+                                <span>{workout.caloriesPerDay} cal</span>
+                              </div>
+                            </div>
+                            
+                            <button
+                              className="flex items-center justify-center w-7 h-7 rounded-full bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 group-hover:bg-blue-100 dark:group-hover:bg-blue-800/50 transition-colors"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                router.push(`/workout/${workout.workoutId}`);
+                              }}
+                            >
+                              <FiChevronRight className="w-4 h-4" />
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Overview Tab */}
         {activeTab === 'overview' && (
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
@@ -552,153 +707,9 @@ const CommunityDetailPage = () => {
                 </div>
               </div>
               
-              {/* Current Live Sessions */}
-              <div className="bg-gradient-to-r from-red-600 to-red-700 rounded-xl shadow-md p-6 mb-6">
-                <div className="flex justify-between items-center mb-4">
-                  <h2 className="text-2xl font-bold text-white">
-                    <span className="inline-flex items-center">
-                      <span className="relative flex h-3 w-3 mr-2">
-                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-white opacity-75"></span>
-                        <span className="relative inline-flex rounded-full h-3 w-3 bg-white"></span>
-                      </span>
-                      Live Now
-                    </span>
-                  </h2>
-                  <div className="flex items-center space-x-2">
-                    <button 
-                      className="text-white text-sm font-medium bg-white/20 hover:bg-white/30 px-3 py-1 rounded-full transition-colors flex items-center"
-                      onClick={refreshUpcomingSessions}
-                    >
-                      <FiRefreshCw className="mr-1" /> Refresh
-                    </button>
-                    <button 
-                      className="text-white text-sm font-medium bg-white/20 hover:bg-white/30 px-3 py-1 rounded-full transition-colors"
-                      onClick={() => setActiveTab('sessions')}
-                    >
-                      View All
-                    </button>
-                  </div>
-                </div>
-                
-                {isLoadingUpcomingSessions ? (
-                  <div className="flex justify-center py-10">
-                    <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-white"></div>
-                  </div>
-                ) : (
-                  <div className="space-y-4">
-                    {upcomingSessions
-                      .filter(session => session.status === 'live')
-                      .map((session) => (
-                        <div 
-                          key={session.id}
-                          className="bg-white/10 backdrop-blur-sm rounded-lg p-4 text-white hover:bg-white/20 transition-colors"
-                        >
-                          <div className="flex items-center mb-2">
-                            <div className="relative flex h-3 w-3 mr-2">
-                              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-white opacity-75"></span>
-                              <span className="relative inline-flex rounded-full h-3 w-3 bg-white"></span>
-                            </div>
-                            <h3 className="text-lg font-bold">{session.title}</h3>
-                          </div>
-                          <p className="text-white/80 text-sm mb-3">{session.description}</p>
-                          <div className="flex justify-between items-center mb-2">
-                            <div className="flex items-center">
-                              <FiUsers className="mr-1" />
-                              <span className="text-sm">{session.participantCount || 0} joined</span>
-                            </div>
-                            <div className="flex items-center text-white/80 text-sm">
-                              <FiClock className="mr-1" />
-                              <span>{getRemainingSessionTime(session)}</span>
-                            </div>
-                          </div>
-                          <button 
-                            className="w-full bg-white text-red-600 font-medium py-2 px-4 rounded-lg text-sm hover:bg-red-50 transition-colors flex items-center justify-center"
-                            onClick={() => router.push(`/community/${currentCommunity.id}/sessions/${session.id}`)}
-                          >
-                            <FiVideo className="mr-1" /> Join Live Session
-                          </button>
-                        </div>
-                      ))
-                    }
-                    
-                    {upcomingSessions.filter(session => session.status === 'live').length === 0 && (
-                      <div className="text-center py-6 bg-white/10 rounded-lg p-4">
-                        <p className="text-white mb-2">No live sessions right now.</p>
-                        {upcomingSessions.filter(session => session.status === 'scheduled' && isSessionUpcoming(session)).length > 0 ? (
-                          <div>
-                            <p className="text-white/80 text-sm mb-4">Next session starts soon:</p>
-                            {upcomingSessions
-                              .filter(session => session.status === 'scheduled' && isSessionUpcoming(session))
-                              .sort((a, b) => a.scheduledFor.seconds - b.scheduledFor.seconds)
-                              .slice(0, 1)
-                              .map(session => (
-                                <div key={session.id} className="bg-white/10 p-3 rounded-lg mb-2">
-                                  <p className="font-medium text-white">{session.title}</p>
-                                  <div className="flex items-center justify-center mt-1 text-white/80 text-sm">
-                                    <FiCalendar className="mr-1" />
-                                    <span>{formatDate(session.scheduledFor)}</span>
-                                    <span className="mx-2">•</span>
-                                    <FiClock className="mr-1" />
-                                    <span>{formatTime(session.scheduledFor)}</span>
-                                  </div>
-                                  <div className="mt-2 text-white/80 text-sm flex items-center justify-center">
-                                    <FiAlertCircle className="mr-1" />
-                                    <span>{getTimeUntilSession(session)}</span>
-                                  </div>
-                                </div>
-                              ))
-                            }
-                            <button
-                              className="mt-2 text-white text-sm underline"
-                              onClick={() => setActiveTab('sessions')}
-                            >
-                              View all scheduled sessions
-                            </button>
-                          </div>
-                        ) : (
-                          <p className="text-white/80 text-sm">No upcoming sessions scheduled. Check back later.</p>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                )}
-              </div>
+            
               
-              {/* Scheduled Live Sessions */}
-              <div className="bg-white dark:bg-gray-800 rounded-xl shadow-md p-6">
-                <div className="flex justify-between items-center mb-4">
-                  <h2 className="text-2xl font-bold text-gray-900 dark:text-white">
-                    Scheduled Live Sessions
-                  </h2>
-                  <button 
-                    className="text-blue-600 dark:text-blue-400 text-sm font-medium"
-                    onClick={() => setActiveTab('sessions')}
-                  >
-                    View All
-                  </button>
-                </div>
-                
-                {isLoadingUpcomingSessions ? (
-                  <div className="flex justify-center py-10">
-                    <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-blue-600"></div>
-                  </div>
-                ) : upcomingSessions.length === 0 ? (
-                  <div className="text-center py-10">
-                    <p className="text-gray-500 dark:text-gray-400">No upcoming sessions scheduled yet.</p>
-                  </div>
-                ) : (
-                  <div className="space-y-4">
-                    {upcomingSessions.slice(0, 3).map((session) => (
-                      <SessionCard 
-                        key={session.id} 
-                        session={session} 
-                        isMember={isMember}
-                        onClick={() => router.push(`/community/${currentCommunity.id}/sessions/${session.id}`)}
-                      />
-                    ))}
-                  </div>
-                )}
-              </div>
+             
             </div>
             
             {/* Sidebar */}
@@ -858,8 +869,177 @@ const CommunityDetailPage = () => {
           </div>
         )}
         
+        {/* About Us tab */}
+        {activeTab === 'about' && (
+          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-md p-8">
+            <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-6 text-center">
+              About {currentCommunity.name}
+            </h2>
+            
+            {currentCommunity.aboutUs ? (
+              <div className="prose dark:prose-invert max-w-none">
+                <div className="whitespace-pre-wrap">
+                  {currentCommunity.aboutUs}
+                </div>
+              </div>
+            ) : (
+              <div className="text-center py-12">
+                <p className="text-gray-500 dark:text-gray-400 mb-4">
+                  No detailed information has been provided about this community yet.
+                </p>
+                {isTrainer && (
+                  <button
+                    className="inline-flex items-center text-blue-600 dark:text-blue-400 font-medium"
+                    onClick={() => router.push(`/community/${currentCommunity.id}/edit`)}
+                  >
+                    <FiEdit2 className="mr-2" /> Add community information
+                  </button>
+                )}
+              </div>
+            )}
+            
+            {/* Trainer Profile Section */}
+            <div className="mt-12 pt-8 border-t border-gray-200 dark:border-gray-700">
+              <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-6">
+                Meet Your Trainer
+              </h3>
+              
+              {isLoadingTrainer ? (
+                <div className="flex justify-center py-6">
+                  <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-blue-600"></div>
+                </div>
+              ) : trainerProfile ? (
+                <div className="flex flex-col md:flex-row items-start gap-8">
+                  <div className="w-full md:w-1/3 flex justify-center">
+                    {trainerProfile.profileImage ? (
+                      <div className="relative w-48 h-48 rounded-lg overflow-hidden">
+                        <Image 
+                          src={trainerProfile.profileImage} 
+                          alt={trainerProfile.name} 
+                          fill
+                          className="object-cover"
+                        />
+                      </div>
+                    ) : (
+                      <div className="w-48 h-48 rounded-lg bg-blue-100 dark:bg-blue-900 text-blue-600 dark:text-blue-400 flex items-center justify-center text-6xl font-bold">
+                        {trainerProfile.name.charAt(0).toUpperCase()}
+                      </div>
+                    )}
+                  </div>
+                  
+                  <div className="flex-1">
+                    <h4 className="text-xl font-bold text-gray-900 dark:text-white mb-2">
+                      {trainerProfile.name}
+                    </h4>
+                    
+                    {trainerProfile.specialties && trainerProfile.specialties.length > 0 && (
+                      <div className="mb-4 flex flex-wrap gap-2">
+                        {trainerProfile.specialties.map((specialty, index) => (
+                          <span 
+                            key={index} 
+                            className="bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300 text-xs px-3 py-1 rounded-full"
+                          >
+                            {specialty}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                    
+                    <div className="prose dark:prose-invert max-w-none">
+                      {trainerProfile.bio ? (
+                        <p className="whitespace-pre-wrap">{trainerProfile.bio}</p>
+                      ) : (
+                        <p className="text-gray-500 dark:text-gray-400 italic">
+                          No trainer bio available
+                        </p>
+                      )}
+                    </div>
+                    
+                    {trainerProfile.certifications && trainerProfile.certifications.length > 0 && (
+                      <div className="mt-6">
+                        <h5 className="font-medium text-gray-900 dark:text-white mb-2">
+                          Certifications
+                        </h5>
+                        <ul className="list-disc list-inside text-gray-700 dark:text-gray-300 space-y-1">
+                          {trainerProfile.certifications.map((cert, index) => (
+                            <li key={index}>{cert}</li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ) : (
+                <p className="text-gray-500 dark:text-gray-400 text-center py-6">
+                  Trainer information not available
+                </p>
+              )}
+            </div>
+          </div>
+        )}
+        
+        {/* Gallery tab */}
+        {activeTab === 'gallery' && (
+          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-md p-8">
+            <div className="flex justify-between items-center mb-6">
+              <h2 className="text-2xl font-bold text-gray-900 dark:text-white">
+                Community Gallery
+              </h2>
+              
+              {isTrainer && (
+                <button
+                  className="inline-flex items-center text-blue-600 dark:text-blue-400 font-medium"
+                  onClick={() => router.push(`/community/${currentCommunity.id}/edit`)}
+                >
+                  <FiUpload className="mr-2" /> Add Photos
+                </button>
+              )}
+            </div>
+            
+            {currentCommunity.galleryImages && currentCommunity.galleryImages.length > 0 ? (
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                {currentCommunity.galleryImages.map((image, index) => (
+                  <div key={index} className="group relative rounded-lg overflow-hidden aspect-square">
+                    <Image 
+                      src={image} 
+                      alt={`Gallery image ${index + 1}`} 
+                      fill
+                      className="object-cover transition-transform duration-300 group-hover:scale-105"
+                    />
+                    <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-center justify-center">
+                      <button 
+                        className="bg-white/20 backdrop-blur-sm text-white p-2 rounded-full hover:bg-white/30 transition-colors"
+                        onClick={() => window.open(image, '_blank')}
+                      >
+                        <FiMaximize2 size={20} />
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="text-center py-16">
+                <div className="mb-4">
+                  <FiImage className="mx-auto h-16 w-16 text-gray-400 dark:text-gray-600" />
+                </div>
+                <p className="text-gray-500 dark:text-gray-400 mb-4">
+                  No gallery images have been added yet.
+                </p>
+                {isTrainer && (
+                  <button
+                    className="inline-flex items-center text-blue-600 dark:text-blue-400 font-medium"
+                    onClick={() => router.push(`/community/${currentCommunity.id}/edit`)}
+                  >
+                    <FiUpload className="mr-2" /> Upload Images
+                  </button>
+                )}
+              </div>
+            )}
+          </div>
+        )}
+        
         {/* Other tabs would be implemented here */}
-        {activeTab !== 'overview' && (
+        {activeTab !== 'overview' && activeTab !== 'about' && activeTab !== 'gallery' && (
           <div className="bg-white dark:bg-gray-800 rounded-xl shadow-md p-8">
             <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-4 text-center">
               {activeTab === 'sessions' && 'Live Sessions'}
@@ -1041,6 +1221,46 @@ const CommunityDetailPage = () => {
           </div>
         )}
       </div>
+      
+      {/* Leave Community Confirmation Dialog */}
+      {showLeaveConfirmation && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-6 max-w-md w-full">
+            <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-4">
+              Leave {currentCommunity.name}?
+            </h3>
+            <p className="text-gray-600 dark:text-gray-300 mb-6">
+              Are you sure you want to leave this community? This will cancel your membership and remove all your data from this community. This action cannot be undone.
+            </p>
+            <div className="flex flex-col sm:flex-row gap-3 justify-end">
+              <button
+                onClick={() => setShowLeaveConfirmation(false)}
+                className="border border-gray-300 dark:border-gray-600 bg-white dark:bg-transparent text-gray-700 dark:text-gray-300 px-4 py-2 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+                disabled={isLeaving}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleLeaveCommunity}
+                className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg transition-colors flex items-center justify-center disabled:opacity-70"
+                disabled={isLeaving}
+              >
+                {isLeaving ? (
+                  <>
+                    <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    Processing...
+                  </>
+                ) : (
+                  'Leave Community'
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

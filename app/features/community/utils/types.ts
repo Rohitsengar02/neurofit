@@ -9,6 +9,7 @@ export interface Trainer {
   experience: string;
   profileImage: string;
   coverImage?: string;
+  certifications?: string[];
   socialLinks?: {
     instagram?: string;
     twitter?: string;
@@ -26,8 +27,11 @@ export interface Community {
   trainerId: string;
   name: string;
   description: string;
+  aboutUs?: string;
   coverImage?: string;
   logoImage?: string;
+  galleryImages?: string[];
+  communityWorkouts?: CommunityWorkout[];
   memberCount: number;
   categories: string[];
   tags: string[];
@@ -35,6 +39,18 @@ export interface Community {
   isPrivate: boolean;
   createdAt: any; // Firestore timestamp
   updatedAt: any; // Firestore timestamp
+}
+
+export interface CommunityWorkout {
+  id: string;
+  workoutId: string;
+  title: string;
+  description: string;
+  level: string;
+  image: string;
+  days: number;
+  caloriesPerDay: number;
+  addedAt: any; // Firestore timestamp
 }
 
 export interface SubscriptionTier {
