@@ -199,12 +199,36 @@ export default function AuthForm({ onSuccess }: AuthFormProps) {
   };
 
   const handleGoogleSignIn = async () => {
+    setLoading(true);
     try {
       const provider = new GoogleAuthProvider();
-      await signInWithPopup(auth, provider);
+      const userCredential = await signInWithPopup(auth, provider);
+      console.log('Google sign in successful:', userCredential.user.uid);
+      
+      // Check if user data exists
+      const userData = await getUserData();
+      console.log('User data after Google sign in:', userData);
+      
+      if (userData) {
+        console.log('Existing Google user, redirecting to dashboard');
+      } else {
+        console.log('New Google user, saving initial data');
+        // Save initial data for new users
+        await saveUserData(initialUserData);
+      }
+      
+      // Call onSuccess callback to handle redirect
+      onSuccess?.();
+      
+      // If onSuccess is not provided, manually redirect
+      if (!onSuccess) {
+        router.push('/pages/home');
+      }
     } catch (error: any) {
       console.error('Google sign in error:', error);
       setError('An error occurred during Google sign in');
+    } finally {
+      setLoading(false);
     }
   };
 
