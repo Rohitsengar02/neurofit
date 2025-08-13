@@ -82,10 +82,6 @@ export default function AuthForm({ onSuccess }: AuthFormProps) {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
-  const [showOtpVerification, setShowOtpVerification] = useState(false);
-  const [otp, setOtp] = useState('');
-  const [tempEmail, setTempEmail] = useState('');
-  const [tempPassword, setTempPassword] = useState('');
   const router = useRouter();
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -113,53 +109,14 @@ export default function AuthForm({ onSuccess }: AuthFormProps) {
           onSuccess?.();
         }
       } else {
-        // For sign up, we need OTP verification
-        if (!showOtpVerification) {
-          // First step: Store credentials temporarily and send OTP
-          setTempEmail(email);
-          setTempPassword(password);
-          
-          // Send OTP
-          const response = await fetch('/api/send-otp', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({ email }),
-          });
-          
-          const data = await response.json();
-          
-          if (data.success) {
-            setShowOtpVerification(true);
-          } else {
-            throw new Error(data.message || 'Failed to send verification code');
-          }
-        } else {
-          // Second step: Verify OTP and create account
-          const verifyResponse = await fetch('/api/verify-otp', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({ email: tempEmail, otp }),
-          });
-          
-          const verifyData = await verifyResponse.json();
-          
-          if (verifyData.success) {
-            // OTP verified, proceed with account creation
-            const userCredential = await createUserWithEmailAndPassword(auth, tempEmail, tempPassword);
-            console.log('Signup successful:', userCredential.user.uid);
-            
-            // Create initial user data in Firestore
-            await saveUserData(initialUserData);
-            console.log('Initial user data saved');
-            onSuccess?.();
-          } else {
-            throw new Error(verifyData.message || 'Invalid verification code');
-          }
-        }
+        // For sign up, we need to register the user directly
+        const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+        console.log('Signup successful:', userCredential.user.uid);
+        
+        // Create initial user data in Firestore
+        await saveUserData(initialUserData);
+        console.log('Initial user data saved');
+        onSuccess?.();
       }
     } catch (error: any) {
       console.error('Auth error:', error);
@@ -278,7 +235,7 @@ export default function AuthForm({ onSuccess }: AuthFormProps) {
             animate={{ opacity: 1 }}
             transition={{ duration: 0.5, delay: 0.2 }}
           >
-            {!showOtpVerification ? (
+            {!isLogin && (
               <>
                 <motion.div
                   initial={{ opacity: 0, x: -20 }}
@@ -325,42 +282,6 @@ export default function AuthForm({ onSuccess }: AuthFormProps) {
                   </div>
                 </motion.div>
               </>
-            ) : (
-              <motion.div
-                initial={{ opacity: 0, scale: 0.95 }}
-                animate={{ opacity: 1, scale: 1 }}
-                transition={{ duration: 0.3 }}
-                className="space-y-4"
-              >
-                <div className="text-center">
-                  <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-blue-500/20 mb-4">
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8 text-blue-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-                    </svg>
-                  </div>
-                  <h3 className="text-xl font-medium text-white mb-1">Verification Required</h3>
-                  <p className="text-blue-200/80 text-sm mb-4">We've sent a verification code to {tempEmail}</p>
-                </div>
-                
-                <div className="space-y-2">
-                  <label htmlFor="otp" className="block text-sm font-medium text-white">
-                    Verification Code
-                  </label>
-                  <input
-                    type="text"
-                    id="otp"
-                    value={otp}
-                    onChange={(e) => setOtp(e.target.value)}
-                    className="block w-full px-4 py-3 rounded-xl bg-white/10 border border-white/20 text-white text-center tracking-widest font-medium placeholder-blue-200/60 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-transparent transition-all duration-200"
-                    placeholder="000000"
-                    required
-                    maxLength={6}
-                    autoComplete="one-time-code"
-                  />
-                </div>
-                
-                <div className="text-center">
-                  <button 
                     type="button" 
                     onClick={() => {
                       setShowOtpVerification(false);
