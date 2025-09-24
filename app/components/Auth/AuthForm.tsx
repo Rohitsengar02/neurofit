@@ -235,65 +235,50 @@ export default function AuthForm({ onSuccess }: AuthFormProps) {
             animate={{ opacity: 1 }}
             transition={{ duration: 0.5, delay: 0.2 }}
           >
-            {!isLogin && (
-              <>
-                <motion.div
-                  initial={{ opacity: 0, x: -20 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  transition={{ delay: 0.3 }}
-                  className="space-y-2"
-                >
-                  <label htmlFor="email" className="block text-sm font-medium text-white">
-                    Email
-                  </label>
-                  <div className="relative">
-                    <input
-                      type="email"
-                      id="email"
-                      value={email}
-                      onChange={(e) => setEmail(e.target.value)}
-                      className="block w-full px-4 py-3 rounded-xl bg-white/10 border border-white/20 text-white placeholder-blue-200/60 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-transparent transition-all duration-200"
-                      placeholder="your@email.com"
-                      required
-                    />
-                  </div>
-                </motion.div>
+            <motion.div
+              initial={{ opacity: 0, x: -20 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ delay: 0.3 }}
+              className="space-y-2"
+            >
+              <label htmlFor="email" className="block text-sm font-medium text-white">
+                Email
+              </label>
+              <div className="relative">
+                <input
+                  type="email"
+                  id="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  className="block w-full px-4 py-3 rounded-xl bg-white/10 border border-white/20 text-white placeholder-blue-200/60 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-transparent transition-all duration-200"
+                  placeholder="your@email.com"
+                  required
+                />
+              </div>
+            </motion.div>
 
-                <motion.div
-                  initial={{ opacity: 0, x: -20 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  transition={{ delay: 0.4 }}
-                  className="space-y-2"
-                >
-                  <label htmlFor="password" className="block text-sm font-medium text-white">
-                    Password
-                  </label>
-                  <div className="relative">
-                    <input
-                      type="password"
-                      id="password"
-                      value={password}
-                      onChange={(e) => setPassword(e.target.value)}
-                      className="block w-full px-4 py-3 rounded-xl bg-white/10 border border-white/20 text-white placeholder-blue-200/60 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-transparent transition-all duration-200"
-                      placeholder="••••••••"
-                      required
-                      minLength={6}
-                    />
-                  </div>
-                </motion.div>
-              </>
-                    type="button" 
-                    onClick={() => {
-                      setShowOtpVerification(false);
-                      setOtp('');
-                    }}
-                    className="text-sm text-blue-300 hover:text-white transition-colors"
-                  >
-                    Back to sign up
-                  </button>
-                </div>
-              </motion.div>
-            )}
+            <motion.div
+              initial={{ opacity: 0, x: -20 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ delay: 0.4 }}
+              className="space-y-2"
+            >
+              <label htmlFor="password" className="block text-sm font-medium text-white">
+                Password
+              </label>
+              <div className="relative">
+                <input
+                  type="password"
+                  id="password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  className="block w-full px-4 py-3 rounded-xl bg-white/10 border border-white/20 text-white placeholder-blue-200/60 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-transparent transition-all duration-200"
+                  placeholder="••••••••"
+                  required
+                  minLength={6}
+                />
+              </div>
+            </motion.div>
 
             {error && (
               <motion.div 
@@ -322,13 +307,11 @@ export default function AuthForm({ onSuccess }: AuthFormProps) {
                   Processing...
                 </span>
               ) : (
-                isLogin ? 'Sign In' : (showOtpVerification ? 'Verify Code' : 'Continue')
+                isLogin ? 'Sign In' : 'Sign Up'
               )}
             </motion.button>
 
-            {!showOtpVerification && (
-              <>
-                <div className="relative my-3">
+            <div className="relative my-3">
                   <div className="absolute inset-0 flex items-center">
                     <div className="w-full border-t border-white/20"></div>
                   </div>
@@ -370,25 +353,21 @@ export default function AuthForm({ onSuccess }: AuthFormProps) {
                   </svg>
                   Continue with Google
                 </motion.button>
-              </>
-            )}
 
-            {!showOtpVerification && (
-              <motion.div 
-                className="text-center mt-2"
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                transition={{ delay: 0.6 }}
+            <motion.div 
+              className="text-center mt-2"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ delay: 0.6 }}
+            >
+              <button
+                type="button"
+                onClick={() => setIsLogin(!isLogin)}
+                className="text-sm text-blue-200 hover:text-white transition-colors"
               >
-                <button
-                  type="button"
-                  onClick={() => setIsLogin(!isLogin)}
-                  className="text-sm text-blue-200 hover:text-white transition-colors"
-                >
-                  {isLogin ? "Don't have an account? Sign Up" : "Already have an account? Sign In"}
-                </button>
-              </motion.div>
-            )}
+                {isLogin ? "Don't have an account? Sign Up" : "Already have an account? Sign In"}
+              </button>
+            </motion.div>
           </motion.form>
         </div>
       </motion.div>
