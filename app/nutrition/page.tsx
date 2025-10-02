@@ -3,12 +3,18 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useRouter } from 'next/navigation';
-import { FaSearch, FaAppleAlt, FaCarrot, FaBreadSlice, FaDrumstickBite, FaFish, FaEgg, FaGlassMartini, FaPizzaSlice, FaList } from 'react-icons/fa';
+import { FaSearch, FaAppleAlt, FaCarrot, FaBreadSlice, FaDrumstickBite, FaFish, FaEgg, FaGlassMartini, FaPizzaSlice, FaList, FaCamera } from 'react-icons/fa';
 import { GiMilkCarton, GiFruitBowl, GiChocolateBar } from 'react-icons/gi';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import { useAuth } from '../context/AuthContext';
 import { db } from '../firebase/config';
 import { collection, doc, getDoc, Timestamp, setDoc } from 'firebase/firestore';
+import dynamic from 'next/dynamic';
+
+// Dynamically import the FoodScanner component with no SSR
+const FoodScanner = dynamic(() => import('@/components/FoodScanner'), {
+  ssr: false,
+});
 
 interface NutritionInfo {
   name: string;
@@ -99,6 +105,7 @@ export default function NutritionPage() {
   const [todaysMeals, setTodaysMeals] = useState<DailyMeals | null>(null);
   const [loadingMeals, setLoadingMeals] = useState(false);
   const [isDeleting, setIsDeleting] = useState<string | null>(null);
+  const [showScanner, setShowScanner] = useState(false);
 
   const debouncedSearch = useDebounce(searchQuery, 500);
 
@@ -187,6 +194,20 @@ export default function NutritionPage() {
     }
   };
 
+  const handleScannedFood = (food: any) => {
+    try {
+      const foodItem = {
+        name: food.name,
+        description: food.description || `Nutritional information for ${food.name}`,
+        ...getIconForFood(food.name)
+      };
+      handleFoodSelect(foodItem);
+    } catch (error) {
+      console.error('Error processing scanned food:', error);
+      setErrorMessage('Error processing the scanned food. Please try again.');
+    }
+  };
+
   const handleDeleteMeal = async (timestamp: string) => {
     if (!user) return;
     
@@ -222,8 +243,8 @@ export default function NutritionPage() {
   return (
     <div className="min-h-screen bg-gradient-to-b from-gray-50 to-gray-100 p-4 md:p-8">
       <div className="max-w-4xl mx-auto">
-        <div className="relative mb-8">
-          <div className="relative">
+        <div className="flex justify-between items-center mb-8 gap-4">
+          <div className="relative flex-1">
             <input
               type="text"
               value={searchQuery}
@@ -233,6 +254,13 @@ export default function NutritionPage() {
             />
             <FaSearch className="absolute left-5 top-1/2 transform -translate-y-1/2 text-gray-400 text-xl" />
           </div>
+          <button
+            onClick={() => setShowScanner(true)}
+            className="flex items-center justify-center bg-green-500 hover:bg-green-600 text-white px-6 py-4 rounded-2xl shadow-lg transition-all duration-300 whitespace-nowrap"
+          >
+            <FaCamera className="mr-2" />
+            <span className="hidden sm:inline">Scan Food</span>
+          </button>
         </div>
 
         <AnimatePresence>
@@ -292,53 +320,65 @@ export default function NutritionPage() {
         )}
 
         {!searchQuery && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            className="mt-8"
-          >
-            <h2 className="text-xl font-semibold text-gray-800 mb-4">Popular Foods</h2>
-            <div className="grid gap-4 md:grid-cols-2">
-              {defaultFoods.map((food, index) => (
-                <motion.div
-                  key={index}
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: index * 0.1 }}
-                  onClick={() => handleFoodSelect({ name: food.name, description: `Common ${food.name.toLowerCase()}` })}
-                  className={`bg-white p-6 rounded-2xl shadow-md hover:shadow-xl cursor-pointer transform hover:-translate-y-1 transition-all duration-300 border border-gray-100`}
-                >
-                  <div className="flex items-center space-x-4">
-                    <div className={`p-3 rounded-full bg-gradient-to-r ${food.color}`}>
-                      {React.createElement(food.icon, { className: "text-white text-xl" })}
+          <div>
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              className="mt-8"
+            >
+              <h2 className="text-xl font-semibold text-gray-800 mb-4">Popular Foods</h2>
+              <div className="grid gap-4 md:grid-cols-2">
+                {defaultFoods.map((food, index) => (
+                  <motion.div
+                    key={index}
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: index * 0.1 }}
+                    onClick={() => handleFoodSelect({ name: food.name, description: `Common ${food.name.toLowerCase()}` })}
+                    className={`bg-white p-6 rounded-2xl shadow-md hover:shadow-xl cursor-pointer transform hover:-translate-y-1 transition-all duration-300 border border-gray-100`}
+                  >
+                    <div className="flex items-center space-x-4">
+                      <div className={`p-3 rounded-full bg-gradient-to-r ${food.color}`}>
+                        {React.createElement(food.icon, { className: "text-white text-xl" })}
+                      </div>
+                      <h3 className="font-semibold text-lg text-gray-800">{food.name}</h3>
                     </div>
-                    <h3 className="font-semibold text-lg text-gray-800">{food.name}</h3>
-                  </div>
-                </motion.div>
-              ))}
+                  </motion.div>
+                ))}
+              </div>
+            </motion.div>
+            <div className="flex items-center justify-center mt-4">
+              <p className="text-gray-600">No food items found. Try searching for &quot;banana&quot; or &quot;chicken&quot;</p>
             </div>
-          </motion.div>
+          </div>
         )}
-        <div className="flex items-center justify-center">
-          {/* eslint-disable-next-line react/no-unescaped-entities */}
-          <p className="text-gray-600">No food items found. Try searching for "banana" or "chicken"</p>
-        </div>
+        
+        {/* Food Scanner Modal */}
+        {/* Meals Summary Button */}
+        <motion.button
+          whileHover={{ scale: 1.05 }}
+          whileTap={{ scale: 0.95 }}
+          onClick={() => setShowMealsSummary(true)}
+          className="fixed bottom-6 right-6 bg-purple-600 text-white p-4 rounded-full shadow-lg z-30"
+        >
+          <FaList className="w-6 h-6" />
+        </motion.button>
       </div>
-      <motion.button
-        initial={{ y: 20, opacity: 0 }}
-        animate={{ y: 0, opacity: 1 }}
-        className="fixed bottom-20 right-4 bg-purple-500 hover:bg-purple-600 text-white rounded-full p-4 shadow-lg transform transition-all hover:scale-105 z-50"
-        onClick={() => {
-          fetchTodaysMeals();
-          setShowMealsSummary(true);
-        }}
-      >
-        <FaList className="w-6 h-6" />
-      </motion.button>
+      
+      {/* Food Scanner Modal */}
+      <AnimatePresence>
+        {showScanner && (
+          <FoodScanner 
+            onClose={() => setShowScanner(false)}
+            onFoodSelect={handleScannedFood}
+          />
+        )}
+      </AnimatePresence>
+      
+      {/* Meals Summary Modal */}
       <AnimatePresence>
         {showMealsSummary && (
           <>
-            {/* Backdrop */}
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 0.5 }}
