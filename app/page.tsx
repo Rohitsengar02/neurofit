@@ -5,7 +5,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import Link from 'next/link';
 import { FiMenu, FiX } from 'react-icons/fi';
 import AuthForm from './components/Auth/AuthForm';
-import Dashboard from './components/Dashboard/Dashboard';
+import Dashboard from './components/Dashboard/DashboardMobile';
 import MainLayout from './components/Layout/MainLayout';
 import { auth } from './utils/firebase';
 import { getUserData, saveUserData, UserData } from './utils/userService';

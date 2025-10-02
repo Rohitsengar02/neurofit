@@ -1,0 +1,211 @@
+# NeuroFit Application - Complete User Flow
+
+## 1. Authentication Flow
+
+### 1.1 First-Time User (Sign Up)
+1. **Entry Point**: App Launch
+   - User opens the app
+   - Sees welcome screen with option to Sign Up or Log In
+
+2. **Sign Up Process**
+   - User selects "Sign Up"
+   - Enters email and password
+   - Option to sign up with Google
+   - Verifies email (if required)
+   - Proceeds to Onboarding
+
+3. **Onboarding Process**
+   - Personal Information Collection:
+     - Name
+     - Age
+     - Gender
+     - Body Type
+     - Body Fat Percentage
+   - Fitness Goals Selection:
+     - Weight loss
+     - Muscle gain
+     - General fitness
+     - Specific sport training
+   - Experience Level:
+     - Beginner
+     - Intermediate
+     - Advanced
+   - Workout Preferences:
+     - Days per week
+     - Time per session
+     - Preferred workout time
+   - Daily Routine:
+     - Wake-up time
+     - Sleep time
+     - Meal times
+   - Exercise Preferences:
+     - Preferred exercises
+     - Equipment availability
+     - Workout location
+
+## 2. Main Navigation Flow
+
+### 2.1 Bottom Navigation Tabs
+1. **Home** (`/`)
+   - Dashboard with quick stats
+   - Daily workout suggestions
+   - Recent activities
+   - Quick access to common actions
+
+2. **Workouts** (`/pages/workout`)
+   - Browse workout plans
+   - Start a workout
+   - View workout history
+   - Track progress
+
+3. **Shop** (`/pages/shop`)
+   - Browse fitness equipment
+   - View fitness apparel
+   - Purchase supplements
+   - View order history
+
+4. **Assistant** (`/assistant`)
+   - AI-powered fitness assistant
+   - Get workout recommendations
+   - Ask fitness/nutrition questions
+   - Get form feedback
+
+5. **More** (Expanded Menu)
+   - Physical
+   - Exercises
+   - Custom Workout
+   - Mental
+   - Nutrition
+   - Relax
+   - Community
+   - Blog
+   - Diet
+   - Steps
+   - Neurons (Rewards)
+   - Suggestion/Feedback
+
+## 3. Core Feature Flows
+
+### 3.1 Workout Flow
+1. **Start a Workout**
+   - Select from recommended workouts
+   - Or create custom workout
+   - Set duration and intensity
+   - Start the session
+
+2. **During Workout**
+   - View exercise instructions
+   - Track sets/reps/weight
+   - Rest timer
+   - Form feedback (if using camera)
+
+3. **Post-Workout**
+   - Log completion
+   - Rate difficulty
+   - Log any modifications
+   - View workout summary
+
+### 3.2 Nutrition Flow
+1. **Food Logging**
+   - Add meals/snacks
+   - Scan barcodes
+   - Search food database
+   - Log water intake
+
+2. **Meal Planning**
+   - View suggested meal plans
+   - Create custom meals
+   - Generate shopping list
+   - Track macros
+
+### 3.3 Progress Tracking
+1. **Metrics**
+   - Weight tracking
+   - Body measurements
+   - Progress photos
+   - Workout statistics
+
+2. **Analytics**
+   - Progress over time
+   - Goal tracking
+   - Performance insights
+   - Achievement badges
+
+## 4. Social & Community Flow
+
+### 4.1 Community Features
+1. **Feed**
+   - View posts from followed users
+   - Like/comment on posts
+   - Share achievements
+
+2. **Challenges**
+   - Join community challenges
+   - Compete with friends
+   - Track leaderboard
+
+3. **Groups**
+   - Join interest-based groups
+   - Participate in discussions
+   - Share progress
+
+## 5. Settings & Account
+
+### 5.1 Profile Management
+   - Edit personal information
+   - Update fitness goals
+   - Adjust notification preferences
+   - Manage connected devices
+
+### 5.2 Subscription
+   - View plan details
+   - Upgrade/downgrade
+   - Payment methods
+   - Billing history
+
+## 6. Support & Help
+
+### 6.1 Help Center
+   - FAQs
+   - Tutorials
+   - Contact support
+   - Report issues
+
+## 7. Exit Points
+
+### 7.1 Common Drop-off Points
+   - After completing onboarding
+   - Before starting first workout
+   - After achieving initial goals
+
+### 7.2 Re-engagement Triggers
+   - Inactive for 3+ days
+   - Goal completion
+   - New feature announcements
+   - Community activity
+
+## 8. Error Flows
+
+### 8.1 Authentication Issues
+   - Invalid credentials
+   - Password reset
+   - Account recovery
+
+### 8.2 Data Sync
+   - Offline mode
+   - Sync conflicts
+   - Data recovery
+
+## 9. Special Flows
+
+### 9.1 Wearable Integration
+   - Device pairing
+   - Data sync
+   - Notification settings
+
+### 9.2 Premium Features
+   - Trial activation
+   - Subscription management
+   - Exclusive content access
+
+This user flow document provides a comprehensive overview of the NeuroFit application's navigation and functionality, suitable for creating detailed flow charts and user journey maps.

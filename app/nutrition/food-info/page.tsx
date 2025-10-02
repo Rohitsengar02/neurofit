@@ -81,7 +81,7 @@ const FoodInfoPage = () => {
   const generateNutritionInfo = async (foodName: string) => {
     try {
       const genAI = new GoogleGenerativeAI(process.env.NEXT_PUBLIC_GEMINI_API_KEY!);
-      const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+      const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
 
       const prompt = `Generate detailed nutrition information for ${foodName} per 100g serving.
       Return ONLY a valid JSON object (no markdown, no extra text) with this exact structure:
@@ -100,6 +100,9 @@ const FoodInfoPage = () => {
 
       const result = await model.generateContent(prompt);
       const response = await result.response;
+      if (!response) {
+        throw new Error('No response received from the API');
+      }
       const text = response.text();
       
       // Clean the response text to remove any markdown formatting
@@ -250,11 +253,11 @@ const FoodInfoPage = () => {
       const mealData: DailyMeal = {
         foodName: foodData.name,
         mealType: selectedMeal,
-        calories: nutritionInfo.calories,
-        protein: nutritionInfo.protein_g,
-        carbs: nutritionInfo.carbohydrates_total_g,
-        fats: nutritionInfo.fat_total_g,
-        servingSize: nutritionInfo.fiber_g.toString() + 'g',
+        calories: calculateNutrition(nutritionInfo.calories),
+        protein: calculateNutrition(nutritionInfo.protein_g),
+        carbs: calculateNutrition(nutritionInfo.carbohydrates_total_g),
+        fats: calculateNutrition(nutritionInfo.fat_total_g),
+        servingSize: `${amount}${unit}`,
         addedAt: Timestamp.now()
       };
 
@@ -407,7 +410,7 @@ const FoodInfoPage = () => {
               <button 
                 onClick={handleAddMeal}
                 disabled={isAddingMeal}
-                className="w-full px-6 py-3 bg-gradient-to-r from-blue-500 to-purple-500 text-white rounded-lg hover:from-blue-600 hover:to-purple-600 transition-all transform hover:scale-105 flex items-center justify-center"
+                className="w-full px-6 py-3 bg-gradient-to-r from-blue-500 to-purple-500 text-white rounded-lg hover:from-blue-600 hover:to-purple-600 transition-all transform hover:scale-105 flex items-center justify-center disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {isAddingMeal ? (
                   <>
@@ -420,14 +423,12 @@ const FoodInfoPage = () => {
               </button>
 
               {error && (
-                <p className="mt-2 text-red-500 text-center">{error}</p>
+                <p className="mt-2 text-red-500 text-center text-sm">{error}</p>
               )}
 
               {success && (
-                <p className="mt-2 text-green-500 text-center">{success}</p>
+                <p className="mt-2 text-green-500 text-center text-sm">{success}</p>
               )}
-
-              
             </div>
           </div>
 
@@ -532,7 +533,7 @@ const FoodInfoPage = () => {
         </div>
       </div>
 
-      <div className="mt-8">
+      <div className="mt-8 max-w-4xl mx-auto">
         <div className="bg-white rounded-xl p-6 shadow-lg">
           <div className="flex items-start space-x-2">
             <FaInfoCircle className="text-blue-500 mt-1 flex-shrink-0" />
@@ -554,7 +555,7 @@ const FoodInfoPage = () => {
       <motion.button
         initial={{ y: 20, opacity: 0 }}
         animate={{ y: 0, opacity: 1 }}
-        className="fixed bottom-8 right-4 bg-purple-500 hover:bg-purple-600 text-white rounded-full p-4 shadow-lg transform transition-all hover:scale-105 z-50"
+        className="fixed bottom-8 right-8 bg-purple-500 hover:bg-purple-600 text-white rounded-full p-4 shadow-lg transform transition-all hover:scale-105 z-50"
         onClick={() => {
           fetchTodaysMeals();
           setShowMealsSummary(true);
@@ -581,16 +582,16 @@ const FoodInfoPage = () => {
               initial={{ y: '100%', opacity: 0 }}
               animate={{ y: 0, opacity: 1 }}
               exit={{ y: '100%', opacity: 0 }}
-              className="fixed bottom-0 left-0 right-0 bg-white dark:bg-gray-800 rounded-t-3xl p-6 shadow-xl max-h-[80vh] overflow-y-auto z-50"
+              className="fixed bottom-0 left-0 right-0 bg-white rounded-t-3xl p-6 shadow-xl max-h-[80vh] overflow-y-auto z-50"
             >
               <div className="space-y-6">
                 <div className="flex justify-between items-center">
-                  <h3 className="text-2xl font-bold text-gray-900 dark:text-white">
+                  <h3 className="text-2xl font-bold text-gray-900">
                     Today's Meals
                   </h3>
                   <button
                     onClick={() => setShowMealsSummary(false)}
-                    className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
+                    className="text-gray-500 hover:text-gray-700 text-2xl"
                   >
                     ✕
                   </button>
@@ -603,32 +604,32 @@ const FoodInfoPage = () => {
                 ) : todaysMeals && Object.keys(todaysMeals.meals).length > 0 ? (
                   <div className="space-y-4">
                     {/* Daily Summary */}
-                    <div className="bg-purple-50 dark:bg-purple-900/20 rounded-xl p-4">
-                      <h4 className="font-semibold text-purple-900 dark:text-purple-100 mb-2">
+                    <div className="bg-purple-50 rounded-xl p-4">
+                      <h4 className="font-semibold text-purple-900 mb-2">
                         Daily Summary
                       </h4>
                       <div className="grid grid-cols-4 gap-4">
                         <div>
-                          <p className="text-sm text-gray-500 dark:text-gray-400">Calories</p>
-                          <p className="font-semibold text-gray-900 dark:text-white">
+                          <p className="text-sm text-gray-500">Calories</p>
+                          <p className="font-semibold text-gray-900">
                             {Object.values(todaysMeals.meals).reduce((sum, meal) => sum + meal.calories, 0).toFixed(0)}
                           </p>
                         </div>
                         <div>
-                          <p className="text-sm text-gray-500 dark:text-gray-400">Protein</p>
-                          <p className="font-semibold text-gray-900 dark:text-white">
+                          <p className="text-sm text-gray-500">Protein</p>
+                          <p className="font-semibold text-gray-900">
                             {Object.values(todaysMeals.meals).reduce((sum, meal) => sum + meal.protein, 0).toFixed(1)}g
                           </p>
                         </div>
                         <div>
-                          <p className="text-sm text-gray-500 dark:text-gray-400">Carbs</p>
-                          <p className="font-semibold text-gray-900 dark:text-white">
+                          <p className="text-sm text-gray-500">Carbs</p>
+                          <p className="font-semibold text-gray-900">
                             {Object.values(todaysMeals.meals).reduce((sum, meal) => sum + meal.carbs, 0).toFixed(1)}g
                           </p>
                         </div>
                         <div>
-                          <p className="text-sm text-gray-500 dark:text-gray-400">Fats</p>
-                          <p className="font-semibold text-gray-900 dark:text-white">
+                          <p className="text-sm text-gray-500">Fats</p>
+                          <p className="font-semibold text-gray-900">
                             {Object.values(todaysMeals.meals).reduce((sum, meal) => sum + meal.fats, 0).toFixed(1)}g
                           </p>
                         </div>
@@ -642,22 +643,22 @@ const FoodInfoPage = () => {
                         .map(([timestamp, meal]) => (
                           <div
                             key={timestamp}
-                            className="bg-white dark:bg-gray-700 rounded-xl p-4 shadow-sm"
+                            className="bg-white rounded-xl p-4 shadow-sm border border-gray-100"
                           >
                             <div className="flex justify-between items-start">
                               <div>
-                                <h5 className="font-semibold text-gray-900 dark:text-white">
+                                <h5 className="font-semibold text-gray-900">
                                   {meal.foodName}
                                 </h5>
-                                <p className="text-sm text-purple-500 dark:text-purple-300 capitalize">
+                                <p className="text-sm text-purple-500 capitalize">
                                   {meal.mealType}
                                 </p>
                               </div>
                               <div className="text-right">
-                                <p className="font-medium text-gray-900 dark:text-white">
+                                <p className="font-medium text-gray-900">
                                   {meal.calories.toFixed(0)} cal
                                 </p>
-                                <p className="text-xs text-gray-500 dark:text-gray-400">
+                                <p className="text-xs text-gray-500">
                                   {new Date(Number(timestamp)).toLocaleTimeString([], {
                                     hour: '2-digit',
                                     minute: '2-digit'
@@ -667,20 +668,20 @@ const FoodInfoPage = () => {
                             </div>
                             <div className="mt-2 grid grid-cols-3 gap-2 text-sm">
                               <div>
-                                <span className="text-gray-500 dark:text-gray-400">Protein: </span>
-                                <span className="font-medium text-gray-900 dark:text-white">
+                                <span className="text-gray-500">Protein: </span>
+                                <span className="font-medium text-gray-900">
                                   {meal.protein.toFixed(1)}g
                                 </span>
                               </div>
                               <div>
-                                <span className="text-gray-500 dark:text-gray-400">Carbs: </span>
-                                <span className="font-medium text-gray-900 dark:text-white">
+                                <span className="text-gray-500">Carbs: </span>
+                                <span className="font-medium text-gray-900">
                                   {meal.carbs.toFixed(1)}g
                                 </span>
                               </div>
                               <div>
-                                <span className="text-gray-500 dark:text-gray-400">Fats: </span>
-                                <span className="font-medium text-gray-900 dark:text-white">
+                                <span className="text-gray-500">Fats: </span>
+                                <span className="font-medium text-gray-900">
                                   {meal.fats.toFixed(1)}g
                                 </span>
                               </div>
@@ -690,7 +691,7 @@ const FoodInfoPage = () => {
                     </div>
                   </div>
                 ) : (
-                  <div className="text-center py-8 text-gray-500 dark:text-gray-400">
+                  <div className="text-center py-8 text-gray-500">
                     No meals added today
                   </div>
                 )}

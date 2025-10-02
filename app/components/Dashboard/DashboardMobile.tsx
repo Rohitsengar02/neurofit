@@ -236,7 +236,7 @@ function Dashboard() {
                 <ActivityStats />
                 <WorkoutStreak />
                 <WaterTracker />
-                <AiRecommendations />
+              
                 <WeightProgress />
                 <StepsTracker />
                 <FitnessGoals />
