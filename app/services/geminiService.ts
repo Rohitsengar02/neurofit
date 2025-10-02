@@ -76,7 +76,7 @@ function extractJsonFromText(text: string): any {
 
 export async function generateRecipe(prompt: string): Promise<{ success: boolean; data?: RecipeData; error?: string }> {
   try {
-    const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
+    const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
 
     const result = await model.generateContent(`Create a recipe based on this prompt: "${prompt}". 
     Return ONLY a JSON object in this exact format, with no additional text or markdown:
@@ -110,7 +110,7 @@ export async function generateRecipe(prompt: string): Promise<{ success: boolean
 
 export async function generateDietPlan(prompt: string): Promise<{ success: boolean; data?: DietPlanData; error?: string }> {
   try {
-    const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
+    const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
 
     const result = await model.generateContent(`Create a comprehensive diet plan based on this prompt: "${prompt}". 
     Return ONLY a JSON object in this exact format, with no additional text or markdown:
