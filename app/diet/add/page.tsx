@@ -34,6 +34,18 @@ const generateImageFromPrompt = async (prompt: string): Promise<string | null> =
   }
 };
 
+const searchImages = async (query: string): Promise<any[]> => {
+  try {
+    const response = await fetch(`/api/search-images?q=${encodeURIComponent(query)}`);
+    if (!response.ok) throw new Error('Search failed');
+    const data = await response.json();
+    return data.images || [];
+  } catch (error) {
+    console.error('Error searching images:', error);
+    return [];
+  }
+};
+
 type MealType = 'recipe' | 'diet' | null;
 type MealTime = 'breakfast' | 'lunch' | 'dinner' | 'snack';
 
@@ -143,6 +155,10 @@ export default function AddMealPage() {
   const [prompt, setPrompt] = useState('');
   const [loading, setLoading] = useState(false);
   const [isGeneratingImage, setIsGeneratingImage] = useState(false);
+  const [showSearchModal, setShowSearchModal] = useState(false);
+  const [searchResults, setSearchResults] = useState<any[]>([]);
+  const [isSearching, setIsSearching] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
   
   const [formData, setFormData] = useState<FormData>({
     name: '',
@@ -862,51 +878,58 @@ export default function AddMealPage() {
                   </label>
                   
                   {selectedType === 'recipe' && formData.name && formData.ingredients.some(i => i) && (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        // Generate an image prompt based on the recipe details
-                        const prompt = `Appetizing photo of ${formData.name} dish with ${formData.ingredients.filter(i => i).slice(0, 3).join(', ')}`;
-                        
-                        setIsGeneratingImage(true);
-                        toast.loading('Generating recipe image...', { id: 'generating-image' });
-                        
-                        generateImageFromPrompt(prompt)
-                          .then(imageUrl => {
-                            if (imageUrl) {
-                              // Convert the URL to a file object for the form
-                              fetch(imageUrl)
-                                .then(response => response.blob())
-                                .then(blob => {
-                                  const file = new File([blob], 'recipe-image.jpg', { type: 'image/jpeg' });
-                                  
-                                  setFormData(prev => ({
-                                    ...prev,
-                                    image: file,
-                                    imagePreview: imageUrl
-                                  }));
-                                  
-                                  toast.success('Recipe image generated!', { id: 'generating-image' });
-                                });
-                            } else {
-                              toast.error('Could not generate recipe image', { id: 'generating-image' });
-                            }
-                          })
-                          .catch(error => {
-                            console.error('Error generating image:', error);
-                            toast.error('Failed to generate recipe image', { id: 'generating-image' });
-                          })
-                          .finally(() => {
-                            setIsGeneratingImage(false);
+                    <>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const prompt = `Appetizing photo of ${formData.name} dish with ${formData.ingredients.filter(i => i).slice(0, 3).join(', ')}`;
+                          setIsGeneratingImage(true);
+                          toast.loading('Generating recipe image...', { id: 'generating-image' });
+                          generateImageFromPrompt(prompt)
+                            .then(imageUrl => {
+                              if (imageUrl) {
+                                fetch(imageUrl)
+                                  .then(response => response.blob())
+                                  .then(blob => {
+                                    const file = new File([blob], 'recipe-image.jpg', { type: 'image/jpeg' });
+                                    setFormData(prev => ({ ...prev, image: file, imagePreview: imageUrl }));
+                                    toast.success('Recipe image generated!', { id: 'generating-image' });
+                                  });
+                              } else {
+                                toast.error('Could not generate recipe image', { id: 'generating-image' });
+                              }
+                            })
+                            .catch(error => {
+                              console.error('Error generating image:', error);
+                              toast.error('Failed to generate recipe image', { id: 'generating-image' });
+                            })
+                            .finally(() => setIsGeneratingImage(false));
+                        }}
+                        className="inline-flex items-center px-4 py-2 bg-purple-500 text-white rounded-lg hover:bg-purple-600 cursor-pointer mr-2"
+                        disabled={isGeneratingImage}
+                      >
+                        <FaBolt className="w-5 h-5 mr-2" />
+                        Generate
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const query = formData.name || 'healthy food';
+                          setSearchQuery(query);
+                          setShowSearchModal(true);
+                          setIsSearching(true);
+                          searchImages(query).then(results => {
+                            setSearchResults(results);
+                            setIsSearching(false);
                           });
-                      }}
-                      className="inline-flex items-center px-4 py-2 bg-purple-500 text-white 
-                               rounded-lg hover:bg-purple-600 cursor-pointer"
-                      disabled={isGeneratingImage}
-                    >
-                      <FaBolt className="w-5 h-5 mr-2" />
-                      Generate Image
-                    </button>
+                        }}
+                        className="inline-flex items-center px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 cursor-pointer"
+                      >
+                        <FaImage className="w-5 h-5 mr-2" />
+                        Search Image
+                      </button>
+                    </>
                   )}
                 </div>
               </div>
@@ -1306,6 +1329,94 @@ export default function AddMealPage() {
                       'Generate'
                     )}
                   </button>
+                </div>
+              </motion.div>
+            </div>
+          )}
+
+          {/* Image Search Modal */}
+          {showSearchModal && (
+            <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+              <motion.div
+                initial={{ scale: 0.9, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                className="bg-white dark:bg-gray-800 rounded-xl p-6 max-w-4xl w-full max-h-[90vh] overflow-hidden flex flex-col"
+              >
+                <div className="flex justify-between items-center mb-4">
+                  <h3 className="text-xl font-semibold text-gray-900 dark:text-white">
+                    Search Food Images
+                  </h3>
+                  <button onClick={() => setShowSearchModal(false)} className="text-gray-500 hover:text-gray-700">
+                    <FaArrowLeft className="w-5 h-5 mr-1" />
+                  </button>
+                </div>
+
+                <div className="flex gap-2 mb-4">
+                  <input
+                    type="text"
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    onKeyPress={(e) => e.key === 'Enter' && (setIsSearching(true), searchImages(searchQuery).then(res => { setSearchResults(res); setIsSearching(false); }))}
+                    className="flex-1 px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
+                    placeholder="Search for images..."
+                  />
+                  <button
+                    onClick={() => {
+                      setIsSearching(true);
+                      searchImages(searchQuery).then(results => {
+                        setSearchResults(results);
+                        setIsSearching(false);
+                      });
+                    }}
+                    className="px-4 py-1 bg-blue-500 text-white rounded-lg hover:bg-blue-600"
+                  >
+                    Search
+                  </button>
+                </div>
+
+                <div className="flex-1 overflow-y-auto min-h-0">
+                  {isSearching ? (
+                    <div className="flex justify-center items-center h-64">
+                      <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500"></div>
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                      {searchResults.map((img: any, idx: number) => (
+                        <div
+                          key={idx}
+                          onClick={() => {
+                            fetch(img.url)
+                              .then(res => res.blob())
+                              .then(blob => {
+                                const file = new File([blob], 'food-image.jpg', { type: 'image/jpeg' });
+                                setFormData(prev => ({
+                                  ...prev,
+                                  image: file,
+                                  imagePreview: img.url
+                                }));
+                                setShowSearchModal(false);
+                                toast.success('Image selected!');
+                              })
+                              .catch(err => {
+                                console.error('Error selecting image:', err);
+                                toast.error('Failed to load selected image');
+                              });
+                          }}
+                          className="relative aspect-square rounded-lg overflow-hidden cursor-pointer hover:ring-4 ring-blue-500 transition-all"
+                        >
+                          <img src={img.thumbnail || img.url} alt={img.title} className="w-full h-full object-cover" />
+                          <div className="absolute inset-x-0 bottom-0 bg-black bg-opacity-50 p-1 text-[10px] text-white truncate">
+                            {img.title}
+                          </div>
+                        </div>
+                      ))}
+                      {searchResults.length === 0 && !isSearching && (
+                        <div className="col-span-full text-center py-12 text-gray-500">
+                          No images found. Try a different search term.
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
               </motion.div>
             </div>

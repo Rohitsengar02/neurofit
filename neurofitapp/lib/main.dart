@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'screens/onboarding/onboarding_screen.dart';
-import 'screens/home/web_app_screen.dart';
 
 // Simple in-memory flag — onboarding always shows on fresh launch.
 // Controlled by OnboardingScreen itself after completion.
@@ -12,8 +11,6 @@ void markOnboardingDone() => _onboardingDone = true;
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-
-  // Force full-screen dark immersive mode
   SystemChrome.setSystemUIOverlayStyle(
     const SystemUiOverlayStyle(
       statusBarColor: Colors.transparent,
@@ -31,7 +28,6 @@ void main() async {
   } catch (_) {
     // Orientation lock not supported on this platform — safe to ignore
   }
-
   runApp(const NeuroFitApp());
 }
 

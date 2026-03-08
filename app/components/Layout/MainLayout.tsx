@@ -11,11 +11,11 @@ import { getFirestore, doc, getDoc } from 'firebase/firestore';
 import { auth } from '@/app/utils/firebase';
 
 const LayoutContent = ({ children }: { children: React.ReactNode }) => {
-  const { 
-    isExpanded, 
-    setIsExpanded, 
-    isMobileOpen, 
-    setIsMobileOpen 
+  const {
+    isExpanded,
+    setIsExpanded,
+    isMobileOpen,
+    setIsMobileOpen
   } = useLayout();
 
   const [isOnboarding, setIsOnboarding] = useState(true);
@@ -65,22 +65,20 @@ const LayoutContent = ({ children }: { children: React.ReactNode }) => {
       {showNavigation && !isShopPage && (
         <>
           <Navbar setIsMobileOpen={setIsMobileOpen} />
-          <Sidebar 
-            isExpanded={isExpanded} 
+          <Sidebar
+            isExpanded={isExpanded}
             setIsExpanded={setIsExpanded}
             isMobileOpen={isMobileOpen}
             setIsMobileOpen={setIsMobileOpen}
           />
         </>
       )}
-      
-      <main 
-        className={`transition-all duration-300 ${
-          showNavigation && !isShopPage ? 'pt-16 pb-20 md:pb-6' : 'pb-20'
-        } ${
-          showNavigation && !isShopPage && isExpanded ? 'md:ml-64' : 
-          showNavigation && !isShopPage ? 'md:ml-20' : ''
-        }`}
+
+      <main
+        className={`transition-all duration-300 ${showNavigation && !isShopPage ? 'pt-16 pb-20 md:pb-6' : 'pb-20'
+          } ${showNavigation && !isShopPage && isExpanded ? 'md:ml-64' :
+            showNavigation && !isShopPage ? 'md:ml-20' : ''
+          }`}
       >
         {children}
       </main>

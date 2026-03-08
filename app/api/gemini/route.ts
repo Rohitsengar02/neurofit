@@ -14,7 +14,8 @@ export async function POST(request: Request) {
       );
     }
 
-    const { message } = await request.json();
+    // Use history for context if available
+    const { message, context } = await request.json();
 
     if (!message) {
       return NextResponse.json({ error: 'Message is required' }, { status: 400 });
@@ -22,9 +23,14 @@ export async function POST(request: Request) {
 
     const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
 
-    const prompt = `You are Rudra, a knowledgeable fitness and health assistant. You help users with workout plans, nutrition advice, and general health guidance. Please respond to the following message in a helpful and encouraging way: ${message}`;
+    const chat = model.startChat({
+      history: (context || []).map((msg: any) => ({
+        role: msg.role === 'assistant' ? 'model' : 'user',
+        parts: [{ text: msg.content }],
+      })),
+    });
 
-    const result = await model.generateContent(prompt);
+    const result = await chat.sendMessage(message);
     const response = await result.response;
     const text = response.text();
 
@@ -39,7 +45,7 @@ export async function POST(request: Request) {
   } catch (error: any) {
     console.error('Gemini API Error:', error);
     return NextResponse.json(
-      { 
+      {
         error: 'Failed to process request',
         details: error.message || 'Unknown error'
       },

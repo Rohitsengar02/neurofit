@@ -1,4 +1,4 @@
-const CACHE_NAME = 'neurofit-v1';
+const CACHE_NAME = 'neurofit-v2';
 const urlsToCache = [
   '/',
   '/index.html',

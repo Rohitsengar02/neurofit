@@ -93,7 +93,7 @@ const VoiceAssistant = () => {
   // Initialize speech synthesis
   useEffect(() => {
     if (typeof window !== 'undefined' && window.speechSynthesis) {
-      const welcomeMessage = "Hello, I am Rudra, your personal fitness and health assistant. How can I help you today?";
+      const welcomeMessage = "Hello, I am Neuro, your personal fitness and health assistant. How can I help you today?";
       const utterance = new SpeechSynthesisUtterance(welcomeMessage);
       utterance.lang = 'hi-IN'; // Hindi voice
       window.speechSynthesis.speak(utterance);
@@ -220,7 +220,7 @@ const VoiceAssistant = () => {
       <div className="min-h-screen bg-gradient-to-b from-gray-100 to-white dark:from-gray-900 dark:to-black flex items-center justify-center">
         <div className="flex flex-col items-center gap-4">
           <div className="w-16 h-16 border-4 border-blue-500 border-t-transparent rounded-full animate-spin" />
-          <p className="text-gray-900 dark:text-white text-lg">Loading Rudra AI...</p>
+          <p className="text-gray-900 dark:text-white text-lg">Loading Neuro AI...</p>
         </div>
       </div>
     );
@@ -232,7 +232,7 @@ const VoiceAssistant = () => {
       <div className="min-h-screen bg-gradient-to-b from-gray-100 to-white dark:from-gray-900 dark:to-black flex items-center justify-center p-4">
         <div className="text-center">
           <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-4">Authentication Required</h2>
-          <p className="text-gray-600 dark:text-gray-300 mb-6">Please log in to use Rudra AI Assistant</p>
+          <p className="text-gray-600 dark:text-gray-300 mb-6">Please log in to use Neuro AI Assistant</p>
           <button
             onClick={() => router.push('/login')}
             className="px-6 py-3 bg-blue-500 hover:bg-blue-600 text-white rounded-lg transition-colors"
@@ -325,7 +325,7 @@ const VoiceAssistant = () => {
         className="fixed top-0 left-0 right-0 bg-white/50 dark:bg-black/50 backdrop-blur-lg z-50 p-4"
       >
         <div className="max-w-4xl mx-auto flex items-center justify-between">
-          <h1 className="text-2xl font-bold">Rudra AI Assistant</h1>
+          <h1 className="text-2xl font-bold">Neuro AI Assistant</h1>
           <div className="flex items-center gap-4">
             
             <button

@@ -30,6 +30,7 @@ export interface UserData {
     wakeUpTime: string;
     sleepTime: string;
     mealtimes: string[];
+    workHours: number;
   };
   exercisePreferences: {
     preferredExercises: string[];

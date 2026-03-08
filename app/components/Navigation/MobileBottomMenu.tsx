@@ -7,7 +7,7 @@ import {
   FaHome, FaWalking, FaUtensils, FaUser, FaCog, 
   FaAppleAlt, FaChartLine, FaDumbbell, FaBrain,
   FaStore, FaUserFriends, FaSpa, FaHeart,
-  FaYinYang, FaLeaf, FaRunning, FaNewspaper, FaUsers
+  FaYinYang, FaLeaf, FaRunning, FaNewspaper, FaUsers, FaUserMd
 } from 'react-icons/fa';
 import { RiCommunityFill, RiTeamFill } from 'react-icons/ri';
 import { BsGrid3X3GapFill, BsRobot, BsTrophy } from 'react-icons/bs';
@@ -35,6 +35,7 @@ const moreMenuItems: Tab[] = [
   { id: 'community', label: 'Community', icon: RiCommunityFill, color: 'from-pink-500 to-green-700', href: '/community' },
   { id: 'steps', label: 'Steps', icon: FaWalking, color: 'from-blue-400 to-blue-600', href: '/pages/steps' },
   { id: 'rewards', label: 'Neurons', icon: BsTrophy, color: 'from-yellow-400 to-orange-500', href: '/pages/rewards' },
+  { id: 'doctors', label: 'Doctors', icon: FaUserMd, color: 'from-blue-500 to-indigo-600', href: '/pages/doctors' },
   { id: 'suggestion', label: 'Suggestion', icon: MdFeedback, color: 'from-violet-400 to-violet-600', href: '/pages/contact' }
   
   

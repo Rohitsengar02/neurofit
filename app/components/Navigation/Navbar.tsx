@@ -82,70 +82,44 @@ const Navbar: React.FC<NavbarProps> = ({ setIsMobileOpen }) => {
   };
 
   return (
-    <div className="h-16 bg-white dark:bg-zinc-900 shadow-sm flex items-center justify-between px-4 fixed right-0 left-0 md:left-[72px] top-0 z-40 transition-all duration-300 border-b border-gray-100 dark:border-zinc-800">
-      {/* Mobile Menu Button and Logo */}
-      <div className="flex items-center flex-1">
-        <button
-          onClick={() => setIsMobileOpen(true)}
-          className="md:hidden p-2 hover:bg-gray-100 dark:hover:bg-zinc-800 rounded-lg mr-2"
-        >
-          <FaBars className="w-5 h-5 text-gray-600 dark:text-gray-400" />
-        </button>
-        
-        <div className="md:hidden flex items-center">
-          <FaDumbbell className="w-8 h-8 text-[#a20bdb]" />
-          <span className="ml-2 text-lg font-semibold text-gray-900 dark:text-white">NeuroFit</span>
-        </div>
-        
-        {/* Search Bar (Hidden on Mobile) */}
-        <div className="hidden md:block w-full max-w-xl">
-          <div className="relative">
-            <input
-              type="text"
-              placeholder="Search"
-              className="w-full h-9 pl-10 pr-4 rounded-lg bg-gray-100 dark:bg-zinc-800 border-0 text-sm text-gray-600 dark:text-gray-300 placeholder-gray-400 dark:placeholder-gray-500 focus:ring-2 focus:ring-[#a20bdb] transition-all duration-300"
-            />
-            <FaSearch className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 dark:text-gray-500 w-4 h-4" />
-          </div>
-        </div>
+    <div className="h-24 bg-white dark:bg-zinc-900 flex items-center justify-between px-6 fixed right-0 left-0 md:left-[72px] top-0 z-40 transition-all duration-300 border-b border-gray-100 dark:border-zinc-800">
+      {/* Greeting and User Info */}
+      <div className="flex flex-col">
+        <span className="text-gray-400 text-sm font-medium">Hello,</span>
+        <h2 className="text-xl font-bold text-gray-900 dark:text-white leading-tight">
+          {userData.firstName || 'User'}!
+        </h2>
       </div>
 
-      {/* Right Side Items */}
-      <div className="flex items-center space-x-4">
-        {/* Theme Toggle */}
-        <ThemeToggle />
+      {/* App Style Action Bar */}
+      <div className="flex items-center gap-3">
+        {/* Search Toggle */}
+        <button className="w-10 h-10 flex items-center justify-center bg-gray-50 dark:bg-zinc-800 rounded-2xl text-gray-400 hover:text-[#a20bdb] transition-all">
+          <FaSearch className="w-4 h-4" />
+        </button>
 
-        {/* Notifications (Hidden on Mobile) */}
-        <div className="relative hidden md:block">
-          <motion.button
-            className="relative w-9 h-9 rounded-lg bg-gray-100 hover:bg-gray-200 dark:bg-zinc-800 dark:hover:bg-zinc-700 flex items-center justify-center transition-all duration-300"
-            whileHover={{ scale: 1.05 }}
-            whileTap={{ scale: 0.95 }}
-          >
-            <FaBell className="w-5 h-5 text-gray-600 dark:text-gray-300" />
-            <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-red-500 rounded-full"></span>
-          </motion.button>
+        {/* Notifications */}
+        <button className="relative w-10 h-10 flex items-center justify-center bg-gray-50 dark:bg-zinc-800 rounded-2xl text-gray-400 hover:text-[#a20bdb] transition-all">
+          <FaBell className="w-4 h-4" />
+          <span className="absolute top-2.5 right-2.5 w-2 h-2 bg-orange-500 rounded-full border-2 border-white dark:border-zinc-900"></span>
+        </button>
+
+        {/* Theme Toggle Integration */}
+        <div className="hidden sm:block">
+          <ThemeToggle />
         </div>
 
-        {/* User Profile */}
-        <div className="relative flex items-center space-x-3">
-          <div className="flex flex-col items-end hidden md:flex">
-            <span className="text-sm font-medium text-gray-700 dark:text-gray-200">{userData.name}</span>
-            <span className="text-xs text-gray-500 dark:text-gray-400">Member</span>
-          </div>
+        {/* Avatar */}
+        <div className="relative ml-2">
           <motion.button
             onClick={() => setIsOpen(!isOpen)}
-            className="relative w-9 h-9 rounded-lg flex items-center justify-center transition-all duration-300 overflow-hidden bg-gray-100 dark:bg-gray-800"
-            whileHover={{ scale: 1.05 }}
+            className="w-12 h-12 rounded-2xl overflow-hidden bg-gray-100 dark:bg-zinc-800 border-2 border-white dark:border-zinc-700 shadow-sm"
             whileTap={{ scale: 0.95 }}
           >
-            <Image
+            <img
               src={userData.photoURL || 'https://img.freepik.com/premium-vector/person-with-blue-shirt-that-says-name-person_1029948-7040.jpg'}
               alt="Profile"
-              width={36}
-              height={36}
-              className="rounded-lg object-cover w-full h-full"
-              priority
+              className="w-full h-full object-cover"
             />
           </motion.button>
 
@@ -153,31 +127,33 @@ const Navbar: React.FC<NavbarProps> = ({ setIsMobileOpen }) => {
           <AnimatePresence>
             {isOpen && (
               <motion.div
-                initial={{ opacity: 0, y: -10, scale: 0.95 }}
+                initial={{ opacity: 0, y: 10, scale: 0.95 }}
                 animate={{ opacity: 1, y: 0, scale: 1 }}
-                exit={{ opacity: 0, y: -10, scale: 0.95 }}
-                transition={{ duration: 0.2, ease: 'easeOut' }}
-                className="absolute right-0 top-12 w-56 bg-white dark:bg-zinc-900 rounded-lg shadow-lg py-1 z-50 border border-gray-100 dark:border-zinc-800"
+                exit={{ opacity: 0, y: 10, scale: 0.95 }}
+                className="absolute right-0 mt-3 w-56 bg-white dark:bg-zinc-900 rounded-[2rem] shadow-xl py-2 z-50 border border-gray-100 dark:border-zinc-800 overflow-hidden"
               >
-                <div className="px-4 py-2 border-b border-gray-100 dark:border-zinc-800">
-                  <p className="text-sm font-medium text-gray-900 dark:text-white">{userData.name}</p>
-                  <p className="text-xs text-gray-500 dark:text-gray-400">{userData.email}</p>
+                <div className="px-5 py-3 border-b border-gray-100 dark:border-zinc-800">
+                  <p className="text-sm font-bold text-gray-900 dark:text-white truncate">{userData.name}</p>
+                  <p className="text-[10px] text-gray-400 truncate">{userData.email}</p>
                 </div>
-                <motion.button
-                  onClick={() => router.push('/pages/profile')}
-                  className="w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-zinc-800 transition-all duration-200 flex items-center group"
-                  whileHover={{ x: 2 }}
-                >
-                  Profile Settings
-                </motion.button>
-                <motion.button
-                  onClick={handleLogout}
-                  className="w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-zinc-800 transition-all duration-200 flex items-center group"
-                  whileHover={{ x: 2 }}
-                >
-                  <FaSignOutAlt className="w-4 h-4 mr-2 transition-transform duration-200 group-hover:text-[#a20bdb]" />
-                  Logout
-                </motion.button>
+                <div className="p-1">
+                  <button
+                    onClick={() => {
+                      router.push('/pages/profile');
+                      setIsOpen(false);
+                    }}
+                    className="w-full text-left px-4 py-3 text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-zinc-800 rounded-2xl transition-all"
+                  >
+                    Profile Settings
+                  </button>
+                  <button
+                    onClick={handleLogout}
+                    className="w-full text-left px-4 py-3 text-sm text-red-500 hover:bg-red-50 dark:hover:bg-red-900/10 rounded-2xl transition-all flex items-center"
+                  >
+                    <FaSignOutAlt className="w-4 h-4 mr-2" />
+                    Logout
+                  </button>
+                </div>
               </motion.div>
             )}
           </AnimatePresence>

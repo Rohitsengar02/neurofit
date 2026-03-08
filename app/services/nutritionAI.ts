@@ -1,6 +1,6 @@
 import { GoogleGenerativeAI } from '@google/generative-ai';
 
-const genAI = new GoogleGenerativeAI('AIzaSyD624JPggYA0eMf7QVDjXFFYYkNUSh5MRs');
+const genAI = new GoogleGenerativeAI(process.env.NEXT_PUBLIC_GEMINI_API_KEY || '');
 
 export interface NutritionData {
   name: string;
@@ -21,7 +21,7 @@ export interface NutritionData {
 
 export const getFoodNutritionInfo = async (query: string): Promise<NutritionData[]> => {
   try {
-    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+    const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
 
     const prompt = `Act as a professional nutritionist and provide detailed nutrition information for "${query}" or similar foods.
     Return the response as a JSON array with exactly 3 food items. Each item should have this exact format:

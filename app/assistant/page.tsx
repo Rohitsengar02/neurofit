@@ -4,12 +4,12 @@ import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '@/app/context/AuthContext';
 import { db } from '@/app/firebase/config';
-import { 
-  collection, 
-  addDoc, 
-  query, 
-  orderBy, 
-  onSnapshot, 
+import {
+  collection,
+  addDoc,
+  query,
+  orderBy,
+  onSnapshot,
   deleteDoc,
   getDocs,
   DocumentData,
@@ -97,7 +97,7 @@ const VoiceAssistant = () => {
     if (user) {
       const messagesRef = collection(db, `users/${user.uid}/assistance`);
       const q = query(messagesRef, orderBy('timestamp', 'asc'));
-      
+
       const unsubscribe = onSnapshot(q, (snapshot) => {
         const newMessages = snapshot.docs.map(doc => ({
           id: doc.id,
@@ -121,7 +121,7 @@ const VoiceAssistant = () => {
       <div className="min-h-screen bg-gradient-to-b from-gray-100 to-white dark:from-gray-900 dark:to-black flex items-center justify-center">
         <div className="flex flex-col items-center gap-4">
           <div className="w-16 h-16 border-4 border-blue-500 border-t-transparent rounded-full animate-spin" />
-          <p className="text-gray-900 dark:text-white text-lg">Loading Rudra AI...</p>
+          <p className="text-gray-900 dark:text-white text-lg">Loading Neuro AI...</p>
         </div>
       </div>
     );
@@ -132,7 +132,7 @@ const VoiceAssistant = () => {
       <div className="min-h-screen bg-gradient-to-b from-gray-100 to-white dark:from-gray-900 dark:to-black flex items-center justify-center p-4">
         <div className="text-center">
           <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-4">Authentication Required</h2>
-          <p className="text-gray-600 dark:text-gray-300 mb-6">Please log in to use Rudra AI Assistant</p>
+          <p className="text-gray-600 dark:text-gray-300 mb-6">Please log in to use Neuro AI Assistant</p>
           <button
             onClick={() => router.push('/login')}
             className="px-6 py-3 bg-blue-500 hover:bg-blue-600 text-white rounded-lg transition-colors"
@@ -171,15 +171,15 @@ const VoiceAssistant = () => {
   const initSpeechRecognition = () => {
     if (typeof window !== 'undefined') {
       const SpeechRecognition = (window as unknown as IWebkitWindow).webkitSpeechRecognition;
-      
+
       if (SpeechRecognition) {
         // Clean up existing instance
         if (recognitionRef.current) {
           try {
             recognitionRef.current.stop();
-            recognitionRef.current.removeEventListener('result', () => {});
-            recognitionRef.current.removeEventListener('end', () => {});
-            recognitionRef.current.removeEventListener('error', () => {});
+            recognitionRef.current.removeEventListener('result', () => { });
+            recognitionRef.current.removeEventListener('end', () => { });
+            recognitionRef.current.removeEventListener('error', () => { });
             recognitionRef.current = null;
             setIsListening(false);
           } catch (error) {
@@ -246,7 +246,7 @@ const VoiceAssistant = () => {
               restartAttempts++;
               isRecognitionActive = false;
               await new Promise(resolve => setTimeout(resolve, RESTART_DELAY));
-              
+
               if (!isRecognitionActive && autoListen && !isProcessing) {
                 try {
                   recognitionInstance.start();
@@ -281,12 +281,12 @@ const VoiceAssistant = () => {
           if (noSpeechTimer) {
             clearTimeout(noSpeechTimer);
           }
-          
+
           isRecognitionActive = false;
-          
+
           if (autoListen && !isProcessing) {
             await new Promise(resolve => setTimeout(resolve, 300));
-            
+
             if (!isRecognitionActive && restartAttempts < MAX_RESTART_ATTEMPTS) {
               try {
                 recognitionInstance.start();
@@ -312,18 +312,18 @@ const VoiceAssistant = () => {
           restartAttempts = 0;
 
           const result = event.results[event.results.length - 1];
-          
+
           if (result.isFinal) {
             const transcript = result[0].transcript.trim();
             const currentTime = Date.now();
-            
-            if (transcript && 
-                transcript !== currentTranscript && 
-                currentTime - lastSentTime > 1000) {
+
+            if (transcript &&
+              transcript !== currentTranscript &&
+              currentTime - lastSentTime > 1000) {
               isProcessing = true;
               currentTranscript = transcript;
               lastSentTime = currentTime;
-              
+
               try {
                 setInputText(transcript);
                 await handleSend(transcript);
@@ -403,7 +403,7 @@ const VoiceAssistant = () => {
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ 
+        body: JSON.stringify({
           message: messageText,
           language: 'en',
           context: messages.slice(-5).map(msg => ({
@@ -443,7 +443,7 @@ const VoiceAssistant = () => {
     } catch (error) {
       console.error('Error in handleSend:', error);
       const errorMessage = "Sorry, an error occurred while processing your request. Please check your connection and try again.";
-      
+
       await addDoc(collection(db, `users/${user.uid}/assistance`), {
         text: errorMessage,
         sender: 'assistant' as const,
@@ -477,10 +477,10 @@ const VoiceAssistant = () => {
           // Load and set voice
           const loadVoices = () => {
             const voices = window.speechSynthesis.getVoices();
-            const preferredVoice = voices.find(voice => 
-              voice.name.toLowerCase().includes('google') && 
+            const preferredVoice = voices.find(voice =>
+              voice.name.toLowerCase().includes('google') &&
               voice.lang === 'en-US'
-            ) || voices.find(voice => 
+            ) || voices.find(voice =>
               voice.lang === 'en-US'
             ) || voices[0];
 
@@ -545,7 +545,7 @@ const VoiceAssistant = () => {
     try {
       const q = query(collection(db, `users/${user.uid}/assistance`));
       const snapshot = await getDocs(q);
-      
+
       await Promise.all(snapshot.docs.map(doc => deleteDoc(doc.ref)));
       setMessages([]);
     } catch (error) {
@@ -556,7 +556,7 @@ const VoiceAssistant = () => {
   return (
     <div className="flex flex-col h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 dark:from-gray-900 dark:via-indigo-950 dark:to-purple-950 pt-[15px]">
       {/* Chat Container with margins for navbar and bottom menu */}
-      <div 
+      <div
         ref={chatContainerRef}
         className="flex-1 overflow-y-auto px-4 py-2 space-y-4 mb-[50px]"
         style={{
@@ -575,16 +575,14 @@ const VoiceAssistant = () => {
             {groupedMessages[date].map((message) => (
               <div
                 key={message.id}
-                className={`flex ${
-                  message.sender === 'user' ? 'justify-end' : 'justify-start'
-                } mb-4`}
+                className={`flex ${message.sender === 'user' ? 'justify-end' : 'justify-start'
+                  } mb-4`}
               >
                 <div
-                  className={`max-w-[80%] rounded-lg p-3 ${
-                    message.sender === 'user'
+                  className={`max-w-[80%] rounded-lg p-3 ${message.sender === 'user'
                       ? 'bg-gradient-to-r from-blue-500 to-indigo-600 text-white'
                       : 'bg-gradient-to-r from-gray-100 to-gray-200 dark:from-gray-700 dark:to-gray-800 text-gray-900 dark:text-white'
-                  } shadow-md backdrop-blur-sm border ${message.sender === 'user' ? 'border-blue-400/30' : 'border-gray-300/30 dark:border-gray-600/30'}`}
+                    } shadow-md backdrop-blur-sm border ${message.sender === 'user' ? 'border-blue-400/30' : 'border-gray-300/30 dark:border-gray-600/30'}`}
                 >
                   <pre className="whitespace-pre-wrap font-sans text-sm md:text-base leading-relaxed">
                     {formatMessage(message.text)}
@@ -603,7 +601,7 @@ const VoiceAssistant = () => {
                   <div className="w-3 h-3 bg-gradient-to-r from-indigo-400 to-blue-500 rounded-full animate-pulse" style={{ animationDelay: '300ms' }} />
                   <div className="w-3 h-3 bg-gradient-to-r from-indigo-400 to-blue-500 rounded-full animate-pulse" style={{ animationDelay: '600ms' }} />
                 </div>
-                <span className="text-gray-600 dark:text-gray-300 text-sm font-medium">Rudra is thinking...</span>
+                <span className="text-gray-600 dark:text-gray-300 text-sm font-medium">Neuro is thinking...</span>
               </div>
             </div>
           </div>
@@ -626,7 +624,7 @@ const VoiceAssistant = () => {
                 className="w-full rounded-full px-4 py-2.5 md:py-3 bg-white/70 dark:bg-gray-800/70 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 shadow-inner text-sm md:text-base border border-gray-200/50 dark:border-gray-700/50 backdrop-blur-sm"
               />
             </div>
-            
+
             {/* Voice Control Button */}
             <button
               onClick={stopSpeech}
@@ -643,7 +641,7 @@ const VoiceAssistant = () => {
                 </svg>
               )}
             </button>
-            
+
             {/* Clear Chat Button */}
             <button
               onClick={async () => {
@@ -664,7 +662,7 @@ const VoiceAssistant = () => {
             >
               <BsTrash className="w-4 h-4 md:w-5 md:h-5" />
             </button>
-            
+
             {/* Send Button */}
             <button
               onClick={() => handleSend()}

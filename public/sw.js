@@ -41,7 +41,7 @@ self.addEventListener('fetch', event => {
                 }
                 return fetch(event.request)
                     .then(response => {
-                        if (!response || response.status !== 200 || response.type !== 'basic') {
+                        if (!response || response.status !== 200 || response.type !== 'basic' || event.request.method !== 'GET') {
                             return response;
                         }
                         const responseToCache = response.clone();
