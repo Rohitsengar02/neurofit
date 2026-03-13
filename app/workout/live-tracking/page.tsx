@@ -97,12 +97,41 @@ export default function LiveTrackingPage() {
     if (results.landmarks && results.landmarks[0]) {
       const landmarks = results.landmarks[0]
       
-      // Draw landmarks simplified
+      // 1. Draw Skeleton Lining (Connections)
+      const connections = [
+        [11, 12], [11, 13], [13, 15], [12, 14], [14, 16], // Upper body
+        [11, 23], [12, 24], [23, 24], // Torso
+        [23, 25], [25, 27], [24, 26], [26, 28] // Lower body
+      ];
+
+      ctx.strokeStyle = "rgba(59, 130, 246, 0.6)" // Semi-transparent blue
+      ctx.lineWidth = 3
+      connections.forEach(([i, j]) => {
+        const p1 = landmarks[i]
+        const p2 = landmarks[j]
+        if (p1 && p2 && p1.visibility > 0.5 && p2.visibility > 0.5) {
+          ctx.beginPath()
+          ctx.moveTo(p1.x * canvas.width, p1.y * canvas.height)
+          ctx.lineTo(p2.x * canvas.width, p2.y * canvas.height)
+          ctx.stroke()
+        }
+      })
+
+      // 2. Draw Landmark Points
       ctx.fillStyle = "#3b82f6"
-      landmarks.forEach((point: any) => {
-        ctx.beginPath()
-        ctx.arc(point.x * canvas.width, point.y * canvas.height, 4, 0, 2 * Math.PI)
-        ctx.fill()
+      landmarks.forEach((point: any, index: number) => {
+        // Only draw key joints for cleaner look
+        if (index > 10 && point.visibility > 0.5) {
+          ctx.beginPath()
+          ctx.arc(point.x * canvas.width, point.y * canvas.height, 5, 0, 2 * Math.PI)
+          ctx.fill()
+          // Inner glow
+          ctx.fillStyle = "#60a5fa"
+          ctx.beginPath()
+          ctx.arc(point.x * canvas.width, point.y * canvas.height, 2, 0, 2 * Math.PI)
+          ctx.fill()
+          ctx.fillStyle = "#3b82f6"
+        }
       })
 
       // EXERCISE COUNTER LOGIC

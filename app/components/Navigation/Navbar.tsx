@@ -33,7 +33,7 @@ const Navbar: React.FC<NavbarProps> = ({ setIsMobileOpen }) => {
       if (user) {
         // Set up real-time listener for user data
         const userDocRef = doc(db, 'users', user.uid);
-        
+
         // Initial fetch
         const docSnap = await getDoc(userDocRef);
         if (docSnap.exists()) {
@@ -82,7 +82,7 @@ const Navbar: React.FC<NavbarProps> = ({ setIsMobileOpen }) => {
   };
 
   return (
-    <div className="h-24 bg-white dark:bg-zinc-900 flex items-center justify-between px-6 fixed right-0 left-0 md:left-[72px] top-0 z-40 transition-all duration-300 border-b border-gray-100 dark:border-zinc-800">
+    <div className="h-12 bg-white dark:bg-zinc-900 flex items-center justify-between px-6 fixed right-0 left-0 md:left-[72px] top-0 z-40 transition-all duration-300 border-b border-gray-100 dark:border-zinc-800">
       {/* Greeting and User Info */}
       <div className="flex flex-col">
         <span className="text-gray-400 text-sm font-medium">Hello,</span>
@@ -94,14 +94,14 @@ const Navbar: React.FC<NavbarProps> = ({ setIsMobileOpen }) => {
       {/* App Style Action Bar */}
       <div className="flex items-center gap-3">
         {/* Search Toggle */}
-        <button className="w-10 h-10 flex items-center justify-center bg-gray-50 dark:bg-zinc-800 rounded-2xl text-gray-400 hover:text-[#a20bdb] transition-all">
+        <button className="w-9 h-9 flex items-center justify-center bg-gray-50 dark:bg-zinc-800 rounded-xl text-gray-400 hover:text-[#a20bdb] transition-all">
           <FaSearch className="w-4 h-4" />
         </button>
 
         {/* Notifications */}
-        <button className="relative w-10 h-10 flex items-center justify-center bg-gray-50 dark:bg-zinc-800 rounded-2xl text-gray-400 hover:text-[#a20bdb] transition-all">
+        <button className="relative w-9 h-9 flex items-center justify-center bg-gray-50 dark:bg-zinc-800 rounded-xl text-gray-400 hover:text-[#a20bdb] transition-all">
           <FaBell className="w-4 h-4" />
-          <span className="absolute top-2.5 right-2.5 w-2 h-2 bg-orange-500 rounded-full border-2 border-white dark:border-zinc-900"></span>
+          <span className="absolute top-2 right-2 w-2 h-2 bg-orange-500 rounded-full border-2 border-white dark:border-zinc-900"></span>
         </button>
 
         {/* Theme Toggle Integration */}
@@ -113,7 +113,7 @@ const Navbar: React.FC<NavbarProps> = ({ setIsMobileOpen }) => {
         <div className="relative ml-2">
           <motion.button
             onClick={() => setIsOpen(!isOpen)}
-            className="w-12 h-12 rounded-2xl overflow-hidden bg-gray-100 dark:bg-zinc-800 border-2 border-white dark:border-zinc-700 shadow-sm"
+            className="w-10 h-10 rounded-xl overflow-hidden bg-gray-100 dark:bg-zinc-800 border-2 border-white dark:border-zinc-700 shadow-sm"
             whileTap={{ scale: 0.95 }}
           >
             <img

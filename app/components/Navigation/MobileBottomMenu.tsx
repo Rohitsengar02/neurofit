@@ -36,14 +36,14 @@ const moreMenuItems: Tab[] = [
   { id: 'steps', label: 'Steps', icon: FaWalking, color: 'from-blue-400 to-blue-600', href: '/pages/steps' },
   { id: 'rewards', label: 'Neurons', icon: BsTrophy, color: 'from-yellow-400 to-orange-500', href: '/pages/rewards' },
   { id: 'doctors', label: 'Doctors', icon: FaUserMd, color: 'from-blue-500 to-indigo-600', href: '/pages/doctors' },
-  { id: 'liveAI', label: 'Live AI', icon: FaCamera, color: 'from-red-500 to-rose-600', href: '/workout/live-tracking' },
+  { id: 'liveAI', label: 'Live AI', icon: FaCamera, color: 'from-orange-500 to-red-600', href: '/workout/live-tracking' },
   { id: 'suggestion', label: 'Suggestion', icon: MdFeedback, color: 'from-violet-400 to-violet-600', href: '/pages/contact' }
 ];
 
 const bottomTabs: Tab[] = [
   { id: 'home', label: 'Home', icon: FaHome, color: 'from-blue-500 to-blue-700', href: '/' },
   { id: 'workouts', label: 'Workouts', icon: GiMuscleUp, color: 'from-purple-500 to-purple-700', href: '/pages/workout' },
-  { id: 'liveAI', label: 'Live AI', icon: FaCamera, color: 'from-red-500 to-rose-600', href: '/workout/live-tracking' },
+  { id: 'shop', label: 'Shop', icon: FaStore, color: 'from-orange-400 to-orange-600', href: '/pages/shop' },
   { id: 'assistant', label: 'Assistant', icon: BsRobot, color: 'from-cyan-500 to-cyan-700', href: '/assistant' },
   { id: 'more', label: 'More', icon: BsGrid3X3GapFill, color: 'from-gray-500 to-gray-700' },
 ];

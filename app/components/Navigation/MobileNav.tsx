@@ -17,11 +17,11 @@ export default function MobileNav() {
   const pathname = usePathname();
 
   return (
-    <div className="fixed bottom-6 left-0 right-0 px-6 z-50 md:hidden">
+    <div className="fixed bottom-4 left-0 right-0 px-6 z-50 md:hidden">
       <motion.nav 
         initial={{ y: 100, opacity: 0 }}
         animate={{ y: 0, opacity: 1 }}
-        className="bg-white/80 dark:bg-zinc-900/80 backdrop-blur-xl border border-white/20 dark:border-zinc-800/50 rounded-[2.5rem] shadow-2xl shadow-indigo-500/10 h-20 px-4 flex items-center justify-between"
+        className="bg-white/80 dark:bg-zinc-900/80 backdrop-blur-xl border border-white/20 dark:border-zinc-800/50 rounded-[2rem] shadow-2xl shadow-indigo-500/10 h-16 px-4 flex items-center justify-between"
       >
         {navItems.map((item) => {
           const isActive = pathname === item.href;
