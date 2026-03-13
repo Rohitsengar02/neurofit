@@ -4,7 +4,7 @@ import React from 'react';
 import { motion } from 'framer-motion';
 import { 
   FaUserInjured, FaCalendarCheck, FaClock, FaChartLine, 
-  FaUserFriends, FaRegStar, FaBell, FaSearch, FaEllipsisV
+  FaUserFriends, FaRegStar, FaBell, FaSearch, FaEllipsisV, FaCommentDots
 } from 'react-icons/fa';
 import MainLayout from '@/app/components/Layout/MainLayout';
 import Link from 'next/link';
@@ -143,8 +143,22 @@ export default function DoctorDashboard() {
           {/* Action Center */}
           <div className="grid grid-cols-2 gap-4 pb-10">
             <Link 
-              href="/pages/doctor-panel/patients"
+              href="/pages/doctor-panel/chats"
+              className="bg-pink-500 text-white p-6 rounded-[2rem] shadow-xl shadow-pink-100 dark:shadow-none flex flex-col items-center gap-3 transition-transform hover:scale-[1.02]"
+            >
+              <FaCommentDots className="w-6 h-6" />
+              <span className="font-bold text-sm">Patient Chats</span>
+            </Link>
+            <Link 
+              href="/pages/doctor-panel/appointments"
               className="bg-indigo-500 text-white p-6 rounded-[2rem] shadow-xl shadow-indigo-100 dark:shadow-none flex flex-col items-center gap-3 transition-transform hover:scale-[1.02]"
+            >
+              <FaCalendarCheck className="w-6 h-6" />
+              <span className="font-bold text-sm">All Schedule</span>
+            </Link>
+            <Link 
+              href="/pages/doctor-panel/patients"
+              className="bg-white dark:bg-gray-800 text-gray-900 dark:text-white p-6 rounded-[2rem] shadow-sm flex flex-col items-center gap-3 border border-gray-100 dark:border-gray-800 transition-transform hover:scale-[1.02]"
             >
               <FaUserFriends className="w-6 h-6" />
               <span className="font-bold text-sm">Patient List</span>

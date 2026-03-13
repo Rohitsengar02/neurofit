@@ -124,3 +124,19 @@ export const submitDoctorApplication = async (application: Omit<DoctorApplicatio
     throw error;
   }
 };
+
+// Check if a user is an approved doctor
+export const checkIfUserIsDoctor = async (userId: string) => {
+  try {
+    const q = query(
+      collection(db, 'doctor_applications'), 
+      where('userId', '==', userId),
+      where('status', '==', 'approved')
+    );
+    const querySnapshot = await getDocs(q);
+    return !querySnapshot.empty;
+  } catch (error) {
+    console.error('Error checking doctor status:', error);
+    return false;
+  }
+};

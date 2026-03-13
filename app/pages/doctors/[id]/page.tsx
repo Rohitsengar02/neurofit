@@ -11,13 +11,37 @@ import { useRouter, useParams } from 'next/navigation';
 import MainLayout from '@/app/components/Layout/MainLayout';
 import { doctorsData } from '@/app/data/doctorsData';
 import Link from 'next/link';
+import { useAuth } from '@/app/context/AuthContext';
+import { getOrCreateChatSession } from '@/app/services/chatService';
 
 export default function DoctorDetailPage() {
   const router = useRouter();
   const params = useParams();
   const id = params.id as string;
+  const { user } = useAuth();
   
   const doctor = doctorsData.find(doc => doc.id === id);
+
+  const handleStartChat = async () => {
+    if (!user) {
+      alert('Please log in to chat with the doctor');
+      return;
+    }
+    if (!doctor) return;
+
+    try {
+      await getOrCreateChatSession(
+        user.uid, 
+        doctor.id, 
+        user.displayName || 'Patient', 
+        doctor.name
+      );
+      router.push('/pages/chats');
+    } catch (err) {
+      console.error('Error starting chat:', err);
+      alert('Failed to start chat');
+    }
+  };
 
   if (!doctor) {
     return <div>Doctor not found</div>;
@@ -107,13 +131,22 @@ export default function DoctorDetailPage() {
               </div>
             </div>
 
-            {/* Book Button */}
-            <Link
-              href={`/pages/doctors/${doctor.id}/book`}
-              className="w-full flex items-center justify-center gap-3 bg-indigo-500 py-4 rounded-[1.5rem] text-white font-bold text-lg shadow-xl shadow-indigo-200 dark:shadow-none hover:bg-indigo-600 transition-all active:scale-95"
-            >
-              Book Appointment
-            </Link>
+            {/* Action Buttons */}
+            <div className="flex gap-4">
+              <button
+                onClick={handleStartChat}
+                className="flex-1 flex items-center justify-center gap-3 bg-white dark:bg-gray-800 py-4 rounded-[1.5rem] text-gray-700 dark:text-gray-200 font-bold text-lg border border-gray-100 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700 transition-all active:scale-95 shadow-sm"
+              >
+                <FaComments className="text-pink-500" />
+                Message
+              </button>
+              <Link
+                href={`/pages/doctors/${doctor.id}/book`}
+                className="flex-[2] flex items-center justify-center gap-3 bg-indigo-500 py-4 rounded-[1.5rem] text-white font-bold text-lg shadow-xl shadow-indigo-200 dark:shadow-none hover:bg-indigo-600 transition-all active:scale-95"
+              >
+                Book Appointment
+              </Link>
+            </div>
           </div>
         </div>
       </div>

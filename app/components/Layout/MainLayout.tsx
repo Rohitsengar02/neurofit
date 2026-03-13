@@ -4,6 +4,7 @@ import React, { useEffect, useState } from 'react';
 import MobileBottomMenu from '../Navigation/MobileBottomMenu';
 import Navbar from '../Navigation/Navbar';
 import Sidebar from '../Navigation/Sidebar';
+import FloatingMedicalMenu from '../Medical/FloatingMedicalMenu';
 import { LayoutProvider, useLayout } from '@/app/context/LayoutContext';
 import { usePathname } from 'next/navigation';
 import { onAuthStateChanged } from 'firebase/auth';
@@ -89,6 +90,9 @@ const LayoutContent = ({ children }: { children: React.ReactNode }) => {
           <MobileBottomMenu />
         </div>
       )}
+
+      {/* Floating Medical Menu */}
+      <FloatingMedicalMenu />
     </div>
   );
 };
