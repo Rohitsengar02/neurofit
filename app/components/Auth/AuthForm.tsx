@@ -12,6 +12,7 @@ import {
   AuthError
 } from 'firebase/auth';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 
 interface AuthFormProps {
   onSuccess?: () => void;
@@ -44,7 +45,8 @@ const initialUserData: UserData = {
   dailyRoutine: {
     wakeUpTime: '',
     sleepTime: '',
-    mealtimes: []
+    mealtimes: [],
+    workHours: 0
   },
   exercisePreferences: {
     preferredExercises: [],
@@ -367,6 +369,24 @@ export default function AuthForm({ onSuccess }: AuthFormProps) {
               >
                 {isLogin ? "Don't have an account? Sign Up" : "Already have an account? Sign In"}
               </button>
+            </motion.div>
+
+            {/* Legal Links */}
+            <motion.div 
+              className="mt-6 flex flex-wrap justify-center gap-x-4 gap-y-2 text-[10px] text-blue-200/50 uppercase tracking-widest font-semibold"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ delay: 0.7 }}
+            >
+              <Link href="/privacy-policy" className="hover:text-white transition-colors">
+                Privacy Policy
+              </Link>
+              <Link href="/return-and-refund" className="hover:text-white transition-colors">
+                Return & Refund
+              </Link>
+              <Link href="/child-protection" className="hover:text-white transition-colors">
+                Child Protection
+              </Link>
             </motion.div>
           </motion.form>
         </div>
