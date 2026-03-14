@@ -23,7 +23,9 @@ import {
   FaHeart,
   FaNewspaper,
   FaRunning,
-  FaWalking
+  FaWalking,
+  FaUserMd,
+  FaCamera
 } from 'react-icons/fa';
 import { RiCommunityFill, RiTeamFill } from 'react-icons/ri';
 import { BsGrid3X3GapFill, BsRobot, BsTrophy } from 'react-icons/bs';
@@ -41,42 +43,39 @@ const menuSections = [
   {
     title: 'Main',
     items: [
-      { icon: FaHome, label: 'Home', path: '/' },
-      { icon: FaDumbbell, label: 'Workouts', path: '/workout' },
-      { icon: FaRunning, label: 'Exercises', path: '/exercises' },
-      { icon: GiWeightLiftingUp, label: 'Custom Workout', path: '/workout-planner' },
-      { icon: FaUtensils, label: 'Nutrition', path: '/nutrition' },
-      { icon: MdRestaurant, label: 'Diet', path: '/diet' },
-      { icon: FaChartLine, label: 'Progress', path: '/progress' },
-      { icon: FaCalendarAlt, label: 'Schedule', path: '/schedule' },
+      { icon: FaHome, label: 'Home', path: '/', color: 'from-blue-500 to-blue-700' },
+      { icon: GiMuscleUp, label: 'Workouts', path: '/pages/workout', color: 'from-purple-500 to-purple-700' },
+      { icon: FaRunning, label: 'Exercises', path: '/exercises', color: 'from-indigo-400 to-indigo-600' },
+      { icon: GiWeightLiftingUp, label: 'Custom Workout', path: '/workout-planner', color: 'from-cyan-400 to-cyan-600' },
+      { icon: FaCamera, label: 'Live AI Tracking', path: '/workout/live-tracking', color: 'from-orange-500 to-red-600' },
     ]
   },
   {
     title: 'Wellness',
     items: [
-      { icon: FaBrain, label: 'Mental', path: '/pages/mental' },
-      { icon: FaSpa, label: 'Relax', path: '/pages/relax' },
-      { icon: FaWalking, label: 'Steps', path: '/pages/steps' },
+      { icon: FaBrain, label: 'Mental', path: '/pages/mental', color: 'from-purple-400 to-purple-600' },
+      { icon: FaSpa, label: 'Relax', path: '/pages/relax', color: 'from-pink-400 to-pink-600' },
+      { icon: FaWalking, label: 'Steps', path: '/pages/steps', color: 'from-blue-400 to-blue-600' },
+      { icon: FaAppleAlt, label: 'Nutrition', path: '/nutrition', color: 'from-green-400 to-green-600' },
+      { icon: MdRestaurant, label: 'Diet', path: '/diet', color: 'from-orange-400 to-orange-600' },
     ]
   },
   {
-    title: 'Community',
+    title: 'Social & Rewards',
     items: [
-      { icon: FaUsers, label: 'Community', path: '/pages/community' },
-      { icon: RiTeamFill, label: 'Team', path: '/team' },
-      { icon: FaNewspaper, label: 'Blog', path: '/blog' },
+      { icon: FaUsers, label: 'Community', path: '/pages/community', color: 'from-green-500 to-green-700' },
+      { icon: FaUserMd, label: 'Doctors', path: '/pages/doctors', color: 'from-blue-500 to-indigo-600' },
+      { icon: FaNewspaper, label: 'Blog', path: '/blog', color: 'from-teal-400 to-teal-600' },
+      { icon: BsTrophy, label: 'Neurons', path: '/pages/rewards', color: 'from-yellow-400 to-orange-500' },
     ]
   },
   {
-    title: 'More',
+    title: 'Support',
     items: [
-      { icon: BsRobot, label: 'Assistant', path: '/assistant' },
-      { icon: BsTrophy, label: 'Neurons', path: '/pages/rewards' },
-      { icon: FaStore, label: 'Shop', path: '/pages/shop' },
-      { icon: FaUser, label: 'Profile', path: '/profile' },
-      { icon: MdFeedback, label: 'Suggestion', path: '/pages/contact' },
-      { icon: FaCog, label: 'Settings', path: '/settings' },
-      { icon: FaQuestionCircle, label: 'Help', path: '/help' },
+      { icon: FaStore, label: 'Shop', path: '/pages/shop', color: 'from-orange-400 to-orange-600' },
+      { icon: BsRobot, label: 'Assistant', path: '/assistant', color: 'from-cyan-500 to-cyan-700' },
+      { icon: MdFeedback, label: 'Suggestion', path: '/pages/contact', color: 'from-violet-400 to-violet-600' },
+      { icon: FaCog, label: 'Settings', path: '/settings', color: 'from-gray-500 to-gray-700' },
     ]
   }
 ];
